@@ -1,0 +1,20 @@
+{
+  "name": "root-lab",
+  "version": "0.1.0",
+  "description": "La app y la nube de ROOTKIT: vinculación por QR, cofre, identificación por foto, tablero de plantas y notificaciones.",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.mjs",
+    "dev": "node --watch server/index.mjs",
+    "test": "node --test test/*.test.mjs",
+    "firmware": "node tools/sincronizar-firmware.mjs"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

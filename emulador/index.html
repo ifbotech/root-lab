@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emulador ROOTKIT</title>
+<link rel="icon" href="/iconos/icono-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap">
+<link rel="stylesheet" href="/emulador/emulador.css">
+</head>
+<body>
+<header class="cab">
+  <h1>ROOT<span>KIT</span> <small>emulador</small></h1>
+  <p>Un ROOTKIT virtual que corre el firmware real (compilado a WebAssembly) y habla con este servidor igual que la placa.</p>
+</header>
+
+<main class="banco">
+  <section class="maceta-zona" aria-label="El aparato">
+    <div class="carcasa" id="carcasa">
+      <div class="bisel"><canvas id="pantalla" width="240" height="320" aria-label="Pantalla del ROOTKIT"></canvas></div>
+      <button type="button" class="boton-fisico" id="boton" aria-label="Botón: tocar, o mantener 10 segundos para reiniciar"></button>
+    </div>
+    <div class="maceta" aria-hidden="true"></div>
+    <p class="estado-linea" id="estado-linea">arrancando…</p>
+  </section>
+
+  <section class="controles">
+    <div class="tarjeta">
+      <h2>Vínculo</h2>
+      <dl class="datos">
+        <div><dt>Estado</dt><dd id="d-estado">—</dd></div>
+        <div><dt>Código</dt><dd id="d-codigo" class="mono">—</dd></div>
+        <div><dt>Red del portal</dt><dd id="d-ssid" class="mono">—</dd></div>
+        <div><dt>Época</dt><dd id="d-epoca">—</dd></div>
+      </dl>
+      <p class="qr-destino">El QR lleva a <a id="d-url" target="_blank" rel="noopener">—</a></p>
+      <div class="fila">
+        <button type="button" class="btn verde" id="b-wifi">Pasarle el wifi</button>
+        <button type="button" class="btn" id="b-abrir">Abrir la app</button>
+      </div>
+      <div class="fila">
+        <label class="caja"><input type="checkbox" id="c-cortar"> Cortar internet</label>
+        <label class="caja">Pantalla
+          <select id="s-panel"><option value="240">2,2" 240x320</option><option value="128">1,44" 128x128</option></select>
+        </label>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Sensores</h2>
+      <label class="deslizador">Tierra <b id="v-suelo"></b><input type="range" id="r-suelo" min="0" max="100" value="42"></label>
+      <label class="deslizador">Temperatura <b id="v-temp"></b><input type="range" id="r-temp" min="0" max="450" value="232"></label>
+      <label class="deslizador">Humedad del aire <b id="v-hr"></b><input type="range" id="r-hr" min="0" max="100" value="58"></label>
+      <label class="deslizador">Luz <b id="v-lux"></b><input type="range" id="r-lux" min="0" max="1000" value="620"></label>
+      <label class="deslizador">Batería <b id="v-bat"></b><input type="range" id="r-bat" min="3000" max="4200" step="10" value="3920"></label>
+      <div class="fila">
+        <label class="caja"><input type="checkbox" id="c-usb"> USB</label>
+        <label class="caja"><input type="checkbox" id="c-falla-aire"> AHT20 roto</label>
+      </div>
+      <div class="fila">
+        <button type="button" class="btn" id="b-medir">Medir ahora</button>
+        <button type="button" class="btn" id="b-regar">Regar</button>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Fábrica</h2>
+      <label class="caja">Personaje grabado
+        <select id="s-persona">
+          <option value="">ninguno (el cofre tira)</option>
+          <option value="cresta">Cresta</option>
+          <option value="kawaii">Kawaii</option>
+          <option value="visor">Visor</option>
+          <option value="ciclope">Cíclope</option>
+          <option value="hongo">Hongo</option>
+          <option value="glitch">????? (secreto)</option>
+        </select>
+      </label>
+      <div class="fila">
+        <button type="button" class="btn rojo" id="b-reset">Mantener 10 s</button>
+        <button type="button" class="btn" id="b-nuevo">Aparato nuevo</button>
+      </div>
+      <details><summary>Última conversación con la nube</summary><pre id="log"></pre></details>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="/emulador/emulador.mjs"></script>
+</body>
+</html>

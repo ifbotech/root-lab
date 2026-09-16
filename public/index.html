@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover + safe-area en el CSS: a pantalla completa en un
+     iPhone, sin esto la barra de abajo queda debajo del indicador de inicio. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0c1a22">
+<meta name="description" content="Tu ROOTKIT: la cara de tu planta, lo que necesita y cuándo.">
+<title>ROOTKIT</title>
+
+<link rel="manifest" id="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap">
+<link rel="stylesheet" href="/style.css">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ROOTKIT">
+<link rel="apple-touch-icon" href="/iconos/apple-touch-icon.png">
+<link rel="icon" href="/iconos/icono-192.png" sizes="192x192">
+<link rel="preload" href="/caras/rootkit_caras.wasm" as="fetch" type="application/wasm" crossorigin>
+</head>
+<body>
+
+<header class="barra" id="barra">
+  <a class="marca" href="/" aria-label="ROOTKIT, inicio">ROOT<span>KIT</span></a>
+  <div class="barra-der" id="barra-der"></div>
+</header>
+
+<main id="vista" class="contenido" tabindex="-1"></main>
+
+<nav class="tabs" id="tabs" aria-label="Secciones">
+  <button type="button" class="tab" data-vista="hoy">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 L12 4 L20 11 V20 H14 V14 H10 V20 H4 Z"/></svg>
+    <span>Hoy</span><b class="globo" id="globo-hoy" hidden></b>
+  </button>
+  <button type="button" class="tab" data-vista="plantas">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21 V11 M12 11 C12 6 8 4 4 4 C4 8 6 11 12 11 Z M12 13 C12 9 15 7 20 7 C20 11 17 13 12 13 Z"/></svg>
+    <span>Plantas</span>
+  </button>
+  <button type="button" class="tab" data-vista="coleccion">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9 H21 V20 H3 Z M3 9 L5 4 H19 L21 9 M10 13 H14"/></svg>
+    <span>Colección</span>
+  </button>
+  <button type="button" class="tab" data-vista="ajustes">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15 a3 3 0 1 0 0-6 a3 3 0 0 0 0 6 Z M19 12 l2-1 -1-3 -2 .3 -1.3-1.3 .3-2 -3-1 -1 2 h-2 l-1-2 -3 1 .3 2 -1.3 1.3 -2-.3 -1 3 2 1 v2 l-2 1 1 3 2-.3 1.3 1.3 -.3 2 3 1 1-2 h2 l1 2 3-1 -.3-2 1.3-1.3 2 .3 1-3 -2-1 Z"/></svg>
+    <span>Ajustes</span>
+  </button>
+</nav>
+
+<p id="aviso" class="aviso" role="status" aria-live="polite" hidden></p>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>
