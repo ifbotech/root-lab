@@ -68,7 +68,8 @@ sólo cambia `db.mjs`.
 | `clima` | cuenta | el último pronóstico pedido a Open-Meteo para la ciudad de la cuenta (6 h) |
 | `cuidadores` | SHA-256 del token | planta, cuenta, nombre, hasta cuándo vale, usos: el enlace `/sitter/<token>` |
 | `riegos` | id | planta, hora, origen, quién: los riegos anotados a mano |
-| `meta` | clave | versión del esquema (4), marcas de alertas de gasto |
+| `fotos` | id | planta, cuenta, hora, tipo, **los bytes** (hasta 450 KB, 60 por planta), nota, origen: el álbum |
+| `meta` | clave | versión del esquema (5), marcas de alertas de gasto |
 
 **Migraciones.** `db.mjs` sabe llevar una base v1 (email en claro, scrypt) a
 v2: reconstruye `cuentas` cifrando cada email con la receta de 12 pasos de
@@ -101,7 +102,10 @@ días. En el VPS lo corre un timer de systemd todos los días, y
 PWA sin build: HTML, CSS y módulos ES. Se instala desde el QR, abre a
 pantalla completa y se actualiza sola. El service worker cachea el armazón y
 **nunca** los datos: una lectura vieja mostrada como actual hace regar una
-planta mojada.
+planta mojada. Lo que sí guarda la app, en IndexedDB y sabiendo de cuándo
+es, es lo último que vio: abre en menos de 100 ms sin red, con la píldora
+"Sin conexión", y los cambios hechos sin red esperan en una cola. Ver
+[sin-red.md](sin-red.md).
 
 Todas las rutas son relativas a la base donde está montada la app (en el
 VPS, `/rootkit`). El servidor escribe `<base href>` en cada página y el
@@ -113,6 +117,9 @@ de un dominio o debajo de una ruta.
 | `/v/<CÓDIGO>` | el alta de ese Rooti (o su planta, si ya es tuyo) |
 | `/desk/<id>`, `/#desk/<id>` | el modo escritorio: la cara sola, a pantalla completa |
 | `/sitter/<token>` | lo que ve el cuidador, sin sesión: la cara, qué necesita, "ya regué" |
+| `/#invernadero` | todos los Rooties en un estante, mirándose |
+| `/#album/<id>`, `/#pasaporte/<id>` | el álbum de fotos y el pasaporte botánico de una planta |
+| `/#camara`, `/#charla` | los atajos del ícono: van a la primera planta que sirva |
 | `/#hoy` | caras, tareas, contadores, nivel |
 | `/#plantas`, `/#planta/<id>` | lista y detalle (con la ficha de cuidados) |
 | `/#chat/<id>` | charla con la planta |

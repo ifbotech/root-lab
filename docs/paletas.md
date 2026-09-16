@@ -31,6 +31,24 @@ Autumn Leaf `#e85d04`, Dark Orange `#f48c06`, Orange `#faa307`, Amber Flame
 `#023e7d`, Prussian Blue `#002855` / `#001845` / `#001233`, Twilight Indigo
 `#33415c`, Blue Slate `#5c677d`, Slate Grey `#7d8597`, Cool Steel `#979dac`.
 
+## Las cosméticas: se ganan cuidando
+
+Además de las de los Rooties hay tres que no vienen de ningún cofre:
+
+| Paleta | Cómo es | Cómo se gana |
+|---|---|---|
+| **OLED Midnight** | negro absoluto (`#000000`) y verde fósforo / esmeralda; sin degradés, para pantallas OLED | libre |
+| **Cristal** | vidrio esmerilado: paneles translúcidos con desenfoque (`backdrop-filter`) sobre azul hielo, con luces de color detrás | el Rooti secreto, **o** una planta con 60 días sanos |
+| **Solar Gold** | oro y ámbar sobre marrón tostado | una planta con 180 días sanos |
+
+Cada una trae un `estilo` (`oled`, `cristal`, `solar`) que `tema.mjs` pone
+en `<html data-estilo>` para lo que los tokens no pueden decir, y un
+`requisito` que el servidor verifica al elegirla (`PATCH /api/cuenta`,
+`403` si no se cumple) con lo que sabe: la colección y los días sanos de
+cada planta. En Ajustes, el candado dice con qué se gana. El motor de
+contraste las trata como a las demás: en Cristal los paneles son
+translúcidos sobre el mismo fondo oscuro, así que el texto sigue leyéndose.
+
 ## Cómo se combinan: los roles
 
 Una paleta son sus colores **y los roles** de algunos de ellos. Los roles dicen

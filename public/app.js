@@ -20,9 +20,21 @@
  *
  * Sin cuenta sólo se ve el alta (que tiene su propio paso de cuenta), la
  * carga de un código y la pantalla de entrar. Todo lo demás pide entrar.
+ *
+ * LOCAL PRIMERO
+ *
+ * Con sesión, la app pinta lo último que vio (lib/almacen.mjs) antes de
+ * tocar la red, y después se pone al día. Sin red muestra eso mismo con la
+ * píldora "Sin conexión", y los cambios que se hagan esperan en una cola
+ * (lib/cola.mjs) que sale sola cuando vuelve la conexión.
  */
 import { $, h, render, icono } from './lib/ui.mjs';
-import { api, ErrorApi, tokenGuardado, guardarToken, borrarToken } from './lib/api.mjs';
+import {
+  api, ErrorApi, tokenGuardado, guardarToken, borrarToken, desdeCache, guardado, colaPendiente, alCambiarCola,
+  contarCola, sincronizar,
+} from './lib/api.mjs';
+import { aplicarCola } from './lib/cola.mjs';
+import { almacen } from './lib/almacen.mjs';
 import { tareasDelDia, contarEstados } from './lib/tareas.mjs';
 import { actualizarRacha } from './lib/gamificacion.mjs';
 import { cargarCaras } from './lib/caras.mjs';
@@ -37,6 +49,9 @@ import { vistaEntrar, vistaRestablecer, vistaVerificar } from './vistas/cuenta.m
 import { vistaChat } from './vistas/chat.mjs';
 import { vistaDesk } from './vistas/desk.mjs';
 import { vistaSitter } from './vistas/sitter.mjs';
+import { vistaAlbum } from './vistas/album.mjs';
+import { vistaPasaporte } from './vistas/pasaporte.mjs';
+import { vistaInvernadero } from './vistas/invernadero.mjs';
 import { aplicarPaleta } from './lib/tema.mjs';
 import { PALETA_POR_DEFECTO } from './lib/paletas.mjs';
 import { desactivarAvisos } from './lib/dispositivo.mjs';
@@ -66,6 +81,29 @@ function avisar(texto, esError = false) {
   el.hidden = false;
   clearTimeout(avisar.t);
   avisar.t = setTimeout(() => { el.hidden = true; }, 4200);
+}
+
+/* ----------------------------------------------------------- insignia --- */
+/* El número en el ícono de la app instalada (Badging API): las tareas de
+   hoy. Sin cuenta o sin tareas, se borra. Donde no existe, no pasa nada. */
+function insignia(n) {
+  if (typeof navigator.setAppBadge !== 'function') return;
+  (n > 0 && app.cuenta ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+}
+
+/* Los atajos del ícono (manifest: Regar, Ver cámara, Charla) llegan sin
+   planta: se resuelven a la primera que sirva. */
+function atajo(vista) {
+  const nodos = app.estado?.nodes || [];
+  if (vista === 'camara') {
+    const p = nodos.find((n) => n.revelado) || nodos[0];
+    return p ? `diagnostico/${p.id}` : 'agregar';
+  }
+  if (vista === 'charla') {
+    const p = nodos.find((n) => n.chat) || nodos.find((n) => n.revelado) || nodos[0];
+    return p ? (p.chat ? `chat/${p.id}` : `planta/${p.id}`) : 'agregar';
+  }
+  return 'hoy';
 }
 
 /* -------------------------------------------------------------- rutas --- */
@@ -100,10 +138,13 @@ async function recargar() {
   }
   try {
     app.estado = await api('/api/estado');
+    /* Sin red, lo guardado; con los cambios encolados encima, para que la
+       pantalla no desmienta lo que la persona acaba de hacer. */
+    app.sinRed = desdeCache();
+    if (app.sinRed) app.estado = aplicarCola(app.estado, (await almacen().leer('cola'))?.valor || []);
     app.cuenta = app.estado.cuenta || app.cuenta;
     /* La paleta es de la cuenta: si se cambió en otro teléfono, llega acá. */
     aplicarPaleta(app.cuenta?.paleta);
-    app.sinRed = false;
     const hoy = new Date().toISOString().slice(0, 10);
     const c = contarEstados(app.estado.nodes);
     app.racha = actualizarRacha(app.racha, c.urgente > 0, hoy);
@@ -269,14 +310,20 @@ function contexto() {
 
 const PESTANA = {
   hoy: 'hoy', plantas: 'plantas', planta: 'plantas', diagnostico: 'plantas', especie: 'plantas', chat: 'plantas',
-  desk: 'plantas', coleccion: 'coleccion', ajustes: 'ajustes',
+  desk: 'plantas', album: 'plantas', pasaporte: 'plantas', invernadero: 'hoy',
+  coleccion: 'coleccion', ajustes: 'ajustes',
 };
-const SIN_TABS = new Set(['alta', 'agregar', 'especie', 'entrar', 'clave', 'verificar', 'desk', 'sitter']);
+const SIN_TABS = new Set(['alta', 'agregar', 'especie', 'entrar', 'clave', 'verificar', 'desk', 'sitter', 'pasaporte']);
 /* Lo único que se ve sin sesión, además del alta. */
 const PUBLICAS = new Set(['agregar', 'entrar', 'clave', 'verificar', 'sitter']);
 
 function pintar() {
   const r = ruta();
+  if (app.cuenta && (r.vista === 'camara' || r.vista === 'charla')) {
+    history.replaceState(null, '', enBase(`#${atajo(r.vista)}`));
+    pintar();
+    return;
+  }
   const ctx = contexto();
   let vista;
   let sinTabs = false;
@@ -299,6 +346,9 @@ function pintar() {
       case 'chat': vista = vistaChat(ctx); break;
       case 'desk': vista = vistaDesk(ctx); break;
       case 'sitter': vista = vistaSitter(ctx); break;
+      case 'album': vista = vistaAlbum(ctx); break;
+      case 'pasaporte': vista = vistaPasaporte(ctx); break;
+      case 'invernadero': vista = vistaInvernadero(ctx); break;
       case 'plantas': vista = vistaPlantas(ctx); break;
       case 'planta': vista = vistaDetalle(ctx); break;
       case 'diagnostico': vista = vistaDiagnostico(ctx); break;
@@ -325,9 +375,13 @@ function pintar() {
   const globo = $('#globo-hoy');
   globo.textContent = n > 9 ? '9+' : String(n);
   globo.hidden = n === 0;
+  insignia(n);
 
   render($('#barra-der'),
     app.sinRed ? h('span', { class: 'pildora sinred' }, icono('antena', 18), 'Sin conexión') : null,
+    colaPendiente() > 0
+      ? h('span', { class: 'pildora cola', title: 'Cambios hechos sin conexión: salen solos cuando vuelve la red' }, icono('reloj', 18), `${colaPendiente()} por mandar`)
+      : null,
     !sinTabs && app.racha.dias > 0
       ? h('span', { class: 'pildora fuego', title: 'Días seguidos sin urgencias' }, icono('llama', 18), String(app.racha.dias))
       : null);
@@ -341,7 +395,7 @@ async function refrescar() {
   const r = ruta();
   /* La charla y el diagnóstico no se repintan solos: se perdería lo escrito.
      El modo escritorio sí: es la cara en vivo. */
-  if (document.hidden || r.codigo || (SIN_TABS.has(r.vista) && r.vista !== 'desk') || r.vista === 'diagnostico' || r.vista === 'chat') return;
+  if (document.hidden || r.codigo || (SIN_TABS.has(r.vista) && r.vista !== 'desk') || ['diagnostico', 'chat', 'album', 'pasaporte'].includes(r.vista)) return;
   const antes = app.firma;
   const sinRedAntes = app.sinRed;
   await recargar();
@@ -366,7 +420,26 @@ async function inicio() {
     navigator.serviceWorker.register(enBase('sw.js'), { scope: enBase('') }).catch(() => {});
   }
 
-  app.config = await api('/api/config').catch(() => null);
+  /* Local primero: lo último que se vio, pintado antes de tocar la red. */
+  if (tokenGuardado() && !ruta().codigo) {
+    const [cta, est, cfg] = await Promise.all([guardado('/api/cuenta'), guardado('/api/estado'), guardado('/api/config')]);
+    /* La cuenta viaja también dentro del estado: alcanza con haber visto
+       el tablero una vez. */
+    const cuentaGuardada = cta?.datos || est?.datos?.cuenta || null;
+    if (cuentaGuardada && est?.datos) {
+      app.cuenta = cuentaGuardada;
+      app.estado = est.datos;
+      app.config = cfg?.datos || null;
+      app.sinRed = navigator.onLine === false;
+      aplicarPaleta(app.cuenta?.paleta);
+      pintar();
+    }
+  }
+  contarCola();
+  alCambiarCola(() => pintar());
+  window.addEventListener('online', async () => { await sincronizar(); await recargar(); pintar(); });
+
+  app.config = await api('/api/config').catch(() => app.config);
   if (tokenGuardado()) {
     try {
       app.cuenta = await api('/api/cuenta');

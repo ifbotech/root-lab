@@ -27,6 +27,11 @@ reglas de `server/avisos.mjs` son, antes que nada, de restricción.
 5. **Cada aviso dice qué hacer, con el número.** "La tierra está al 18 % y le
    gusta arriba de 25 %. Regala hoy."
 
+Cada aviso trae `pendientes` (cuántas plantas necesitan algo): el service
+worker lo pone como número en el ícono de la app instalada (Badging API), y
+la app lo actualiza con las tareas de hoy al abrirse. Ver
+[sin-red.md](sin-red.md).
+
 El ícono de cada notificación es la cara del personaje en ese ánimo
 (`public/caras/<modelo>-<ANIMO>.png`), y el `tag` hace que un aviso nuevo de
 la misma planta reemplace al anterior en vez de apilarse.

@@ -199,6 +199,16 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
           res.writeHead(codigo).end();
           return;
         }
+        /* Una respuesta binaria (las fotos del álbum) va tal cual. */
+        if (respuesta && respuesta.binario) {
+          res.writeHead(codigo, {
+            'content-type': respuesta.mime || 'application/octet-stream',
+            'content-length': respuesta.binario.length,
+            'cache-control': respuesta.cache || 'private, no-store',
+          });
+          res.end(respuesta.binario);
+          return;
+        }
         res.writeHead(codigo, { 'content-type': MIME['.json'], 'cache-control': 'no-store' });
         res.end(JSON.stringify(respuesta));
         return;

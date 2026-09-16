@@ -52,7 +52,7 @@ import { fichaDePlanta, promptDePlanta, contextoVivo } from './ficha.mjs';
 import { normalizarEmail } from './db.mjs';
 import { diaLocal, TZ_POR_DEFECTO } from './tiempo.mjs';
 import * as plantillas from './plantillas-correo.mjs';
-import { PALETA_POR_DEFECTO, paletaPorId, paletaDeRooti } from '../public/lib/paletas.mjs';
+import { PALETA_POR_DEFECTO, paletaPorId, paletaDeRooti, cumpleRequisito } from '../public/lib/paletas.mjs';
 
 export { diaLocal, normalizarEmail };
 
@@ -71,6 +71,11 @@ export const RESTABLECER_VENCE_MS = 30 * MIN;
 export const VERIFICAR_VENCE_MS = 48 * H;
 export const CHAT_MAX = 500;
 export const CUIDADOR_DIAS = [3, 7, 15];
+/* El álbum: hasta 60 fotos por planta, de hasta 450 KB (la app las achica a
+   1024 px antes de mandarlas). */
+export const FOTOS_MAX = 60;
+export const FOTO_BYTES_MAX = 450 * 1024;
+const MIMES_FOTO = ['image/jpeg', 'image/png', 'image/webp'];
 /* Un riego anotado a mano cuenta como reciente durante este tiempo. */
 export const RIEGO_RECIENTE_MS = 48 * H;
 
@@ -265,6 +270,33 @@ export function crearApi({
     };
   }
   const cuidadorPublico = (c) => ({ creado: c.creado, vence: c.vence, nombre: c.nombre, usos: c.usos });
+  const fotoPublica = (f) => ({ id: f.id, t: f.t, mime: f.mime, ancho: f.ancho, alto: f.alto, nota: f.nota, origen: f.origen, peso: f.peso });
+
+  /* ------------------------------------------------------------ fotos --- */
+  /** Los bytes de una foto que manda la app, validados. */
+  function bytesDeFoto({ image_b64, mime }) {
+    const m = MIMES_FOTO.includes(String(mime)) ? String(mime) : null;
+    if (!m) falla(400, 'La foto tiene que ser JPEG, PNG o WebP.');
+    const b64 = String(image_b64 || '').replace(/^data:[^,]*,/, '');
+    if (b64.length > FOTO_BYTES_MAX * 1.4) falla(413, 'La foto es demasiado grande: 450 KB como mucho.');
+    const bytes = Buffer.from(b64, 'base64');
+    if (bytes.length < 64) falla(400, 'Esa foto está vacía.');
+    if (bytes.length > FOTO_BYTES_MAX) falla(413, 'La foto es demasiado grande: 450 KB como mucho.');
+    return { bytes, mime: m };
+  }
+
+  /** Guarda una foto en el álbum de la planta. */
+  function guardarFoto(cuenta, p, foto, t, { nota = '', origen = 'album' } = {}) {
+    const { bytes, mime } = bytesDeFoto(foto);
+    if (db.contarFotos(p.id) >= FOTOS_MAX) falla(409, `El álbum de ${p.nombre || 'esta planta'} está lleno (${FOTOS_MAX} fotos). Borrá alguna.`);
+    return db.fotoGuardar({ planta: p.id, cuenta: cuenta.id, t, mime, bytes, nota: texto(nota, 80), origen });
+  }
+
+  /* Las fotos de reconocer y diagnosticar entran solas al álbum, si entran;
+     si no (muy grande, álbum lleno), no es un error: la IA ya contestó. */
+  function guardarFotoSilenciosa(cuenta, p, foto, t, origen) {
+    try { guardarFoto(cuenta, p, foto, t, { origen }); } catch { /* no entra: da igual */ }
+  }
   const ubicacionPublica = (c) => (c?.ubicacion ? { nombre: c.ubicacion.nombre, pais: c.ubicacion.pais, region: c.ubicacion.region || '' } : null);
 
   function coleccionDe(cuenta) {
@@ -278,6 +310,21 @@ export function crearApi({
         ...m, tengo: tengo.includes(m.id), probabilidad: probabilidadDe(m), paleta: paletaDeRooti(m.id)?.id || null,
       })),
     };
+  }
+
+  /** Lo que desbloquea las paletas cosméticas. */
+  function logrosDe(c) {
+    const secretos = (c.coleccion || []).filter((id) => modeloPorId(id)?.rareza === 'SECRETO').length;
+    const diasSanos = Math.max(0, ...db.plantasDe(c.id).map((p) => p.vinculo?.dias_sanos || 0));
+    return { secretos, diasSanos };
+  }
+
+  /** Cuántas plantas de la cuenta necesitan algo: el número del ícono. */
+  function pendientesDe(cuentaId) {
+    return db.plantasDe(cuentaId).filter((p) => {
+      const d = db.dispositivo(p.dispositivo);
+      return p.revelado && d?.sev && d.sev !== 'OK';
+    }).length;
   }
 
   const cuentaPublica = (c) => ({
@@ -356,12 +403,14 @@ export function crearApi({
   }
 
   /* ----------------------------------------------------------- avisos --- */
-  /** Manda un aviso a todos los teléfonos de una cuenta. */
-  async function mandarA(subs, a) {
+  /** Manda un aviso a todos los teléfonos de una cuenta. `pendientes` va en
+      la carga para el número del ícono de la app (Badging API). */
+  async function mandarA(subs, a, pendientes = undefined) {
     let n = 0;
     for (const s of subs) {
       const r = await push.enviar(s, {
         titulo: a.titulo, cuerpo: a.cuerpo, icono: a.icono, url: a.url, tag: a.tag, urgente: a.urgente,
+        ...(Number.isFinite(pendientes) ? { pendientes } : {}),
       });
       if (r === 'vencida') db.suscripcionBorrar(s.endpoint);
       if (r === 'ok') n += 1;
@@ -381,8 +430,9 @@ export function crearApi({
       enviados: db.avisosEnviados(planta.id), tz: cuenta?.tz,
     });
     let n = 0;
+    const pendientes = lista.length ? pendientesDe(planta.cuenta) : 0;
     for (const a of lista) {
-      n += await mandarA(subs, a);
+      n += await mandarA(subs, a, pendientes);
       db.avisoRegistrar(planta.id, a.clave, t);
     }
     return n;
@@ -727,6 +777,11 @@ export function crearApi({
           if (pal.rooti && !(c.coleccion || []).includes(pal.rooti)) {
             falla(403, `La paleta ${pal.nombre} es de su Rooti: conseguilo en un cofre para usarla.`);
           }
+          /* Las cosméticas se ganan cuidando: el servidor lo verifica con
+             lo que sabe (la colección y los días sanos de cada planta). */
+          if (pal.requisito && !cumpleRequisito(pal.requisito, logrosDe(c))) {
+            falla(403, `La paleta ${pal.nombre} se gana con ${pal.desbloqueo}.`);
+          }
           cambios.paleta = pal.id;
         }
         /* La ciudad donde están las plantas, para el pronóstico: se busca
@@ -931,6 +986,28 @@ export function crearApi({
       return [200, { ...previsionDePlanta(p, pron, t), ubicacion: ubicacionPublica(cuenta) }];
     }
 
+    /* --- el álbum ---------------------------------------------------------- */
+    if ((m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/fotos(?:\/([0-9]+))?$/))) {
+      const cuenta = cuentaDe(headers);
+      const p = plantaMia(cuenta, m[1]);
+      if (metodo === 'GET' && !m[2]) return [200, { fotos: db.fotosDe(p.id).map(fotoPublica), maximo: FOTOS_MAX }];
+      if (metodo === 'POST' && !m[2]) {
+        limitar(`fotos:${cuenta.id}`, 120, H);
+        const id = guardarFoto(cuenta, p, cuerpo || {}, t, { nota: cuerpo?.nota });
+        return [201, { id, t }];
+      }
+      if (metodo === 'GET' && m[2]) {
+        const f = db.foto(Number(m[2]), p.id);
+        if (!f) falla(404, 'No existe esa foto');
+        /* Bytes, no JSON: el transporte los manda tal cual (http.mjs). */
+        return [200, { binario: Buffer.from(f.bytes), mime: f.mime, cache: 'private, max-age=31536000, immutable' }];
+      }
+      if (metodo === 'DELETE' && m[2]) {
+        db.fotoBorrar(Number(m[2]), p.id);
+        return [204, null];
+      }
+    }
+
     /* --- el cuidador ------------------------------------------------------- */
     if ((m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/cuidador$/))) {
       const cuenta = cuentaDe(headers);
@@ -1044,6 +1121,7 @@ export function crearApi({
       });
       p.identificacion = { especie: r.especie, cuidados: r.cuidados || null, t, fuente: r.fuente };
       db.plantaGuardar(p);
+      guardarFotoSilenciosa(cuenta, p, foto, t, 'reconocimiento');
       const { uso: _u, modelo: _m, cuidados: _c, ...publico } = r;
       return [200, { ...publico, cuota: presupuesto.cuota(cuenta, 'identificar', p.id) }];
     }
@@ -1061,6 +1139,7 @@ export function crearApi({
         cuenta, planta: p.id, tipo: 'diagnosticar', modelo: ia.modelo, entrada: 3000,
         llamada: () => ia.diagnosticar(foto, { tel: d?.ultima || null, especie: p.especie }),
       });
+      guardarFotoSilenciosa(cuenta, p, foto, t, 'diagnostico');
       const { uso: _u, modelo: _m, ...publico } = r;
       return [200, { planta: p.id, ...publico, cuota: presupuesto.cuota(cuenta, 'diagnosticar', p.id) }];
     }

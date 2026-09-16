@@ -33,6 +33,10 @@
  *   - LA CARICIA. `acariciar(true)` la pone contenta con los ojos en ^ ^ y
  *     ronroneando (rk_face_draw_mimo, del mismo módulo), subiendo en un
  *     tercio de segundo; `acariciar(false)` la devuelve a su ánimo.
+ *   - LA MIRADA. `actualizar({ mirada: { mira_x, mira_y, preocupado } })`
+ *     la hace mirar hacia un lado, preocupada o no (rk_face_draw_mirada):
+ *     el invernadero, donde los Rooties se miran entre ellos. El cambio se
+ *     suaviza en un tercio de segundo.
  */
 
 import { enBase } from './base.mjs';
@@ -159,6 +163,21 @@ function conLuz(e, img, luz, ahora) {
 const activas = new Set();
 let corriendo = false;
 
+/* La mirada de ahora: entre la anterior y la pedida, con la curva de la
+   transición. Null si no hay ninguna. */
+const SIN_MIRADA = { mira_x: 0, mira_y: 0, preocupado: 0 };
+function miradaActual(e, ahora) {
+  if (!e.miradaObjetivo) return null;
+  const pasado = ahora - e.miradaT0;
+  const pct = modulo.transicionMs && modulo.x.cara_anim_pct
+    ? (pasado >= modulo.transicionMs ? 100 : modulo.x.cara_anim_pct(Math.max(0, Math.floor(pasado)))) : 100;
+  const d = e.miradaDesde || SIN_MIRADA;
+  const o = e.miradaObjetivo;
+  const l = (a, b) => Math.round(a + ((b - a) * pct) / 100);
+  return { mira_x: l(d.mira_x, o.mira_x), mira_y: l(d.mira_y, o.mira_y), preocupado: l(d.preocupado, o.preocupado) };
+}
+const mirando = (e) => e.miradaT0 !== undefined && performance.now() - e.miradaT0 < (modulo?.transicionMs || 0);
+
 /* Cuánto mimo hay ahora: sube o baja con la curva de la transición. */
 function mimoActual(e, ahora) {
   if (!modulo.transicionMs || !modulo.x.cara_anim_pct) return e.mimo ? 100 : 0;
@@ -186,11 +205,15 @@ function pintar(e, ahora) {
     const pasado = e.desde !== undefined ? performance.now() - e.transicion : Infinity;
     const mimo = e.mimoT0 !== undefined ? mimoActual(e, performance.now()) : 0;
     e.mimoPct = mimo;
+    const mir = miradaActual(e, performance.now());
     if (mimo > 0 && x.cara_mimo) {
       x.cara_mimo(idx, animo, e.etapa || 0, mimo, ms);
       e.desde = undefined;
     } else if (pasado < modulo.transicionMs && x.cara_mezcla) {
       x.cara_mezcla(idx, Math.max(0, ANIMOS.indexOf(e.desde)), animo, x.cara_anim_pct(Math.floor(pasado)), e.etapa || 0, 0, ms);
+    } else if (mir && (mir.mira_x || mir.mira_y || mir.preocupado) && x.cara_mirada) {
+      e.desde = undefined;
+      x.cara_mirada(idx, animo, e.etapa || 0, mir.mira_x, mir.mira_y, mir.preocupado, ms);
     } else {
       e.desde = undefined;
       x.cara(idx, animo, e.etapa || 0, ms);
@@ -208,7 +231,7 @@ function pintar(e, ahora) {
 
 /* Cuándo una cara necesita cuadros seguidos: en la transición, con mimo, y
    con el brillo del sol cruzándola. */
-const animada = (e) => e.desde !== undefined || e.mimoT0 !== undefined
+const animada = (e) => e.desde !== undefined || e.mimoT0 !== undefined || mirando(e)
   || (e.lux !== null && e.lux !== undefined && !iluminacion(e.lux).neutra && iluminacion(e.lux).especular > 0);
 
 function bucle(t) {
@@ -296,7 +319,18 @@ export function cara({
     ultimoAnimo.set(clave, { animo, t: performance.now() });
   }
   c._cara = e;
-  c.actualizar = (cambios) => {
+  c.actualizar = ({ mirada, ...cambios }) => {
+    if (mirada !== undefined) {
+      const o = mirada || SIN_MIRADA;
+      const a = e.miradaObjetivo;
+      if (!a || a.mira_x !== o.mira_x || a.mira_y !== o.mira_y || a.preocupado !== o.preocupado) {
+        e.miradaDesde = miradaActual(e, performance.now()) || SIN_MIRADA;
+        e.miradaObjetivo = o;
+        e.miradaT0 = performance.now();
+        e.ultimo = -1e9;
+      }
+      if (!Object.keys(cambios).length) return;
+    }
     if (cambios.modo && cambios.modo !== e.modo) e.inicio = Date.now();
     if (cambios.animo && cambios.animo !== e.animo && e.modo === 'cara' && (cambios.modo || 'cara') === 'cara') {
       e.desde = e.animo;

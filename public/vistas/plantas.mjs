@@ -366,6 +366,15 @@ export function vistaDetalle(ctx) {
       h('p', { class: 'nota', style: 'margin-top:10px' },
         'Sirve cuando los números están bien y la planta igual se ve mal: hongos, plagas o falta de nutrientes no mueven ningún sensor.')),
 
+    n.revelado
+      ? h('section', { class: 'panel' },
+          h('h3', { class: 'panel-tit' }, 'Recuerdos'),
+          h('div', { class: 'fila-botones' },
+            h('button', { class: 'boton chico', type: 'button', onClick: () => irA('album', n.id) }, icono('camara', 16), 'Álbum de fotos'),
+            h('button', { class: 'boton chico', type: 'button', onClick: () => irA('pasaporte', n.id) }, icono('hoja', 16), 'Pasaporte botánico')),
+          h('p', { class: 'nota', style: 'margin-top:10px' }, 'Verla crecer foto a foto, y una hoja para imprimir con quién es y cómo estuvo.'))
+      : null,
+
     n.revelado ? panelCuidador(ctx, n) : null,
 
     h('section', { class: 'panel' },

@@ -18,7 +18,12 @@
     { "src": "iconos/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Tareas de hoy", "url": "./#hoy" },
-    { "name": "Mis plantas", "url": "./#plantas" }
+    { "name": "Regar", "short_name": "Regar", "description": "Las tareas de hoy: qué regar y qué no", "url": "./#hoy",
+      "icons": [{ "src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Ver cámara", "short_name": "Cámara", "description": "Sacarle una foto a tu planta para diagnosticarla", "url": "./#camara",
+      "icons": [{ "src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Charla", "short_name": "Charla", "description": "Hablar con tu planta", "url": "./#charla",
+      "icons": [{ "src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Mis plantas", "short_name": "Plantas", "url": "./#plantas" }
   ]
 }

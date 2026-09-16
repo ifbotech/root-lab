@@ -10,7 +10,7 @@
  */
 
 /* Subir la versión invalida el caché entero. */
-const CACHE = 'rootlab-v11';
+const CACHE = 'rootlab-v13';
 
 /* La app puede estar montada en una subruta (/rootkit/): todo se resuelve
    contra el alcance del service worker, nunca contra la raíz del dominio. */
@@ -25,6 +25,14 @@ const ARMAZON = [
   'app.js',
   'style.css',
   'tema.js',
+  'lib/almacen.mjs',
+  'lib/cola.mjs',
+  'lib/gif.mjs',
+  'lib/miradas.mjs',
+  'lib/pasaporte.mjs',
+  'vistas/album.mjs',
+  'vistas/invernadero.mjs',
+  'vistas/pasaporte.mjs',
   'fuentes/nunito-latin.woff2',
   'fuentes/nunito-latin-ext.woff2',
   'lib/api.mjs',
@@ -108,7 +116,12 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { titulo: 'ROOTLAB', cuerpo: e.data?.text() || '' }; }
-  e.waitUntil(self.registration.showNotification(d.titulo || 'ROOTLAB', {
+  /* El número en el ícono de la app (Badging API): cuántas plantas
+     necesitan algo, tal como lo manda el servidor con cada aviso. */
+  const insignia = Number.isFinite(d.pendientes) && self.navigator?.setAppBadge
+    ? (d.pendientes > 0 ? self.navigator.setAppBadge(d.pendientes) : self.navigator.clearAppBadge()).catch(() => {})
+    : Promise.resolve();
+  e.waitUntil(Promise.all([insignia, self.registration.showNotification(d.titulo || 'ROOTLAB', {
     body: d.cuerpo || '',
     icon: enAlcance(d.icono || 'iconos/icono-192.png'),
     badge: enAlcance('iconos/icono-192.png'),
@@ -117,7 +130,7 @@ self.addEventListener('push', (e) => {
     requireInteraction: Boolean(d.urgente),
     data: { url: enAlcance(d.url || './') },
     lang: 'es',
-  }));
+  })]));
 });
 
 self.addEventListener('notificationclick', (e) => {

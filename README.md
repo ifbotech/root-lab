@@ -25,6 +25,15 @@ después de abrir su cofre, unos ojos que reaccionan a cómo está tu planta.
   Botánica.
 - **Cuidador**: un enlace de 3, 7 o 15 días para quien riega mientras no
   estás: ve la cara, qué necesita y toca "ya regué"; te llega un push.
+- **El invernadero**: todos los Rooties en un estante, mirándose; los
+  vecinos miran preocupados al que tiene sed.
+- **Recuerdos**: el álbum de fotos con fantasma de encuadre, antes/después
+  y un GIF de evolución hecho en el teléfono; y el **pasaporte botánico**,
+  una hoja A4 para guardar como PDF.
+- **Tres paletas que se ganan** (OLED Midnight, Cristal, Solar Gold), todas
+  legibles (WCAG AA).
+- **Sin red**: abre al instante con lo último que vio, los cambios esperan
+  en una cola, el ícono muestra las tareas pendientes y tiene atajos.
 - **Datos personales cifrados**, IA con **tope de gasto** y cuotas diarias.
 
 El firmware, el hardware y las carcasas están en
@@ -76,7 +85,7 @@ exigen HTTPS. Ver [docs/despliegue.md](docs/despliegue.md).
 ## Pruebas
 
 ```bash
-npm test          # 247 pruebas
+npm test          # 301 pruebas
 ```
 
 Flujo completo con un Rooti virtual, cuentas y aislamiento entre cuentas,
@@ -115,8 +124,10 @@ server/
 public/                  la app (PWA sin build)
   app.js                 rutas, sesión, alta
   tema.js                la paleta guardada antes de la primera pintada
-  vistas/                alta, cuenta, cofre, hoy, plantas, botánica, chat, escáner, Rooties, ajustes, modo escritorio, cuidador
-  lib/                   paletas y tema, tareas, diagnóstico, gamificación, caras, luz, caricias, voz, botánica, API
+  vistas/                alta, cuenta, cofre, hoy, plantas, botánica, chat, escáner, Rooties, ajustes,
+                         modo escritorio, cuidador, invernadero, álbum, pasaporte
+  lib/                   paletas y tema, tareas, diagnóstico, gamificación, caras, luz, caricias, voz,
+                         botánica, miradas, gif, pasaporte, almacén y cola (sin red), API
   caras/                 el firmware en WebAssembly y las imágenes de las caras
   fuentes/               Nunito (OFL), servida desde la app
 emulador/                el Rooti virtual
@@ -141,6 +152,9 @@ docs/
 | [sensorial.md](docs/sensorial.md) | La cara en el teléfono: luz, caricias, voz y modo escritorio |
 | [clima.md](docs/clima.md) | Regar antes con el pronóstico; VPD y DLI |
 | [cuidador.md](docs/cuidador.md) | El enlace para quien riega mientras no estás |
+| [invernadero.md](docs/invernadero.md) | Todos los Rooties en un estante, y hacia dónde miran |
+| [album.md](docs/album.md) | El álbum de fotos (fantasma, antes/después, GIF) y el pasaporte |
+| [sin-red.md](docs/sin-red.md) | Local primero, la cola de cambios, la insignia y los atajos |
 | [despliegue.md](docs/despliegue.md) | Local, en el VPS (ifbotech.com/rootkit), el sitio principal endurecido, dominio propio |
 
 El checklist y el roadmap del producto entero están en

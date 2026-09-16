@@ -200,7 +200,7 @@ test('una base v3 recibe la ciudad, el clima, los cuidadores y los riegos', () =
     UPDATE meta SET valor = '3' WHERE clave = 'esquema'`);
   cruda.close();
   db = abrirBase(archivo, { cripto });
-  assert.equal(db.version(), 4);
+  assert.equal(db.version(), VERSION_ESQUEMA);
   assert.equal(db.cuenta('c1').ubicacion, null);
   db.cuentaActualizar('c1', { ubicacion: { nombre: 'Rosario', pais: 'Argentina', lat: -32.95, lon: -60.64 } });
   assert.equal(db.cuenta('c1').ubicacion.nombre, 'Rosario');
@@ -218,6 +218,15 @@ test('una base v3 recibe la ciudad, el clima, los cuidadores y los riegos', () =
   assert.equal(db.ultimoRiego('p1').quien, 'Ana');
   db.cuentaActualizar('c1', { ubicacion: null });
   assert.equal(db.cuenta('c1').ubicacion, null);
+  /* v5: el álbum. */
+  const id = db.fotoGuardar({ planta: 'p1', cuenta: 'c1', t: 9, mime: 'image/jpeg', bytes: Buffer.from('fotofoto'), origen: 'album' });
+  assert.ok(Number.isInteger(id));
+  assert.equal(db.contarFotos('p1'), 1);
+  assert.equal(db.fotosDe('p1')[0].peso, 8);
+  assert.equal(Buffer.from(db.foto(id, 'p1').bytes).toString(), 'fotofoto');
+  assert.equal(db.foto(id, 'otra'), null, 'la foto es de su planta');
+  db.fotoBorrar(id, 'p1');
+  assert.equal(db.contarFotos('p1'), 0);
   db.cerrar();
 }));
 

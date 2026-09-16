@@ -41,7 +41,7 @@ su cuenta: pedir la planta de otra cuenta da `404`, igual que si no existiera.
 | `POST /api/cuenta/entrar` *(sin sesión)* | `{ email, clave }` → `{ token, cuenta }` · `401 Email o contraseña incorrectos.` |
 | `POST /api/cuenta/salir` | cierra esta sesión → `204` |
 | `GET /api/cuenta` | `cuenta` |
-| `PATCH /api/cuenta` | `{ nombre?, tz?, paleta?, ubicacion? }` → `cuenta` · `403` si la paleta es de un Rooti que no tenés · `ubicacion`: una ciudad, que se busca y se guarda cifrada para el pronóstico (`''` la quita; `404` si no existe; ver [clima.md](clima.md)) |
+| `PATCH /api/cuenta` | `{ nombre?, tz?, paleta?, ubicacion? }` → `cuenta` · `403` si la paleta es de un Rooti que no tenés o una cosmética que todavía no se ganó ([paletas.md](paletas.md)) · `ubicacion`: una ciudad, que se busca y se guarda cifrada para el pronóstico (`''` la quita; `404` si no existe; ver [clima.md](clima.md)) |
 | `POST /api/cuenta/clave` | `{ actual, nueva }` → `{ ok }`; cierra las sesiones de los otros teléfonos y avisa por email |
 | `DELETE /api/cuenta` | `{ clave }` → `204`; borra cuenta, plantas, lecturas, charlas y avisos, y libera los Rooties |
 | `POST /api/cuenta/olvide` *(sin sesión)* | `{ email }` → `202 { ok }` **siempre**; si hay cuenta, manda el enlace `#clave/<token>` (30 min, un uso) |
@@ -99,6 +99,10 @@ no hace falta regalar intentos.
 | `DELETE /api/plantas/:id/cuidador` | revoca todos los enlaces → `204` |
 | `GET /api/sitter/:token` *(sin sesión)* | lo que ve el cuidador: `{ planta, dueno, cuidador, vence, riegos, ahora }` · `404` vencido o revocado |
 | `POST /api/sitter/:token/riego` *(sin sesión)* | `{ quien? }` → `201 { ok, t }`: anota el riego y le avisa al dueño |
+| `GET /api/plantas/:id/fotos` | el álbum: `{ fotos: [{ id, t, mime, ancho, alto, nota, origen, peso }], maximo }`. Ver [album.md](album.md) |
+| `POST /api/plantas/:id/fotos` | `{ image_b64, mime, nota? }` → `201 { id, t }` · `413` más de 450 KB · `409` álbum lleno |
+| `GET /api/plantas/:id/fotos/:fid` | los bytes de la foto, con su `content-type` |
+| `DELETE /api/plantas/:id/fotos/:fid` | `204` |
 
 `especie` acepta un id del catálogo o un objeto completo
 (`{ id, nombre, cientifico, soil_min, soil_max, temp_min_dc, temp_max_dc, rh_min, lux_min, lux_max }`),

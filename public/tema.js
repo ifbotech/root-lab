@@ -15,6 +15,7 @@
         raiz.setProperty('--' + k, String(guardado.tokens[k]));
       }
     }
+    if (/^[a-z]*$/.test(String(guardado.estilo || ''))) raiz.parentNode && document.documentElement.setAttribute('data-estilo', String(guardado.estilo || ''));
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta && guardado.tokens.fondo) meta.setAttribute('content', guardado.tokens.fondo);
   } catch (e) { /* sin almacenamiento: queda la paleta por defecto del CSS */ }

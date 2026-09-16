@@ -39,6 +39,8 @@
  *   cuidadores      los enlaces de cuidador de cada planta (el hash del
  *                   token, hasta cuándo valen)
  *   riegos          riegos anotados a mano: hoy, los del cuidador
+ *   fotos           el álbum de cada planta: los bytes de cada foto (JPEG,
+ *                   hasta 450 KB, hasta 60 por planta), con su fecha
  *   meta            versión del esquema y marcas sueltas
  *
  * Cada lectura se guarda con la PLANTA vigente al medirla. Así el historial de
@@ -57,7 +59,7 @@ import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { crearCripto } from './cripto.mjs';
 
-export const VERSION_ESQUEMA = 4;
+export const VERSION_ESQUEMA = 5;
 
 export const normalizarEmail = (e) => String(e || '').trim().toLowerCase();
 
@@ -234,6 +236,22 @@ CREATE TABLE IF NOT EXISTS riegos (
   quien   TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS riegos_planta_t ON riegos(planta, t);
+`;
+
+const NUEVAS_V5 = `
+CREATE TABLE IF NOT EXISTS fotos (
+  id      INTEGER PRIMARY KEY,
+  planta  TEXT NOT NULL,
+  cuenta  TEXT NOT NULL REFERENCES cuentas(id) ON DELETE CASCADE,
+  t       INTEGER NOT NULL,
+  mime    TEXT NOT NULL,
+  bytes   BLOB NOT NULL,
+  ancho   INTEGER,
+  alto    INTEGER,
+  nota    TEXT NOT NULL DEFAULT '',
+  origen  TEXT NOT NULL DEFAULT 'album'
+);
+CREATE INDEX IF NOT EXISTS fotos_planta_t ON fotos(planta, t);
 `;
 
 const json = (s, def = null) => {
@@ -623,6 +641,20 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
     riegosDe(planta, desde) {
       return q('SELECT t, origen, quien FROM riegos WHERE planta = ? AND t >= ? ORDER BY t DESC LIMIT 20').all(planta, desde);
     },
+
+    /* -------------------------------------------------------------- fotos */
+    fotoGuardar(f) {
+      const r = q(`INSERT INTO fotos (planta, cuenta, t, mime, bytes, ancho, alto, nota, origen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(f.planta, f.cuenta, f.t, f.mime, f.bytes, nulo(f.ancho), nulo(f.alto), f.nota || '', f.origen || 'album');
+      return Number(r.lastInsertRowid);
+    },
+    /** Las fotos de una planta, sin los bytes, de la más nueva a la más vieja. */
+    fotosDe(planta) {
+      return q('SELECT id, t, mime, ancho, alto, nota, origen, length(bytes) AS peso FROM fotos WHERE planta = ? ORDER BY t DESC, id DESC').all(planta);
+    },
+    foto(id, planta) { return q('SELECT * FROM fotos WHERE id = ? AND planta = ?').get(id, planta) || null; },
+    fotoBorrar(id, planta) { q('DELETE FROM fotos WHERE id = ? AND planta = ?').run(id, planta); },
+    contarFotos(planta) { return q('SELECT COUNT(*) n FROM fotos WHERE planta = ?').get(planta).n; },
   };
   return repo;
 }
@@ -638,7 +670,7 @@ function migrar(db, cripto) {
   const hayCuentas = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cuentas'").get();
   if (!hayCuentas) {
     /* Base nueva: el esquema actual de una. */
-    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} ${NUEVAS_V4} COMMIT;`);
+    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} COMMIT;`);
     db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', ?)").run(String(VERSION_ESQUEMA));
     return;
   }
@@ -646,9 +678,10 @@ function migrar(db, cripto) {
   if (v > VERSION_ESQUEMA) throw new Error(`la base es de una versión más nueva (${v}) que este servidor (${VERSION_ESQUEMA})`);
   if (v < 2) migrarV1aV2(db, cripto);
   /* Idempotente: una base vieja o incompleta recibe las tablas que le falten. */
-  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2} ${NUEVAS_V4}`);
+  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5}`);
   if (v < 3) migrarV2aV3(db);
   if (v < 4) migrarV3aV4(db);
+  if (v < 5) db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '5')").run();   /* v5: la tabla fotos, creada arriba */
 }
 
 /* v3 -> v4: la ciudad de cada cuenta (para el pronóstico), y las tablas de

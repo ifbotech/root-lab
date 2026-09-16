@@ -15,15 +15,21 @@
  *
  * ROOTLAB se pinta con la paleta de tu Rooti al abrir su cofre. Acá se puede
  * volver a Vibrant Tones o elegir la de cualquier Rooti que ya tengas; las de
- * los que faltan se ven apagadas, con candado.
+ * los que faltan se ven apagadas, con candado. Las cosméticas (OLED, Cristal,
+ * Solar) se ganan cuidando: el candado dice con qué.
  */
 import { h, render, icono } from '../lib/ui.mjs';
 import { motivoSinAvisos, activarAvisos, avisosActivos } from '../lib/dispositivo.mjs';
 import { paletasDisponibles, PALETA_POR_DEFECTO } from '../lib/paletas.mjs';
+import { progresoColeccion } from '../lib/model.mjs';
 import { estaSilenciado, silenciar, SILENCIO_DESDE, SILENCIO_HASTA } from '../lib/voz.mjs';
 
 export function vistaAjustes(ctx) {
-  const { api, avisar, config, cuenta } = ctx;
+  const { api, avisar, config, cuenta, estado, coleccion } = ctx;
+  /* Lo que desbloquea las paletas cosméticas: el Rooti secreto y los días
+     sanos de la planta que más tiene. */
+  const progreso = progresoColeccion(coleccion?.catalogo || [], coleccion?.tengo || []);
+  const diasSanos = Math.max(0, ...(estado?.nodes || []).map((n) => n.bond?.dias_sanos || 0));
   const cont = h('div', { class: 'vista' });
   const claveMin = config?.clave_min || 8;
 
@@ -77,7 +83,7 @@ export function vistaAjustes(ctx) {
   /* -------------------------------------------------------------- paleta --- */
   const actual = cuenta?.paleta || PALETA_POR_DEFECTO;
   const paletas = h('div', { class: 'paletas', role: 'radiogroup', 'aria-label': 'Paleta de colores' },
-    paletasDisponibles(cuenta?.coleccion || []).map((p) => h('button', {
+    paletasDisponibles(cuenta?.coleccion || [], { secretos: progreso.secretos || 0, diasSanos }).map((p) => h('button', {
       type: 'button',
       class: `paleta ${p.id === actual ? 'activa' : ''}`,
       role: 'radio',
@@ -85,7 +91,7 @@ export function vistaAjustes(ctx) {
       'aria-disabled': p.bloqueada ? 'true' : null,
       onClick: async (ev) => {
         if (p.bloqueada) {
-          avisar(`La paleta ${p.nombre} se desbloquea cuando te toca su Rooti en un cofre.`);
+          avisar(p.rooti ? `La paleta ${p.nombre} se desbloquea cuando te toca su Rooti en un cofre.` : `La paleta ${p.nombre} se gana con ${p.desbloqueo}.`);
           return;
         }
         if (p.id === actual) return;
@@ -99,7 +105,7 @@ export function vistaAjustes(ctx) {
     },
     h('span', { class: 'muestras', 'aria-hidden': 'true' }, p.colores.map((c) => h('i', { style: `background:${c.hex}`, title: c.nombre }))),
     h('b', {}, p.nombre),
-    h('small', {}, p.bloqueada ? 'Conseguí su Rooti' : p.rooti ? 'De tu Rooti' : 'La de ROOTLAB'),
+    h('small', {}, p.bloqueada ? p.porque : p.rooti ? 'De tu Rooti' : p.requisito ? 'Ganada' : p.estilo ? 'Cosmética' : 'La de ROOTLAB'),
     p.bloqueada ? h('span', { class: 'paleta-candado', 'aria-label': 'Bloqueada' }, icono('candado', 16)) : null)));
 
   /* -------------------------------------------------------------- nombre --- */

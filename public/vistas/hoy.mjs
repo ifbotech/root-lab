@@ -122,6 +122,10 @@ export function vistaHoy(ctx) {
         resumen.detalle ? h('p', { class: 'saludo-detalle' }, resumen.detalle) : null)),
 
     ronda(nodos, modelos, alAbrir, () => irA('agregar')),
+    nodos.filter((n) => n.revelado).length >= 2
+      ? h('div', { class: 'invernadero-enlace' },
+          h('button', { class: 'boton chico', type: 'button', onClick: () => irA('invernadero') }, icono('hoja', 16), 'Ver el invernadero'))
+      : null,
 
     tareas.length > 0
       ? h('section', {}, h('ul', { class: 'tareas' }, tareas.map((t) => tarjetaTarea(t, alHacer, alTarea))))

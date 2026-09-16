@@ -113,6 +113,9 @@ describe('servidor en /rootkit', () => {
     assert.equal(m.start_url, 'v/K7Q2M9XA');
     assert.equal(m.scope, './');
     assert.ok(m.icons.every((i) => !i.src.startsWith('/')));
+    const atajos = m.shortcuts.map((a) => a.name);
+    for (const a of ['Regar', 'Ver cámara', 'Charla']) assert.ok(atajos.includes(a), `atajo ${a}`);
+    assert.ok(m.shortcuts.every((a) => a.url.startsWith('./#')), 'atajos relativos');
   });
 
   test('los recursos salen con su tipo', async () => {
@@ -153,6 +156,25 @@ describe('servidor en /rootkit', () => {
       assert.ok([400, 403, 404].includes(r.status), `${intento} -> ${r.status}`);
     }
     assert.equal((await pedir(`${s.url}/rootkit/nada.js`)).status, 404);
+  });
+});
+
+describe('respuestas binarias', () => {
+  test('una respuesta { binario, mime } sale tal cual, con su tipo', async () => {
+    const api = { manejar: async ({ ruta }) => (ruta === '/api/foto' ? [200, { binario: Buffer.from('\xff\xd8abc', 'latin1'), mime: 'image/jpeg', cache: 'private, max-age=60' }] : [404, { error: 'no' }]) };
+    const servidor = crearServidorHttp({ api, raiz: RAIZ, base: '/rootkit' });
+    const url = await new Promise((ok) => servidor.listen(0, '127.0.0.1', () => ok(`http://127.0.0.1:${servidor.address().port}`)));
+    try {
+      const r = await pedir(`${url}/rootkit/api/foto`);
+      assert.equal(r.status, 200);
+      assert.equal(r.headers.get('content-type'), 'image/jpeg');
+      assert.equal(r.headers.get('cache-control'), 'private, max-age=60');
+      assert.equal(r.headers.get('content-length'), '5');
+      assert.equal(Buffer.from(await r.arrayBuffer()).toString('latin1'), '\xff\xd8abc');
+      assert.equal((await pedir(`${url}/rootkit/api/otra`)).status, 404);
+    } finally {
+      servidor.close();
+    }
   });
 });
 

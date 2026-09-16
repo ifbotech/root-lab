@@ -5,10 +5,11 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  PALETAS, PALETA_POR_DEFECTO, paletaPorId, paletaDeRooti, paletasDisponibles,
+  PALETAS, PALETA_POR_DEFECTO, paletaPorId, paletaDeRooti, paletasDisponibles, cumpleRequisito,
   temaDesdePaleta, contraste, mezclar, asegurarContraste, luminancia, declaraciones,
 } from '../public/lib/paletas.mjs';
 import { MODELOS } from '../server/catalogo.mjs';
+import { escenario, conRooti } from './ayudas.mjs';
 
 const HEX = /^#[0-9a-f]{6}$/;
 
@@ -55,6 +56,23 @@ describe('paletas', () => {
     assert.equal(paletasDisponibles(['chico-malo']).find((p) => p.id === 'chico-malo').bloqueada, false);
   });
 
+  test('las cosméticas se ganan cuidando: OLED libre, Cristal con el secreto o 60 días, Solar con 180', () => {
+    const nada = paletasDisponibles([]);
+    assert.equal(nada.find((p) => p.id === 'oled').bloqueada, false);
+    assert.equal(nada.find((p) => p.id === 'cristal').bloqueada, true);
+    assert.match(nada.find((p) => p.id === 'cristal').porque, /secreto/);
+    assert.equal(nada.find((p) => p.id === 'solar').bloqueada, true);
+    assert.equal(paletasDisponibles([], { secretos: 1 }).find((p) => p.id === 'cristal').bloqueada, false);
+    assert.equal(paletasDisponibles([], { diasSanos: 60 }).find((p) => p.id === 'cristal').bloqueada, false);
+    assert.equal(paletasDisponibles([], { diasSanos: 59 }).find((p) => p.id === 'cristal').bloqueada, true);
+    assert.equal(paletasDisponibles([], { diasSanos: 180 }).find((p) => p.id === 'solar').bloqueada, false);
+    assert.equal(paletasDisponibles([], { secretos: 1 }).find((p) => p.id === 'solar').bloqueada, true, 'el secreto no alcanza para Solar');
+    assert.equal(cumpleRequisito(null), true);
+    for (const p of PALETAS.filter((x) => x.requisito)) assert.ok(p.desbloqueo, `${p.id} dice cómo se gana`);
+    for (const p of PALETAS.filter((x) => x.estilo)) assert.match(p.estilo, /^[a-z]+$/);
+    assert.equal(paletaPorId('oled').roles.fondo, '#000000', 'OLED es negro absoluto');
+  });
+
   for (const paleta of PALETAS) {
     test(`${paleta.nombre}: todo el texto se lee (WCAG AA)`, () => {
       const t = temaDesdePaleta(paleta);
@@ -78,4 +96,37 @@ describe('paletas', () => {
       assert.ok(declaraciones(t).every(([n]) => n.startsWith('--')));
     });
   }
+});
+
+describe('las cosméticas por la API', () => {
+  test('el servidor verifica lo ganado: OLED libre, Cristal con 60 días sanos o el secreto, Solar con 180', async () => {
+    const esc = escenario();
+    const { token, planta } = await conRooti(esc);
+    let [c, r] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'oled' } });
+    assert.equal(c, 200);
+    assert.equal(r.paleta, 'oled');
+    [c, r] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'cristal' } });
+    assert.equal(c, 403);
+    assert.match(r.error, /60 días/);
+    [c] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'solar' } });
+    assert.equal(c, 403);
+    /* Una planta que llegó a los 60 días sanos. */
+    const p = esc.db.planta(planta.id);
+    p.vinculo = { ...(p.vinculo || {}), dias_sanos: 60 };
+    esc.db.plantaGuardar(p);
+    [c, r] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'cristal' } });
+    assert.equal(c, 200);
+    assert.equal(r.paleta, 'cristal');
+    [c] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'solar' } });
+    assert.equal(c, 403, 'Solar pide 180');
+    p.vinculo.dias_sanos = 180;
+    esc.db.plantaGuardar(p);
+    [c] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'solar' } });
+    assert.equal(c, 200);
+    /* Y el secreto abre Cristal aunque no haya días. */
+    const otra = await conRooti(esc);
+    esc.db.cuentaActualizar(esc.db.planta(otra.planta.id).cuenta, { coleccion: ['kawaii', 'glitch'] });
+    [c] = await esc.llamar('PATCH', '/api/cuenta', { token: otra.token, cuerpo: { paleta: 'cristal' } });
+    assert.equal(c, 200);
+  });
 });

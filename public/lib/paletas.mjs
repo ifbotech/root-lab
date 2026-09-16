@@ -24,6 +24,15 @@
  * OKLab para que no cambie de tono. Así la artista elige colores con libertad
  * y la app nunca queda ilegible. test/paletas.test.mjs lo verifica en todas.
  *
+ * PALETAS COSMÉTICAS
+ *
+ * Además de las de los Rooties hay tres que se ganan cuidando: OLED Midnight
+ * (negro absoluto y verde fósforo; libre), Cristal (vidrio esmerilado; el
+ * Rooti secreto o 60 días sanos) y Solar Gold (oro y ámbar; 180 días sanos).
+ * Cada una trae un `estilo` que el CSS usa para lo que los tokens no pueden
+ * decir (paneles translúcidos, fondo sin degradé) y un `requisito`. El motor
+ * de contraste las trata como a las demás.
+ *
  * La mezcla y el contraste son funciones puras: este archivo lo usan la app,
  * el servidor (colores de los emails) y los tests.
  */
@@ -122,14 +131,130 @@ export const PALETAS = [
       datos: { tierra: '#0466c8', temperatura: '#ffb454', luz: '#979dac', humedad: '#5c677d' },
     },
   },
+  {
+    id: 'oled',
+    nombre: 'OLED Midnight',
+    rooti: null,
+    estilo: 'oled',
+    descripcion: 'Negro absoluto y verde fósforo: la pantalla apagada, los ojos encendidos.',
+    colores: [
+      { nombre: 'Absolute Black', hex: '#000000', nota: 'El pixel apagado de un OLED.' },
+      { nombre: 'Graphite', hex: '#111827', nota: 'Apenas gris, para separar sin encender.' },
+      { nombre: 'Deep Emerald', hex: '#065f46', nota: 'Verde profundo de bosque de noche.' },
+      { nombre: 'Emerald', hex: '#10b981', nota: 'Esmeralda viva.' },
+      { nombre: 'Phosphor', hex: '#39ff88', nota: 'Verde fósforo de terminal.' },
+      { nombre: 'Mint Glow', hex: '#a7f3d0', nota: 'Menta encendida, para lo destacado.' },
+      { nombre: 'Amber Warning', hex: '#fbbf24', nota: 'Ámbar de aviso.' },
+      { nombre: 'Coral Alert', hex: '#f87171', nota: 'Coral de alarma.' },
+    ],
+    roles: {
+      fondo: '#000000',
+      base: '#0f2a1f',
+      primario: '#10b981',
+      secundario: '#39ff88',
+      destacado: '#a7f3d0',
+      acento: '#34d399',
+      bien: '#39ff88',
+      atencion: '#fbbf24',
+      urgente: '#f87171',
+      datos: { tierra: '#39ff88', temperatura: '#fbbf24', luz: '#a7f3d0', humedad: '#10b981' },
+    },
+  },
+  {
+    id: 'cristal',
+    nombre: 'Cristal',
+    rooti: null,
+    estilo: 'cristal',
+    requisito: { secreto: true, dias_sanos: 60 },
+    desbloqueo: 'el Rooti secreto, o 60 días sanos de una planta',
+    descripcion: 'Vidrio esmerilado sobre azul hielo: paneles translúcidos con luz detrás.',
+    colores: [
+      { nombre: 'Deep Ice', hex: '#0b1220', nota: 'Azul hielo profundo, el fondo.' },
+      { nombre: 'Frost Slate', hex: '#3b4b6b', nota: 'Pizarra helada que tiñe el vidrio.' },
+      { nombre: 'Sky Glass', hex: '#7dd3fc', nota: 'Celeste de vidrio al sol.' },
+      { nombre: 'Periwinkle', hex: '#a5b4fc', nota: 'Lavanda azulada.' },
+      { nombre: 'Lilac Mist', hex: '#c4b5fd', nota: 'Lila de bruma.' },
+      { nombre: 'Snow', hex: '#f0f9ff', nota: 'Blanco de nieve.' },
+      { nombre: 'Mint Ice', hex: '#6ee7b7', nota: 'Menta helada, el bien.' },
+      { nombre: 'Warm Amber', hex: '#fcd34d', nota: 'Ámbar de atención.' },
+      { nombre: 'Rose Alert', hex: '#fb7185', nota: 'Rosa de alarma.' },
+    ],
+    roles: {
+      fondo: '#0b1220',
+      base: '#3b4b6b',
+      primario: '#7dd3fc',
+      secundario: '#a5b4fc',
+      destacado: '#f0f9ff',
+      acento: '#c4b5fd',
+      bien: '#6ee7b7',
+      atencion: '#fcd34d',
+      urgente: '#fb7185',
+      datos: { tierra: '#7dd3fc', temperatura: '#fcd34d', luz: '#f0f9ff', humedad: '#a5b4fc' },
+    },
+  },
+  {
+    id: 'solar',
+    nombre: 'Solar Gold',
+    rooti: null,
+    estilo: 'solar',
+    requisito: { dias_sanos: 180 },
+    desbloqueo: '180 días sanos de una planta',
+    descripcion: 'Oro y ámbar sobre marrón tostado: medio año de sol.',
+    colores: [
+      { nombre: 'Roasted Umber', hex: '#1a1206', nota: 'Marrón tostado, el fondo.' },
+      { nombre: 'Bronze', hex: '#7a5a1a', nota: 'Bronce que tiñe los paneles.' },
+      { nombre: 'Solar Gold', hex: '#f5b301', nota: 'Oro de mediodía.' },
+      { nombre: 'Amber', hex: '#f59e0b', nota: 'Ámbar de tarde.' },
+      { nombre: 'Pale Gold', hex: '#fde68a', nota: 'Oro pálido, para lo destacado.' },
+      { nombre: 'Tangerine', hex: '#fb923c', nota: 'Mandarina, el acento.' },
+      { nombre: 'Lime Leaf', hex: '#a3e635', nota: 'Lima, el bien.' },
+      { nombre: 'Alert Red', hex: '#ef4444', nota: 'Rojo de alarma.' },
+    ],
+    roles: {
+      fondo: '#1a1206',
+      base: '#7a5a1a',
+      primario: '#f5b301',
+      secundario: '#f59e0b',
+      destacado: '#fde68a',
+      acento: '#fb923c',
+      bien: '#a3e635',
+      atencion: '#fb923c',
+      urgente: '#ef4444',
+      datos: { tierra: '#f59e0b', temperatura: '#ef4444', luz: '#fde68a', humedad: '#a3e635' },
+    },
+  },
 ];
 
 export const paletaPorId = (id) => PALETAS.find((p) => p.id === id) || null;
 export const paletaDeRooti = (rooti) => PALETAS.find((p) => p.rooti && p.rooti === rooti) || null;
 
-/** Las paletas que puede elegir quien tiene esta colección de Rooties. */
-export function paletasDisponibles(coleccion = []) {
-  return PALETAS.map((p) => ({ ...p, bloqueada: Boolean(p.rooti && !coleccion.includes(p.rooti)) }));
+/**
+ * Si un requisito cosmético está cumplido: `secreto` (tener al Rooti
+ * secreto) o `dias_sanos` (una planta que llegó a esos días). Con los dos,
+ * alcanza uno.
+ */
+export function cumpleRequisito(requisito, { secretos = 0, diasSanos = 0 } = {}) {
+  if (!requisito) return true;
+  if (requisito.secreto && secretos > 0) return true;
+  if (Number.isFinite(requisito.dias_sanos) && diasSanos >= requisito.dias_sanos) return true;
+  return false;
+}
+
+/**
+ * Las paletas que puede elegir quien tiene esta colección de Rooties,
+ * `secretos` Rooties secretos y una planta con `diasSanos` días sanos.
+ * Cada una trae `bloqueada` y, si lo está, `porque`.
+ */
+export function paletasDisponibles(coleccion = [], { secretos = 0, diasSanos = 0 } = {}) {
+  return PALETAS.map((p) => {
+    const porRooti = Boolean(p.rooti && !coleccion.includes(p.rooti));
+    const porRequisito = Boolean(p.requisito && !cumpleRequisito(p.requisito, { secretos, diasSanos }));
+    return {
+      ...p,
+      bloqueada: porRooti || porRequisito,
+      porque: porRooti ? 'Conseguí su Rooti' : porRequisito ? `Se gana con ${p.desbloqueo}` : null,
+    };
+  });
 }
 
 /* ------------------------------------------------------------- color --- */

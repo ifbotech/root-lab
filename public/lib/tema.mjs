@@ -28,8 +28,11 @@ function pintar(paleta) {
   const tokens = temaDesdePaleta(paleta);
   const raiz = document.documentElement.style;
   for (const [k, v] of Object.entries(tokens)) raiz.setProperty(`--${k}`, v);
+  /* El estilo (cristal, oled, solar) es lo que los tokens no pueden decir:
+     paneles translúcidos, fondo sin degradé. El CSS lo lee de <html>. */
+  document.documentElement.dataset.estilo = paleta.estilo || '';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', tokens.fondo);
-  try { localStorage.setItem(CLAVE, JSON.stringify({ id: paleta.id, tokens })); } catch { /* modo privado */ }
+  try { localStorage.setItem(CLAVE, JSON.stringify({ id: paleta.id, tokens, estilo: paleta.estilo || '' })); } catch { /* modo privado */ }
   actual = paleta.id;
 }
 
