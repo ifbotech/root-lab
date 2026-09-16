@@ -19,7 +19,8 @@ User=rootlab
 Group=rootlab
 WorkingDirectory=/opt/root-lab
 EnvironmentFile=/etc/root-lab.env
-ExecStart=/usr/bin/node server/index.mjs
+# Node propio (deploy/instalar.sh): el del sistema puede ser más viejo.
+ExecStart=/opt/root-lab-node/bin/node --disable-warning=ExperimentalWarning server/index.mjs
 Restart=always
 RestartSec=3
 

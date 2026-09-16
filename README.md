@@ -3,13 +3,16 @@
 La app y la nube de **ROOTKIT**: la maceta con sensores y una pantalla que
 muestra un QR al principio y unos ojos después.
 
-Acá vive todo lo que el aparato no hace: vincularlo a una cuenta, abrir el
+Acá vive todo lo que el aparato no hace: las cuentas de las personas (email
+y contraseña, cada una ve sólo sus plantas), vincular la maceta, abrir el
 cofre para descubrir quién es, identificar la planta con una foto, mostrar el
 tablero y avisar al teléfono cuando la planta necesita algo. El firmware, el
 hardware y las carcasas están en
 [root-kit](https://github.com/ifbotech/root-kit).
 
 ## Probarlo en la compu
+
+Necesita Node 22.13 o más nuevo (usa `node:sqlite`).
 
 ```bash
 npm install
@@ -28,7 +31,8 @@ se recorre el flujo entero sin hardware:
 1. Abrí el emulador: muestra el QR.
 2. **Pasarle el wifi** simula el portal cautivo.
 3. **Abrir la app** (o escaneá el QR con el teléfono en la misma red).
-4. En la app: empezar → avisos → el wifi ya está → vincular → **cofre**.
+4. En la app: empezar → **crear cuenta** → avisos → el wifi ya está →
+   vincular → **cofre**.
 5. Mirá el emulador cuando se abre el cofre: abre los ojos.
 6. Nombre, foto de una planta, y listo.
 7. Mové los deslizadores del emulador: la cara cambia, la app muestra tareas
@@ -54,7 +58,7 @@ exigen HTTPS**: para eso hace falta un túnel. Ver
 ## Pruebas
 
 ```bash
-npm test          # 129 pruebas: API, flujo completo, HTTP en subruta, avisos, IA, caras, tareas
+npm test          # 142 pruebas: API, cuentas y aislamiento, base de datos, HTTP en subruta, avisos, IA, caras, tareas
 ```
 
 ## Estructura
@@ -70,15 +74,15 @@ server/
   catalogo.mjs     especies curadas y personajes (generados desde el firmware)
   codigo.mjs       código de vinculación, igual que el firmware
   push.mjs         Web Push con claves VAPID
-  almacen.mjs      datos en un archivo JSON atómico
+  db.mjs           base SQLite: cuentas, sesiones, plantas, lecturas (el único que escribe SQL)
 public/            la app (PWA sin build)
   app.js           rutas, estado, alta
-  vistas/          alta, cofre, hoy, plantas, escáner, colección, ajustes
+  vistas/          alta, cuenta, cofre, hoy, plantas, escáner, colección, ajustes
   lib/             lógica pura: tareas, diagnóstico, gamificación, caras
   caras/           el firmware en WebAssembly y las imágenes de las caras
 emulador/          el ROOTKIT virtual
-deploy/            instalación en un VPS: script, servicio systemd, Caddy
-tools/             sincronizar con el firmware, verificar un despliegue, íconos
+deploy/            instalación en un VPS: script, servicios systemd, respaldo diario, Caddy
+tools/             sincronizar con el firmware, verificar un despliegue, respaldar la base, íconos
 test/
 docs/
 ```

@@ -7,8 +7,9 @@
  * manifest, service worker, renderer, emulador y cabeceras.
  *
  * Con --flujo además recorre el camino completo con un aparato de prueba:
- * cuenta, sincronización, vínculo, cofre, nombre, especie, lecturas y estado,
- * y al final desvincula la planta para no dejar basura a la vista.
+ * cuenta, sincronización, vínculo, cofre, nombre, especie, lecturas y estado.
+ * Abre una segunda cuenta para comprobar que no ve la planta de la primera,
+ * y al final borra las dos cuentas: no queda nada en la base.
  */
 import { randomBytes } from 'node:crypto';
 import { codigoVinculo, tokenApi } from '../server/codigo.mjs';
@@ -77,9 +78,21 @@ if (FLUJO) {
     id, fw: 'verificacion', placa: 'prueba', pantalla: 'ninguna', persona: '', epoca: 0, rssi: -50, usb: true, bat_mv: 0, arranques: 1, ...cuerpo,
   } });
 
-  const [cc, cuenta] = await json('/api/cuenta', { method: 'POST', body: { tz: 'America/Argentina/Buenos_Aires' } });
+  const clave = randomBytes(12).toString('hex');
+  const registrar = (quien) => json('/api/cuenta/registro', { method: 'POST', body: {
+    email: `verificacion-${quien}-${randomBytes(4).toString('hex')}@ejemplo.com`, clave, nombre: 'Verificación', tz: 'America/Argentina/Buenos_Aires',
+  } });
+  const [cc, cuenta] = await registrar('a');
   ok('crear cuenta', cc === 201 && cuenta?.token);
   const auth = { authorization: `Bearer ${cuenta?.token}` };
+
+  const [cs] = await json('/api/estado');
+  ok('sin sesión no hay datos', cs === 401);
+
+  const [ce1] = await json('/api/cuenta/entrar', { method: 'POST', body: { email: cuenta?.cuenta?.email, clave } });
+  ok('entrar con email y contraseña', ce1 === 200);
+  const [ce2] = await json('/api/cuenta/entrar', { method: 'POST', body: { email: cuenta?.cuenta?.email, clave: 'otra cosa' } });
+  ok('contraseña equivocada', ce2 === 401);
 
   const [c1, r1] = await disp({ estado: 'SIN_VINCULO', codigo, reloj: 10, lecturas: [] });
   ok('el aparato se presenta', c1 === 200 && r1?.ok && r1.vinculado === false);
@@ -100,8 +113,22 @@ if (FLUJO) {
   const n = estado?.nodes?.[0];
   ok('el tablero muestra la sed', ce === 200 && n?.mood === 'THIRSTY' && n?.tel?.soil_pct === 12);
 
+  const [cot, otra] = await registrar('b');
+  const authOtra = { authorization: `Bearer ${otra?.token}` };
+  const [, estadoOtra] = await json('/api/estado', { headers: authOtra });
+  const [cpo] = await json(`/api/plantas/${planta?.id}`, { headers: authOtra });
+  ok('otra cuenta no ve esa planta', cot === 201 && estadoOtra?.nodes?.length === 0 && cpo === 404);
+
+  const [ch, hist] = await json(`/api/plantas/${planta?.id}/historial?horas=24`, { headers: auth });
+  ok('la lectura quedó guardada', ch === 200 && hist?.total >= 1);
+
   const del = await pedir(`/api/plantas/${planta?.id}`, { method: 'DELETE', headers: auth });
-  ok('desvincular (limpieza)', del.status === 204);
+  ok('desvincular', del.status === 204);
+
+  const borrar = (a) => pedir('/api/cuenta', { method: 'DELETE', headers: { ...a, 'content-type': 'application/json' }, body: JSON.stringify({ clave }) });
+  const b1 = await borrar(auth);
+  const b2 = await borrar(authOtra);
+  ok('borrar las cuentas de prueba', b1.status === 204 && b2.status === 204);
 }
 
 console.log(fallas ? `\n  ${fallas} FALLAS\n` : '\n  todo en verde\n');

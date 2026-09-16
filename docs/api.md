@@ -29,17 +29,40 @@ Lo que hace el servidor con cada pedido:
 
 ## De la app
 
-Todas con `Authorization: Bearer <token de la cuenta>`, salvo las marcadas.
+Todas con `Authorization: Bearer <token de sesión>`, salvo las marcadas. Sin
+sesión (o con una vencida) responden `401`, y cada una ve sólo las plantas de
+su cuenta: pedir la planta de otra cuenta da `404`, igual que si no existiera.
 
 ### Cuenta
 
 | | |
 |---|---|
-| `POST /api/cuenta` *(sin sesión)* | `{ tz }` → `201 { token, id }` |
-| `GET /api/cuenta` | `{ id, tz, coleccion, avisos, plantas }` |
-| `PATCH /api/cuenta` | `{ tz }` |
-| `POST /api/cuenta/transferir` | `201 { codigo, vence }`: 6 caracteres, 10 minutos, un uso |
-| `POST /api/cuenta/recuperar` *(sin sesión)* | `{ codigo }` → `{ token, id }` |
+| `POST /api/cuenta/registro` *(sin sesión)* | `{ email, clave, nombre?, tz? }` → `201 { token, cuenta }` · `409` si el email ya tiene cuenta |
+| `POST /api/cuenta/entrar` *(sin sesión)* | `{ email, clave }` → `{ token, cuenta }` · `401 Email o contraseña incorrectos.` |
+| `POST /api/cuenta/salir` | cierra esta sesión → `204` |
+| `GET /api/cuenta` | `cuenta` |
+| `PATCH /api/cuenta` | `{ nombre?, tz? }` → `cuenta` |
+| `POST /api/cuenta/clave` | `{ actual, nueva }` → `{ ok }`; cierra las sesiones de los otros teléfonos |
+| `DELETE /api/cuenta` | `{ clave }` → `204`; borra cuenta, plantas, lecturas y avisos, y libera los aparatos |
+
+`cuenta` es `{ id, email, nombre, tz, coleccion, avisos, plantas, creada }`.
+
+- **Email**: se guarda en minúsculas y sin espacios; `Rocio@Ejemplo.com` y
+  `rocio@ejemplo.com` son la misma cuenta.
+- **Contraseña**: al menos 8 caracteres (`clave_min` en `/api/config`),
+  como mucho 200. Se guarda con scrypt (N=16384, r=8, p=1) y sal propia:
+  `scrypt$16384$8$1$<sal>$<hash>`. Nunca vuelve en ninguna respuesta.
+- **Sesión**: token aleatorio de 32 bytes; el servidor guarda sólo su
+  SHA-256. Vence a los 180 días sin uso (el uso se anota como mucho una vez por hora). Entrar desde
+  otro teléfono abre otra sesión sin cerrar las demás.
+- **Errores de entrada**: el mismo mensaje y el mismo tiempo de respuesta si
+  el email no existe o la contraseña está mal, para no revelar qué emails
+  tienen cuenta.
+- **Límites**: registro 10 por hora por IP; entrar 30 cada 15 minutos por IP
+  y 10 por email; cambiar contraseña 10 y borrar la cuenta 5 cada 15 minutos.
+  Pasado el límite, `429`.
+- Todavía no hay recuperación de contraseña por email: hace falta un
+  servicio de envío de correo (ver [despliegue.md](despliegue.md)).
 
 ### Vínculo
 
@@ -56,12 +79,12 @@ no hace falta regalar intentos.
 
 | | |
 |---|---|
-| `GET /api/estado` | `{ nodes, especies, coleccion, avisos, hora }` |
+| `GET /api/estado` | `{ cuenta, nodes, especies, coleccion, avisos, hora }` |
 | `GET /api/plantas/:id` | la planta |
 | `PATCH /api/plantas/:id` | `{ nombre?, especie?, pantalla?, brillo? }` |
-| `DELETE /api/plantas/:id` | desvincula: la maceta vuelve al QR con código nuevo |
+| `DELETE /api/plantas/:id` | desvincula: la maceta vuelve al QR con código nuevo. La planta y sus lecturas quedan guardadas en la cuenta |
 | `POST /api/plantas/:id/cofre` | abre el cofre: `{ id, nombre, rareza, lema, fondo, nuevo, probabilidad, de_fabrica, planta }` |
-| `GET /api/plantas/:id/historial?horas=48` | `{ puntos: [{ t, soil_pct, temp_dc, rh_pct, lux, mood }] }`, hasta 240 puntos |
+| `GET /api/plantas/:id/historial?horas=48` | `{ total, puntos: [{ t, soil_pct, temp_dc, rh_pct, lux, mood }] }`: `horas` hasta 8784 (un año), promediado en hasta 240 puntos; `total` es la cantidad de lecturas guardadas en esa ventana |
 
 `especie` acepta un id del catálogo o un objeto completo
 (`{ id, nombre, cientifico, soil_min, soil_max, temp_min_dc, temp_max_dc, rh_min, lux_min, lux_max }`),
@@ -104,4 +127,5 @@ Una planta en `nodes`:
 | `POST /api/push/suscripcion` | `{ suscripcion }` |
 | `DELETE /api/push/suscripcion` | `{ endpoint }` |
 | `POST /api/push/probar` | manda una de prueba: `{ enviados }` |
-| `GET /api/config` *(sin sesión)* | `{ version, ia, push, url_publica, probabilidades }` |
+| `GET /api/config` *(sin sesión)* | `{ version, ia, push, url_publica, probabilidades, clave_min }` |
+| `GET /api/salud` *(sin sesión)* | `{ ok, version, activo_s, cuentas, dispositivos, plantas, lecturas }` |

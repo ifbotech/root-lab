@@ -48,11 +48,3 @@ export function igualesSeguro(a, b) {
   const y = Buffer.from(String(b));
   return x.length === y.length && timingSafeEqual(x, y);
 }
-
-/** Un código corto para pasar la cuenta del navegador a la app instalada. */
-export function codigoTransferencia() {
-  const b = randomBytes(6);
-  let s = '';
-  for (let i = 0; i < 6; i++) s += CROCKFORD[b[i] % 32];
-  return s;
-}

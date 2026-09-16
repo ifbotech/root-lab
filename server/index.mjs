@@ -21,7 +21,7 @@ import { networkInterfaces } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { crearAlmacen } from './almacen.mjs';
+import { abrirBase } from './db.mjs';
 import { crearApi } from './api.mjs';
 import { crearIA } from './ia.mjs';
 import { crearPush } from './push.mjs';
@@ -58,7 +58,7 @@ function ipLocal() {
 }
 const URL_PUBLICA = (process.env.ROOTLAB_URL_PUBLICA || `http://${ipLocal()}:${PUERTO}${BASE}`).replace(/\/+$/, '');
 
-const almacen = crearAlmacen({ archivo: join(DATOS, 'rootlab.json') });
+const db = abrirBase(join(DATOS, 'rootkit.db'));
 const ia = crearIA();
 let push = null;
 try {
@@ -67,7 +67,7 @@ try {
   console.warn(`notificaciones desactivadas: ${e.message}`);
 }
 const api = crearApi({
-  almacen, ia, push,
+  db, ia, push,
   tofu: process.env.ROOTLAB_TOFU !== '0',
   urlPublica: () => URL_PUBLICA,
   version: VERSION,
@@ -82,7 +82,7 @@ servidor.listen(PUERTO, HOST, () => {
   console.log(`  pública    ${URL_PUBLICA}/   (lo que va en el QR)`);
   console.log(`  IA         ${ia.proveedor}${ia.modelo ? ` (${ia.modelo})` : ' — definí ANTHROPIC_API_KEY para usar Claude'}`);
   console.log(`  avisos     ${push ? 'web push listo' : 'desactivados'}`);
-  console.log(`  datos      ${DATOS}\n`);
+  console.log(`  base       ${join(DATOS, 'rootkit.db')}\n`);
 });
 
 const temporizador = setInterval(() => { api.revisar().catch(() => {}); }, 10 * 60 * 1000);
@@ -90,8 +90,8 @@ temporizador.unref();
 
 for (const senal of ['SIGINT', 'SIGTERM']) {
   process.on(senal, () => {
-    almacen.volcar();
     servidor.close();
+    db.cerrar();
     process.exit(0);
   });
 }

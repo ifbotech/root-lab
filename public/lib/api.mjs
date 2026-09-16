@@ -1,26 +1,24 @@
 /* api.mjs — la sesión y los pedidos al servidor.
  *
- * LA CUENTA ES ANÓNIMA
+ * CADA PERSONA TIENE SU CUENTA
  *
- * No hay usuario ni contraseña. La primera vez que se abre la app se crea
- * una cuenta y el teléfono guarda su token. Pedir un mail antes de que la
- * maceta abra los ojos sería pedir algo a cambio de nada; el día que haga
- * falta (varios teléfonos, recuperar la cuenta) se agrega sin romper esto.
+ * Email y contraseña. Al entrar, el servidor devuelve un token de sesión que
+ * el teléfono guarda; con él, cada pedido ve sólo las plantas de esa cuenta.
+ * Entrar desde otro teléfono con el mismo email trae las mismas plantas, y
+ * cerrar la sesión en uno no toca los demás.
  *
- * Para pasar la cuenta a otro teléfono —o de Safari a la app instalada en
- * un iPhone, que no comparten almacenamiento— está el código de
- * transferencia de Ajustes.
+ * El token vive en localStorage del origen de la app. Si el servidor dice que
+ * la sesión venció (401), la app lo borra y vuelve a pedir entrar.
  */
-
 import { enBase } from './base.mjs';
 
 const CLAVE = 'rootkit:token';
 
 const leer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
-const escribir = (k, v) => { try { localStorage.setItem(k, v); } catch { /* privado */ } };
 
 export const tokenGuardado = () => leer(CLAVE);
-export const guardarToken = (t) => escribir(CLAVE, t);
+export const guardarToken = (t) => { try { localStorage.setItem(CLAVE, t); } catch { /* privado */ } };
+export const borrarToken = () => { try { localStorage.removeItem(CLAVE); } catch { /* privado */ } };
 
 export class ErrorApi extends Error {
   constructor(estado, mensaje) {
@@ -47,21 +45,4 @@ export async function api(ruta, { metodo = 'GET', cuerpo, token = tokenGuardado(
   const datos = await r.json().catch(() => ({}));
   if (!r.ok) throw new ErrorApi(r.status, datos.error || `Error ${r.status}`);
   return datos;
-}
-
-/** Garantiza que haya una cuenta. Devuelve el token. */
-export async function asegurarCuenta() {
-  const t = tokenGuardado();
-  if (t) {
-    try {
-      await api('/api/cuenta', { token: t });
-      return t;
-    } catch (e) {
-      if (e.estado !== 401) return t;   /* sin red: se sigue con la que hay */
-    }
-  }
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const r = await api('/api/cuenta', { metodo: 'POST', cuerpo: { tz }, token: null });
-  guardarToken(r.token);
-  return r.token;
 }

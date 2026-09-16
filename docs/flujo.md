@@ -8,19 +8,26 @@ Del QR de la maceta a la primera cara. La implementación está en
 |---:|---|---|---|
 | 1 | **hola** | QR + red `ROOTKIT-XXXX` | ojos dormidos, el código, "Empezar" |
 | 2 | **instalar** | QR | instrucciones por sistema; se saltea si ya está instalada |
-| 3 | **avisos** | QR | maqueta de notificación y permiso |
-| 4 | **wifi** | QR → se conecta | pasos del portal; espera hasta que la nube la vea |
-| 5 | **vincular** | **ojos dormidos, grises** | "¡Es tuyo!" |
-| 6 | **cofre** | **abre los ojos** | tres toques, luz, el personaje |
-| 7 | **nombre** | la cara | sugerencias según el personaje |
-| 8 | **foto** | la cara | identificación y rangos de la especie |
-| 9 | **listo** | la cara, con umbrales | "Ver a Rulo" |
+| 3 | **cuenta** | QR | crear cuenta (nombre, email, contraseña) o entrar; se saltea si ya hay sesión |
+| 4 | **avisos** | QR | maqueta de notificación y permiso |
+| 5 | **wifi** | QR → se conecta | pasos del portal; espera hasta que la nube la vea |
+| 6 | **vincular** | **ojos dormidos, grises** | "¡Es tuyo!" |
+| 7 | **cofre** | **abre los ojos** | tres toques, luz, el personaje |
+| 8 | **nombre** | la cara | sugerencias según el personaje |
+| 9 | **foto** | la cara | identificación y rangos de la especie |
+| 10 | **listo** | la cara, con umbrales | "Ver a Rulo" |
 
 ## Por qué en este orden
 
 **Instalar antes que avisos.** En iPhone, las notificaciones web sólo existen
 para la app instalada en la pantalla de inicio. Pedir el permiso desde Safari
 sería pedir algo imposible, y un permiso rechazado no se vuelve a pedir.
+
+**La cuenta después de instalar.** En iPhone la app instalada no comparte
+datos con Safari: si la sesión se abriera en Safari, la app instalada
+arrancaría sin ella. Abierta adentro de la app, queda donde se va a usar. Y
+va antes que los avisos y el vínculo porque las dos cosas quedan a nombre de
+la cuenta.
 
 **Avisos antes que el wifi.** Es el momento de más atención: la persona acaba
 de sacar la maceta de la caja. Después del cofre ya está pensando en su
@@ -49,16 +56,17 @@ salta al primer paso que falte (cofre, nombre o foto), o directo a la planta.
 - Al entrar por el QR, el manifest se pide con el código
   (`/manifest.webmanifest?codigo=...`) y su `start_url` es `/v/<código>`: la
   app instalada abre en el mismo alta.
-- La app instalada no comparte almacenamiento con Safari. Como la cuenta se
-  crea al abrir la app y el vínculo pasa después de instalar, normalmente no
-  hay nada que migrar. Si alguien vinculó desde Safari, usa el código de
-  transferencia de Ajustes.
+- La app instalada no comparte almacenamiento con Safari. Si alguien empezó
+  en Safari, en la app instalada sólo tiene que entrar con su email: las
+  plantas están en la cuenta, no en el teléfono.
 
 ## Caminos feos
 
 | Qué pasa | Qué hace |
 |---|---|
 | El ROOTKIT ya es de otra cuenta | explica cómo desvincularlo o reiniciarlo (botón 10 s) |
+| El email ya tiene cuenta | pasa a "Ya tengo cuenta" con el email escrito |
+| La sesión se cerró a mitad del alta | vuelve al paso de la cuenta; al entrar sigue donde estaba |
 | La clave del wifi estaba mal | a los tres intentos la maceta vuelve a levantar el portal; la app sigue esperando |
 | La app se cierra en el cofre | al volver, el cofre sigue ahí; abrirlo dos veces no vuelve a tirar |
 | La IA no reconoce la planta | ofrece otra foto o elegir de la lista |

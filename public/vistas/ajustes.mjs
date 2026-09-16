@@ -1,17 +1,19 @@
-/* ajustes.mjs — notificaciones, pasar la cuenta a otro teléfono y lo demás.
+/* ajustes.mjs — la cuenta, las notificaciones y lo demás.
  *
- * La cuenta es anónima y vive en el teléfono (ver lib/api.mjs). Por eso lo
- * más importante de esta pantalla es el código para llevarla a otro lado:
- * sin él, cambiar de teléfono sería perder las plantas.
+ * Las plantas viven en la cuenta, no en el teléfono (ver lib/api.mjs): para
+ * verlas en otro lado alcanza con entrar con el mismo email. Por eso esta
+ * pantalla sólo tiene lo que se toca de vez en cuando: el nombre, la
+ * contraseña, cerrar la sesión y borrar todo.
  */
-import { h, render, icono } from '../lib/ui.mjs';
-import { motivoSinAvisos, activarAvisos, avisosActivos, instalada } from '../lib/dispositivo.mjs';
-import { guardarToken } from '../lib/api.mjs';
+import { h, render } from '../lib/ui.mjs';
+import { motivoSinAvisos, activarAvisos, avisosActivos } from '../lib/dispositivo.mjs';
 
 export function vistaAjustes(ctx) {
-  const { api, avisar, config, recargar } = ctx;
+  const { api, avisar, config, cuenta } = ctx;
   const cont = h('div', { class: 'vista' });
+  const claveMin = config?.clave_min || 8;
 
+  /* ------------------------------------------------------ notificaciones --- */
   const estadoAvisos = h('span', {}, '…');
   const botonAvisos = h('button', { class: 'boton chico', type: 'button', hidden: true });
   const refrescarAvisos = async () => {
@@ -36,29 +38,79 @@ export function vistaAjustes(ctx) {
   };
   refrescarAvisos();
 
-  const zonaTransferir = h('div', {});
-  const transferir = async () => {
+  /* -------------------------------------------------------------- nombre --- */
+  const inputNombre = h('input', { type: 'text', id: 'ajustes-nombre', maxlength: '40', value: cuenta?.nombre || '', autocomplete: 'given-name' });
+  const guardarNombre = async (ev) => {
+    ev.preventDefault();
     try {
-      const r = await api('/api/cuenta/transferir', { metodo: 'POST' });
-      render(zonaTransferir,
-        h('p', { class: 'codigo-grande mono' }, r.codigo),
-        h('p', { class: 'nota' }, 'En el otro teléfono (o en la app instalada) abrí Ajustes y escribilo en “Traer mis plantas”. Vence en 10 minutos.'));
+      await api('/api/cuenta', { metodo: 'PATCH', cuerpo: { nombre: inputNombre.value } });
+      await ctx.recargar();
+      avisar('Guardado.');
     } catch (e) { avisar(e.message, true); }
   };
 
-  const inputRecuperar = h('input', { type: 'text', maxlength: '6', class: 'mono', placeholder: 'ABC123', 'aria-label': 'Código', autocapitalize: 'characters' });
-  const recuperar = async () => {
+  /* ---------------------------------------------------------- contraseña --- */
+  const claveActual = h('input', { type: 'password', id: 'ajustes-clave-actual', autocomplete: 'current-password', maxlength: '200' });
+  const claveNueva = h('input', { type: 'password', id: 'ajustes-clave-nueva', autocomplete: 'new-password', minlength: String(claveMin), maxlength: '200' });
+  const errorClave = h('p', { class: 'errores', role: 'alert', hidden: true });
+  const cambiarClave = async (ev) => {
+    ev.preventDefault();
+    errorClave.hidden = true;
+    if (claveNueva.value.length < claveMin) {
+      errorClave.textContent = `La contraseña nueva tiene que tener al menos ${claveMin} caracteres.`;
+      errorClave.hidden = false;
+      return;
+    }
     try {
-      const r = await api('/api/cuenta/recuperar', { metodo: 'POST', cuerpo: { codigo: inputRecuperar.value }, token: null });
-      guardarToken(r.token);
-      avisar('Listo, tus plantas están acá.');
-      await recargar();
-      ctx.irA('hoy');
-    } catch (e) { avisar(e.message, true); }
+      await api('/api/cuenta/clave', { metodo: 'POST', cuerpo: { actual: claveActual.value, nueva: claveNueva.value } });
+      claveActual.value = '';
+      claveNueva.value = '';
+      avisar('Cambiada. Las sesiones en otros teléfonos se cerraron.');
+    } catch (e) {
+      errorClave.textContent = e.message;
+      errorClave.hidden = false;
+    }
   };
+
+  /* --------------------------------------------------------- borrar todo --- */
+  const zonaBorrar = h('div', { class: 'form' });
+  const pedirBorrar = () => {
+    const clave = h('input', { type: 'password', id: 'ajustes-clave-borrar', autocomplete: 'current-password', maxlength: '200' });
+    const error = h('p', { class: 'errores', role: 'alert', hidden: true });
+    render(zonaBorrar,
+      h('p', { class: 'nota' }, 'Se borran la cuenta, todas tus plantas y su historial, en todos los teléfonos. Tus ROOTKIT vuelven a mostrar el QR. No se puede deshacer.'),
+      h('div', { class: 'campo' }, h('label', { for: 'ajustes-clave-borrar' }, 'Tu contraseña, para confirmar'), clave),
+      error,
+      h('div', { class: 'fila-botones' },
+        h('button', { class: 'boton', type: 'button', onClick: () => render(zonaBorrar, botonBorrar) }, 'Cancelar'),
+        h('button', {
+          class: 'boton peligro', type: 'button',
+          onClick: async () => {
+            error.hidden = true;
+            try {
+              await api('/api/cuenta', { metodo: 'DELETE', cuerpo: { clave: clave.value } });
+              avisar('Tu cuenta se borró.');
+              ctx.cerrarSesionLocal();
+              await ctx.salir();
+            } catch (e) {
+              error.textContent = e.message;
+              error.hidden = false;
+            }
+          },
+        }, 'Borrar todo')));
+    clave.focus();
+  };
+  const botonBorrar = h('button', { class: 'enlace-boton peligro', type: 'button', onClick: pedirBorrar }, 'Borrar mi cuenta');
+  render(zonaBorrar, botonBorrar);
 
   render(cont,
     h('header', { class: 'vista-cab' }, h('h2', {}, 'Ajustes')),
+
+    h('section', { class: 'panel' },
+      h('h3', { class: 'panel-tit' }, 'Tu cuenta'),
+      h('div', { class: 'fila-ajuste' },
+        h('div', {}, h('b', {}, cuenta?.email || '—'), h('span', {}, 'Entrá con este email en cualquier teléfono y vas a ver tus plantas.')),
+        h('button', { class: 'boton chico', type: 'button', onClick: () => ctx.salir() }, 'Salir'))),
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Notificaciones'),
@@ -66,26 +118,27 @@ export function vistaAjustes(ctx) {
         h('div', {}, h('b', {}, 'Avisos de tus plantas'), estadoAvisos),
         botonAvisos)),
 
-    h('section', { class: 'panel form' },
-      h('h3', { class: 'panel-tit' }, 'Llevar tus plantas a otro teléfono'),
-      h('p', { class: 'nota' }, 'Tu cuenta vive en este teléfono. Generá un código y usalo en el otro.'),
-      h('button', { class: 'boton ancho', type: 'button', onClick: transferir }, icono('telefono', 18), 'Generar código'),
-      zonaTransferir),
+    h('form', { class: 'panel form', onSubmit: guardarNombre },
+      h('h3', { class: 'panel-tit' }, 'Tu nombre'),
+      h('div', { class: 'con-boton' }, inputNombre, h('button', { class: 'boton chico', type: 'submit' }, 'Guardar'))),
 
-    h('section', { class: 'panel form' },
-      h('h3', { class: 'panel-tit' }, 'Traer mis plantas'),
-      h('p', { class: 'nota' }, instalada()
-        ? 'Si empezaste en el navegador, pedí el código en sus Ajustes.'
-        : 'Si ya tenés plantas en otro teléfono, escribí el código que generaste allá.'),
-      inputRecuperar,
-      h('button', { class: 'boton ancho', type: 'button', onClick: recuperar }, 'Traer')),
+    h('form', { class: 'panel form', onSubmit: cambiarClave },
+      h('h3', { class: 'panel-tit' }, 'Cambiar la contraseña'),
+      h('div', { class: 'campo' }, h('label', { for: 'ajustes-clave-actual' }, 'La actual'), claveActual),
+      h('div', { class: 'campo' },
+        h('label', { for: 'ajustes-clave-nueva' }, 'La nueva'), claveNueva,
+        h('span', { class: 'campo-ayuda' }, `Al menos ${claveMin} caracteres.`)),
+      errorClave,
+      h('button', { class: 'boton ancho', type: 'submit' }, 'Cambiar')),
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Sobre ROOTKIT'),
       h('dl', { class: 'datos' },
         h('div', {}, h('dt', {}, 'Versión'), h('dd', {}, config?.version || '—')),
         h('div', {}, h('dt', {}, 'Reconocimiento'), h('dd', {}, config?.ia === 'claude' ? 'Claude' : 'Simulado'))),
-      h('p', { class: 'nota', style: 'margin-top:12px' }, 'Para desvincular un ROOTKIT, entrá a la planta y bajá hasta el final. En la maceta, mantener apretado el botón 10 segundos la reinicia por completo.')));
+      h('p', { class: 'nota', style: 'margin-top:12px' }, 'Para desvincular un ROOTKIT, entrá a la planta y bajá hasta el final. En la maceta, mantener apretado el botón 10 segundos la reinicia por completo.')),
+
+    h('section', { class: 'panel' }, zonaBorrar));
 
   return cont;
 }

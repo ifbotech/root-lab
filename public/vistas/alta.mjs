@@ -5,8 +5,11 @@
  *   hola       qué es esto y cuánto va a tardar
  *   instalar   primero, porque en iPhone las notificaciones web sólo existen
  *              para la app instalada: pedirlas antes sería pedir algo que
- *              no se puede dar
- *   avisos     ahora que se puede
+ *              no se puede dar. Y porque la app instalada no comparte datos
+ *              con Safari: la cuenta se abre ya adentro de la app.
+ *   cuenta     la maceta va a quedar a nombre de alguien, y sus datos se
+ *              guardan en esa cuenta. Se saltea si ya hay sesión.
+ *   avisos     ahora que se puede, y a nombre de la cuenta
  *   wifi       la maceta se conecta a la red de la casa por su portal
  *   vincular   la nube la ve con el mismo código que leyó el QR: es tuya
  *   cofre      quién vive en tu maceta (y en ese momento abre los ojos)
@@ -25,8 +28,9 @@ import {
   motivoSinAvisos, activarAvisos, avisosActivos, prepararFoto,
 } from '../lib/dispositivo.mjs';
 import { escenaCofre } from './cofre.mjs';
+import { formularioCuenta } from './cuenta.mjs';
 
-export const PASOS = ['hola', 'instalar', 'avisos', 'wifi', 'vincular', 'cofre', 'nombre', 'foto', 'listo'];
+export const PASOS = ['hola', 'instalar', 'cuenta', 'avisos', 'wifi', 'vincular', 'cofre', 'nombre', 'foto', 'listo'];
 
 const NOMBRES = {
   cresta: ['Rulo', 'Punk', 'Chispa', 'Brasa'],
@@ -108,6 +112,27 @@ function pasoInstalar(ctx) {
   const quitar = alCambiarInstalable(() => { if (cuerpo.isConnected) pintar(); else quitar(); });
   pintar();
   return [cuerpo, pie];
+}
+
+function pasoCuenta(ctx) {
+  if (ctx.cuenta) {
+    setTimeout(() => ctx.siguiente());
+    return [esperando('Un momento…')];
+  }
+  return [
+    h('div', { class: 'alta-cuerpo' },
+      marcoCara({ modo: 'dormida', lado: 120, etiqueta: 'Un ROOTKIT dormido' }),
+      h('h1', { class: 'alta-titulo' }, 'Tu cuenta'),
+      h('p', { class: 'alta-texto' },
+        'Tu ROOTKIT va a quedar a tu nombre, y todo lo que mida se guarda ahí. Entrá desde cualquier teléfono y está todo.'),
+      formularioCuenta(ctx, {
+        modo: 'crear',
+        alListo: async (r) => {
+          await ctx.alEntrar(r, { quedarse: true });
+          ctx.siguiente();
+        },
+      })),
+  ];
 }
 
 function pasoAvisos(ctx) {
@@ -423,13 +448,14 @@ function pasoListo(ctx) {
 }
 
 const VISTAS = {
-  hola: pasoHola, instalar: pasoInstalar, avisos: pasoAvisos, wifi: pasoWifi,
+  hola: pasoHola, instalar: pasoInstalar, cuenta: pasoCuenta, avisos: pasoAvisos, wifi: pasoWifi,
   vincular: pasoVincular, cofre: pasoCofre, nombre: pasoNombre, foto: pasoFoto, listo: pasoListo,
 };
 
 /** Qué pasos se saltean solos en este teléfono. */
-export function saltear(paso) {
+export function saltear(paso, { cuenta = null } = {}) {
   if (paso === 'instalar' && (instalada() || (!esIOS() && !esAndroid() && !puedeInstalarConBoton()))) return true;
+  if (paso === 'cuenta' && cuenta) return true;
   return false;
 }
 

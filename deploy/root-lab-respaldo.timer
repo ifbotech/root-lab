@@ -1,0 +1,13 @@
+# Respaldo diario de la base de root-lab, a las 4:30 (hora del servidor).
+# Si el servidor estaba apagado a esa hora, lo hace apenas arranca.
+
+[Unit]
+Description=root-lab: respaldo diario
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

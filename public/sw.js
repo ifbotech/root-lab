@@ -10,7 +10,7 @@
  */
 
 /* Subir la versión invalida el caché entero. */
-const CACHE = 'rootkit-v6';
+const CACHE = 'rootkit-v7';
 
 /* La app puede estar montada en una subruta (/rootkit/): todo se resuelve
    contra el alcance del service worker, nunca contra la raíz del dominio. */
@@ -25,6 +25,7 @@ const ARMAZON = [
   'app.js',
   'style.css',
   'lib/api.mjs',
+  'lib/base.mjs',
   'lib/caras.mjs',
   'lib/diagnostico.mjs',
   'lib/dispositivo.mjs',
@@ -36,6 +37,7 @@ const ARMAZON = [
   'vistas/alta.mjs',
   'vistas/cofre.mjs',
   'vistas/coleccion.mjs',
+  'vistas/cuenta.mjs',
   'vistas/escaner.mjs',
   'vistas/hoy.mjs',
   'vistas/plantas.mjs',

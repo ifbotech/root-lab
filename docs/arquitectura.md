@@ -35,25 +35,47 @@ notificaciones salen de ahí. `npm run firmware` lo actualiza desde root-kit.
 
 ## Datos
 
-`server/almacen.mjs` guarda todo en `data/rootlab.json` con escritura atómica.
-Para un piloto de cientos de macetas alcanza y se respalda copiando un
-archivo; el resto del servidor sólo ve un objeto, así que pasar a una base de
-datos toca un archivo.
+Una base SQLite en el servidor (`<ROOTLAB_DATOS>/rootkit.db`), con el módulo
+`node:sqlite` que trae Node 22.13+ (sin dependencias nativas que compilar).
+`server/db.mjs` es el único archivo que escribe SQL; el resto del servidor
+llama funciones como `plantasDe(cuenta)` o `lecturaInsertar(...)`.
 
-| Colección | Clave | Qué guarda |
+Por qué SQLite y no un servidor de base de datos: un solo proceso escribe,
+las lecturas llegan de a una por aparato cada pocos minutos y el respaldo es
+copiar un archivo. Con WAL aguanta miles de macetas en el VPS actual. Si algún
+día hace falta más de un servidor, las tablas pasan tal cual a PostgreSQL y
+sólo cambia `db.mjs`.
+
+| Tabla | Clave | Qué guarda |
 |---|---|---|
-| `cuentas` | id | hashes de tokens, zona horaria, colección |
+| `cuentas` | id | email (único, sin distinguir mayúsculas), nombre, hash scrypt de la contraseña, zona horaria, colección |
+| `sesiones` | SHA-256 del token | cuenta, creada, último uso, navegador |
 | `dispositivos` | id del aparato | hash del token, último estado, código actual y su época, última lectura |
-| `plantas` | id | cuenta, aparato, época del vínculo, personaje, cofre, nombre, especie, días sanos, pantalla |
-| `lecturas` | id del aparato | hasta 4000 lecturas (~40 días) |
-| `suscripciones` | cuenta | suscripciones Web Push |
-| `avisos` | planta | cuándo se mandó cada tipo de aviso |
-| `transferencias` | código | códigos de 10 minutos para pasar la cuenta |
+| `plantas` | id | cuenta, aparato, época del vínculo, personaje, cofre, nombre, especie, días sanos, pantalla, `desvinculada` |
+| `lecturas` | id | planta, aparato, hora, suelo, temperaturas, humedad, luz, batería, ánimo y severidad |
+| `suscripciones` | endpoint | cuenta y suscripción Web Push (hasta 10 teléfonos por cuenta) |
+| `avisos` | planta + tipo | cuándo se mandó cada tipo de aviso |
+| `meta` | clave | versión del esquema |
+
+**Cada cuenta ve sólo lo suyo.** Toda consulta de la app parte de la cuenta
+de la sesión: `plantasDe(cuenta)`, y una planta pedida por id se compara con
+esa cuenta antes de devolverla. Una planta ajena responde `404`, igual que una
+inexistente, para no confirmar que existe.
 
 **Una planta es un vínculo.** Existe desde que una cuenta reclama un aparato
-hasta que se desvincula. El historial de una planta sólo muestra lecturas
-posteriores a su creación: lo que midió el aparato para el dueño anterior no
+hasta que se desvincula. Cada lectura se guarda con la planta a la que
+pertenecía en ese momento: lo que midió el aparato para el dueño anterior no
 es de nadie más.
+
+**Las lecturas no se borran.** Una por cada muestra del aparato (cada 15
+minutos en uso normal: ~35.000 por maceta por año, unos 3 MB). Desvincular
+marca la planta con `desvinculada` y la saca del tablero, pero su historial
+queda en la cuenta. Sólo borrar la cuenta borra sus lecturas.
+
+**Respaldos.** `tools/respaldar.mjs` hace `VACUUM INTO` (copia consistente
+aunque el servidor esté escribiendo) en `<datos>/respaldos/` y conserva 14
+días. En el VPS lo corre un timer de systemd todos los días, y
+`deploy/instalar.sh` hace uno antes de cada actualización.
 
 ## La app
 
@@ -74,10 +96,17 @@ de un dominio o debajo de una ruta.
 | `/#plantas`, `/#planta/<id>` | lista y detalle |
 | `/#diagnostico/<id>`, `/#especie/<id>` | cámara |
 | `/#coleccion`, `/#ajustes`, `/#agregar` | |
+| `/#entrar` | crear cuenta o entrar; es lo que se ve sin sesión |
 
 ## Cuentas
 
-Anónimas. La primera vez que se abre la app se crea una cuenta y el teléfono
-guarda un token. Para llevarla a otro teléfono (o de Safari a la app instalada
-en iPhone, que no comparten almacenamiento) hay un código de transferencia de
-un solo uso en Ajustes.
+Email y contraseña. Al crear la cuenta o entrar, el servidor devuelve un token
+de sesión que el teléfono guarda (`localStorage`, `rootkit:token`) y manda en
+cada pedido. Entrar con el mismo email en otro teléfono muestra las mismas
+plantas; salir en uno no cierra los otros; cambiar la contraseña sí.
+
+Sin sesión, la app sólo muestra el alta (que tiene su propio paso de cuenta),
+la carga de un código a mano y `#entrar`. Si el servidor responde `401` en
+cualquier momento, la app borra el token y vuelve a pedir entrar.
+
+Detalles de contraseñas, sesiones y límites en [api.md](api.md#cuenta).

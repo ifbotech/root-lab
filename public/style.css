@@ -160,7 +160,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .errores { color: var(--rojo); font-weight: 700; }
 
-input[type=text], input[type=search], select {
+input[type=text], input[type=search], input[type=email], input[type=password], select {
   width: 100%; min-height: 52px; padding: 12px 14px;
   background: var(--fondo-alto); border: 2px solid var(--borde); border-radius: 14px;
   font-weight: 700; font-size: 17px; color: var(--tinta);
@@ -169,6 +169,35 @@ input::placeholder { color: var(--tinta-3); }
 input:focus, select:focus { outline: none; border-color: var(--azul); }
 label { font-weight: 800; }
 .form { display: flex; flex-direction: column; gap: 10px; }
+
+/* -------------------------------------------------------------- cuenta --- */
+.cuenta-form { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.pestanas {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px;
+  background: var(--fondo-alto); border: 2px solid var(--borde); border-radius: 16px;
+}
+.pestanas button {
+  min-height: 42px; border: 0; border-radius: 12px; background: transparent; cursor: pointer;
+  color: var(--tinta-2); font-weight: 900; font-size: 13px; letter-spacing: .04em; text-transform: uppercase;
+}
+.pestanas button.activa { background: var(--panel-alto); color: var(--tinta); }
+.campo { display: flex; flex-direction: column; gap: 6px; }
+.campo[hidden] { display: none; }
+.campo label { font-size: 14px; }
+.campo-ayuda { color: var(--tinta-3); font-size: 13px; }
+.campo-ayuda:empty { display: none; }
+.con-boton { display: flex; gap: 8px; align-items: stretch; }
+.con-boton input { flex: 1; min-width: 0; }
+.ver-clave {
+  flex: none; min-width: 72px; border: 2px solid var(--borde); border-radius: 14px; background: var(--panel-alto);
+  font-weight: 900; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; cursor: pointer;
+}
+.separador { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 380px; color: var(--tinta-3); font-size: 13px; font-weight: 800; }
+.separador::before, .separador::after { content: ''; flex: 1; height: 2px; background: var(--borde); }
+.enlace-boton { display: inline-flex; align-items: center; gap: 6px; }
+.enlace-boton.peligro { color: var(--rojo); padding-inline: 0; }
+.fila-botones { display: flex; gap: 10px; flex-wrap: wrap; }
+.fila-botones .boton { flex: 1; }
 
 /* ---------------------------------------------------------------- tabs --- */
 .tabs {

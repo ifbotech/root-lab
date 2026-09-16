@@ -11,9 +11,14 @@
  *
  * El estado del alta se guarda en el teléfono en cada paso: salir a los
  * ajustes de wifi y volver no pierde nada.
+ *
+ * SIN SESIÓN
+ *
+ * Sin cuenta sólo se ve el alta (que tiene su propio paso de cuenta), la
+ * carga de un código y la pantalla de entrar. Todo lo demás pide entrar.
  */
 import { $, h, render, icono } from './lib/ui.mjs';
-import { api, asegurarCuenta, ErrorApi } from './lib/api.mjs';
+import { api, ErrorApi, tokenGuardado, guardarToken, borrarToken } from './lib/api.mjs';
 import { tareasDelDia, contarEstados } from './lib/tareas.mjs';
 import { actualizarRacha } from './lib/gamificacion.mjs';
 import { cargarCaras } from './lib/caras.mjs';
@@ -24,6 +29,8 @@ import { vistaPlantas, vistaDetalle } from './vistas/plantas.mjs';
 import { vistaDiagnostico, vistaEspecie, vistaAgregar } from './vistas/escaner.mjs';
 import { vistaColeccion } from './vistas/coleccion.mjs';
 import { vistaAjustes } from './vistas/ajustes.mjs';
+import { vistaEntrar } from './vistas/cuenta.mjs';
+import { desactivarAvisos } from './lib/dispositivo.mjs';
 
 const REFRESCO_MS = 15000;
 const LS = { hechas: 'rootkit:hechas', racha: 'rootkit:racha', alta: 'rootkit:alta' };
@@ -32,6 +39,7 @@ const leer = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? d
 const escribir = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* privado */ } };
 
 const app = {
+  cuenta: null,
   estado: null,
   config: null,
   sinRed: false,
@@ -75,8 +83,13 @@ function irA(vista, id = null) {
 
 /* -------------------------------------------------------------- datos --- */
 async function recargar() {
+  if (!app.cuenta) {
+    app.estado = null;
+    return;
+  }
   try {
     app.estado = await api('/api/estado');
+    app.cuenta = app.estado.cuenta || app.cuenta;
     app.sinRed = false;
     const hoy = new Date().toISOString().slice(0, 10);
     const c = contarEstados(app.estado.nodes);
@@ -84,9 +97,7 @@ async function recargar() {
     escribir(LS.racha, app.racha);
   } catch (e) {
     app.sinRed = !(e instanceof ErrorApi) || e.estado === 0;
-    if (e instanceof ErrorApi && e.estado === 401) {
-      await asegurarCuenta().catch(() => {});
-    }
+    if (e instanceof ErrorApi && e.estado === 401) cerrarSesionLocal();
   }
 }
 
@@ -94,6 +105,35 @@ function hacerTarea(t) {
   app.hechas = { ...app.hechas, [t.id]: Date.now() };
   escribir(LS.hechas, app.hechas);
   avisar('Anotado. Cuando el sensor lo confirme, desaparece sola.');
+  pintar();
+}
+
+/* ------------------------------------------------------------- sesión --- */
+function cerrarSesionLocal() {
+  borrarToken();
+  app.cuenta = null;
+  app.estado = null;
+}
+
+/* Recién entró o creó la cuenta. Si estaba en medio del alta, se queda ahí. */
+async function alEntrar(r, { quedarse = false } = {}) {
+  guardarToken(r.token);
+  app.cuenta = r.cuenta;
+  await recargar();
+  if (!quedarse) {
+    avisar(`Hola${app.cuenta?.nombre ? `, ${app.cuenta.nombre}` : ''}.`);
+    if (ruta().vista === 'entrar' || !location.hash) irA('hoy');
+    else pintar();
+  }
+}
+
+async function salir() {
+  await desactivarAvisos(api).catch(() => {});
+  await api('/api/cuenta/salir', { metodo: 'POST' }).catch(() => {});
+  cerrarSesionLocal();
+  app.alta = null;
+  escribir(LS.alta, null);
+  history.replaceState(null, '', enBase('#entrar'));
   pintar();
 }
 
@@ -111,7 +151,7 @@ function irAPaso(paso) {
 
 function siguientePaso() {
   let i = PASOS.indexOf(app.alta?.paso || 'hola') + 1;
-  while (i < PASOS.length - 1 && saltear(PASOS[i])) i += 1;
+  while (i < PASOS.length - 1 && saltear(PASOS[i], { cuenta: app.cuenta })) i += 1;
   irAPaso(PASOS[Math.min(i, PASOS.length - 1)]);
 }
 
@@ -166,6 +206,7 @@ function retomarAlta(n) {
 function contexto() {
   const r = ruta();
   return {
+    cuenta: app.cuenta,
     estado: app.estado,
     especies: app.estado?.especies || [],
     coleccion: app.estado?.coleccion || null,
@@ -198,6 +239,9 @@ function contexto() {
     ir: irAPaso,
     guardarAlta,
     terminar: terminarAlta,
+    alEntrar,
+    salir,
+    cerrarSesionLocal,
   };
 }
 
@@ -205,7 +249,9 @@ const PESTANA = {
   hoy: 'hoy', plantas: 'plantas', planta: 'plantas', diagnostico: 'plantas', especie: 'plantas',
   coleccion: 'coleccion', ajustes: 'ajustes',
 };
-const SIN_TABS = new Set(['alta', 'agregar', 'especie']);
+const SIN_TABS = new Set(['alta', 'agregar', 'especie', 'entrar']);
+/* Lo único que se ve sin sesión, además del alta. */
+const PUBLICAS = new Set(['agregar', 'entrar']);
 
 function pintar() {
   const r = ruta();
@@ -215,10 +261,17 @@ function pintar() {
 
   if (r.codigo || (r.vista === 'alta' && app.alta)) {
     sinTabs = true;
+    if (!app.cuenta && app.alta && PASOS.indexOf(app.alta.paso) > PASOS.indexOf('cuenta')) {
+      guardarAlta({ paso: 'cuenta' });
+    }
     vista = vistaAlta(ctx);
+  } else if (!app.cuenta && !PUBLICAS.has(r.vista)) {
+    sinTabs = true;
+    vista = vistaEntrar(ctx);
   } else {
     sinTabs = SIN_TABS.has(r.vista);
     switch (r.vista) {
+      case 'entrar': vista = app.cuenta ? vistaHoy(ctx) : vistaEntrar(ctx); break;
       case 'plantas': vista = vistaPlantas(ctx); break;
       case 'planta': vista = vistaDetalle(ctx); break;
       case 'diagnostico': vista = vistaDiagnostico(ctx); break;
@@ -283,12 +336,15 @@ async function inicio() {
     navigator.serviceWorker.register(enBase('sw.js'), { scope: enBase('') }).catch(() => {});
   }
 
-  try {
-    await asegurarCuenta();
-  } catch {
-    app.sinRed = true;
-  }
   app.config = await api('/api/config').catch(() => null);
+  if (tokenGuardado()) {
+    try {
+      app.cuenta = await api('/api/cuenta');
+    } catch (e) {
+      if (e.estado === 401) cerrarSesionLocal();
+      else app.sinRed = true;
+    }
+  }
 
   const r = ruta();
   if (r.codigo) {

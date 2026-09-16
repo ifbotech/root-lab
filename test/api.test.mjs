@@ -10,8 +10,8 @@ import { describe, test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 
-import { crearApi, diaLocal, bateriaPct } from '../server/api.mjs';
-import { crearAlmacen } from '../server/almacen.mjs';
+import { crearApi, diaLocal, bateriaPct, SESION_VENCE_MS } from '../server/api.mjs';
+import { abrirBase } from '../server/db.mjs';
 import { crearIA } from '../server/ia.mjs';
 import { crearPushDePrueba } from '../server/push.mjs';
 import { codigoVinculo, tokenApi } from '../server/codigo.mjs';
@@ -21,10 +21,10 @@ const T0 = Date.parse('2026-09-16T15:00:00-03:00');
 
 function escenario() {
   const reloj = { t: T0 };
-  const almacen = crearAlmacen();
+  const db = abrirBase();
   const push = crearPushDePrueba();
   const api = crearApi({
-    almacen, push, ia: crearIA({ clave: '' }),
+    db, push, ia: crearIA({ clave: '' }),
     reloj: () => reloj.t,
     azar: (n) => 0,
   });
@@ -33,7 +33,7 @@ function escenario() {
       metodo, ruta, cuerpo, query, ip,
       headers: token ? { authorization: `Bearer ${token}` } : {},
     });
-  return { reloj, almacen, push, api, llamar };
+  return { reloj, db, push, api, llamar };
 }
 
 /* Un ROOTKIT de mentira que habla igual que el de verdad. */
@@ -71,9 +71,12 @@ function aparato(esc, { persona = 'kawaii', id = 'A1B2C3D4E5F6' } = {}) {
   return yo;
 }
 
-async function cuenta(esc) {
-  const [c, r] = await esc.llamar('POST', '/api/cuenta', { cuerpo: { tz: 'America/Argentina/Buenos_Aires' } });
-  assert.equal(c, 201);
+let nCuentas = 0;
+async function cuenta(esc, { email = `persona${++nCuentas}@ejemplo.com`, clave = 'una clave segura' } = {}) {
+  const [c, r] = await esc.llamar('POST', '/api/cuenta/registro', {
+    cuerpo: { email, clave, nombre: 'Persona', tz: 'America/Argentina/Buenos_Aires' },
+  });
+  assert.equal(c, 201, JSON.stringify(r));
   return r.token;
 }
 
@@ -202,7 +205,7 @@ describe('el primer encendido hasta la cara', () => {
     };
     await esc.llamar('POST', '/api/d/sync', { cuerpo, token: maceta.token });
     await esc.llamar('POST', '/api/d/sync', { cuerpo, token: maceta.token });
-    assert.equal(esc.almacen.datos.lecturas[maceta.id].length, 1);
+    assert.equal(esc.db.contarLecturas(maceta.id), 1);
   });
 
   test('un token que no es el suyo no entra', async () => {
@@ -217,8 +220,7 @@ describe('el primer encendido hasta la cara', () => {
   });
 
   test('sin confianza al primer uso, un aparato desconocido no entra', async () => {
-    const almacen = crearAlmacen();
-    const api = crearApi({ almacen, ia: crearIA({ clave: '' }), tofu: false });
+    const api = crearApi({ db: abrirBase(), ia: crearIA({ clave: '' }), tofu: false });
     const s = randomBytes(16);
     const [c] = await api.manejar({
       metodo: 'POST', ruta: '/api/d/sync', headers: { authorization: `Bearer ${tokenApi(s)}` },
@@ -299,16 +301,16 @@ describe('vincular, desvincular y volver a empezar', () => {
     assert.equal(hist.puntos.length, 0);
   });
 
-  test('una cuenta se puede pasar a la app instalada con un código', async () => {
-    const { token, planta } = await vinculada();
-    const [c, tr] = await esc.llamar('POST', '/api/cuenta/transferir', { token });
-    assert.equal(c, 201);
-    const [cr, rec] = await esc.llamar('POST', '/api/cuenta/recuperar', { cuerpo: { codigo: tr.codigo.toLowerCase() } });
-    assert.equal(cr, 200);
-    const [, estado] = await esc.llamar('GET', '/api/estado', { token: rec.token });
-    assert.equal(estado.nodes[0].id, planta.id);
-    const [cr2] = await esc.llamar('POST', '/api/cuenta/recuperar', { cuerpo: { codigo: tr.codigo } });
-    assert.equal(cr2, 404, 'el código es de un solo uso');
+  test('desvincular conserva las lecturas guardadas', async () => {
+    const { maceta, token, planta } = await vinculada();
+    maceta.medir({ suelo: 33, animo: 'HAPPY', sev: 'OK' });
+    maceta.pasar(60);
+    await maceta.sync();
+    const antes = esc.db.contarLecturas(maceta.id);
+    await esc.llamar('DELETE', `/api/plantas/${planta.id}`, { token });
+    assert.equal(esc.db.contarLecturas(maceta.id), antes, 'la historia no se borra');
+    const [c] = await esc.llamar('GET', `/api/plantas/${planta.id}`, { token });
+    assert.equal(c, 404, 'pero la planta ya no aparece');
   });
 });
 
@@ -435,5 +437,139 @@ describe('bordes de la API', () => {
     const [, estado] = await esc.llamar('GET', '/api/estado', { token });
     assert.equal(estado.nodes[0].link, 'CAIDO');
     assert.equal(estado.nodes[0].mood, 'OFFLINE');
+  });
+});
+
+describe('cuentas', () => {
+  let esc;
+  beforeEach(() => { esc = escenario(); });
+  const registro = (cuerpo, ip) => esc.llamar('POST', '/api/cuenta/registro', { cuerpo, ip });
+  const entrar = (email, clave, ip) => esc.llamar('POST', '/api/cuenta/entrar', { cuerpo: { email, clave }, ip });
+
+  test('registrarse valida el email y la contraseña', async () => {
+    assert.equal((await registro({ email: 'no-es-un-email', clave: 'una clave segura' }))[0], 400);
+    const [c, r] = await registro({ email: 'ana@ejemplo.com', clave: 'corta' });
+    assert.equal(c, 400);
+    assert.match(r.error, /8 caracteres/);
+    const [ok, cuentaNueva] = await registro({ email: '  Ana@Ejemplo.com ', clave: 'una clave segura', nombre: 'Ana' });
+    assert.equal(ok, 201);
+    assert.ok(cuentaNueva.token);
+    assert.equal(cuentaNueva.cuenta.email, 'ana@ejemplo.com');
+    assert.equal(cuentaNueva.cuenta.nombre, 'Ana');
+    assert.equal(cuentaNueva.cuenta.clave_hash, undefined, 'la contraseña nunca sale');
+    const [dup] = await registro({ email: 'ANA@ejemplo.com', clave: 'otra clave segura' });
+    assert.equal(dup, 409, 'un email, una cuenta, sin importar mayúsculas');
+  });
+
+  test('la contraseña se guarda con scrypt, nunca en claro', async () => {
+    await registro({ email: 'beto@ejemplo.com', clave: 'mi clave secreta' });
+    const c = esc.db.cuentaPorEmail('beto@ejemplo.com');
+    assert.match(c.clave_hash, /^scrypt\$16384\$8\$1\$/);
+    assert.ok(!c.clave_hash.includes('mi clave secreta'));
+  });
+
+  test('entrar abre una sesión nueva; datos malos no dicen cuál falló', async () => {
+    await registro({ email: 'caro@ejemplo.com', clave: 'una clave segura' });
+    const [c, r] = await entrar('CARO@ejemplo.com', 'una clave segura');
+    assert.equal(c, 200);
+    const [cm, mal] = await entrar('caro@ejemplo.com', 'otra cosa');
+    const [ci, inexistente] = await entrar('nadie@ejemplo.com', 'una clave segura');
+    assert.equal(cm, 401);
+    assert.equal(ci, 401);
+    assert.equal(mal.error, inexistente.error);
+    const [, yo] = await esc.llamar('GET', '/api/cuenta', { token: r.token });
+    assert.equal(yo.email, 'caro@ejemplo.com');
+  });
+
+  test('adivinar contraseñas tiene límite', async () => {
+    await registro({ email: 'dani@ejemplo.com', clave: 'una clave segura' });
+    let ultimo;
+    for (let i = 0; i < 12; i++) [ultimo] = await entrar('dani@ejemplo.com', `intento ${i}`, `10.0.0.${i}`);
+    assert.equal(ultimo, 429);
+  });
+
+  test('salir cierra sólo esa sesión', async () => {
+    const [, uno] = await registro({ email: 'eli@ejemplo.com', clave: 'una clave segura' });
+    const [, dos] = await entrar('eli@ejemplo.com', 'una clave segura');
+    assert.equal((await esc.llamar('POST', '/api/cuenta/salir', { token: uno.token }))[0], 204);
+    assert.equal((await esc.llamar('GET', '/api/estado', { token: uno.token }))[0], 401);
+    assert.equal((await esc.llamar('GET', '/api/estado', { token: dos.token }))[0], 200);
+  });
+
+  test('una sesión sin uso por seis meses vence', async () => {
+    const token = await cuenta(esc);
+    esc.reloj.t += SESION_VENCE_MS + 1000;
+    assert.equal((await esc.llamar('GET', '/api/estado', { token }))[0], 401);
+  });
+
+  test('cambiar la contraseña cierra las otras sesiones', async () => {
+    const [, uno] = await registro({ email: 'fede@ejemplo.com', clave: 'una clave segura' });
+    const [, dos] = await entrar('fede@ejemplo.com', 'una clave segura');
+    const [cm] = await esc.llamar('POST', '/api/cuenta/clave', { token: uno.token, cuerpo: { actual: 'no es', nueva: 'la clave nueva' } });
+    assert.equal(cm, 401);
+    const [c] = await esc.llamar('POST', '/api/cuenta/clave', { token: uno.token, cuerpo: { actual: 'una clave segura', nueva: 'la clave nueva' } });
+    assert.equal(c, 200);
+    assert.equal((await esc.llamar('GET', '/api/estado', { token: uno.token }))[0], 200, 'la sesión actual sigue');
+    assert.equal((await esc.llamar('GET', '/api/estado', { token: dos.token }))[0], 401, 'las otras no');
+    assert.equal((await entrar('fede@ejemplo.com', 'una clave segura'))[0], 401);
+    assert.equal((await entrar('fede@ejemplo.com', 'la clave nueva'))[0], 200);
+  });
+
+  test('cada cuenta ve sólo sus plantas', async () => {
+    const maceta = aparato(esc);
+    const ana = await cuenta(esc);
+    const beto = await cuenta(esc);
+    await maceta.sync();
+    const [, planta] = await esc.llamar('POST', '/api/vinculo', { token: ana, cuerpo: { codigo: maceta.codigo } });
+    maceta.medir({ suelo: 40, animo: 'HAPPY', sev: 'OK' });
+    maceta.pasar(60);
+    await maceta.sync();
+
+    const [, suyo] = await esc.llamar('GET', '/api/estado', { token: beto });
+    assert.equal(suyo.nodes.length, 0);
+    for (const [metodo, ruta] of [
+      ['GET', `/api/plantas/${planta.id}`],
+      ['PATCH', `/api/plantas/${planta.id}`],
+      ['DELETE', `/api/plantas/${planta.id}`],
+      ['POST', `/api/plantas/${planta.id}/cofre`],
+      ['GET', `/api/plantas/${planta.id}/historial`],
+    ]) {
+      const [c] = await esc.llamar(metodo, ruta, { token: beto, cuerpo: { nombre: 'robada' } });
+      assert.equal(c, 404, `${metodo} ${ruta}`);
+    }
+    const [cd] = await esc.llamar('POST', '/api/diagnosticar', { token: beto, cuerpo: { planta: planta.id, image_b64: 'x'.repeat(500) } });
+    assert.equal(cd, 404);
+    const [, v] = await esc.llamar('GET', `/api/vinculo/${maceta.codigo}`, { token: beto });
+    assert.equal(v.mio, false);
+    assert.equal(v.planta, null, 'no se filtra el id de una planta ajena');
+    const [, mia] = await esc.llamar('GET', '/api/estado', { token: ana });
+    assert.equal(mia.nodes.length, 1);
+  });
+
+  test('desde otro teléfono, con email y contraseña, están las mismas plantas', async () => {
+    const maceta = aparato(esc);
+    const token = await cuenta(esc, { email: 'gabi@ejemplo.com', clave: 'una clave segura' });
+    await maceta.sync();
+    const [, planta] = await esc.llamar('POST', '/api/vinculo', { token, cuerpo: { codigo: maceta.codigo } });
+    const [, otroTelefono] = await entrar('gabi@ejemplo.com', 'una clave segura');
+    const [, estado] = await esc.llamar('GET', '/api/estado', { token: otroTelefono.token });
+    assert.equal(estado.nodes[0].id, planta.id);
+  });
+
+  test('borrar la cuenta pide la contraseña y se lleva todo', async () => {
+    const maceta = aparato(esc);
+    const token = await cuenta(esc, { email: 'hugo@ejemplo.com', clave: 'una clave segura' });
+    await maceta.sync();
+    await esc.llamar('POST', '/api/vinculo', { token, cuerpo: { codigo: maceta.codigo } });
+    await maceta.sync();
+    maceta.medir({ suelo: 40, animo: 'HAPPY', sev: 'OK' });
+    maceta.pasar(60);
+    await maceta.sync();
+    assert.equal((await esc.llamar('DELETE', '/api/cuenta', { token, cuerpo: { clave: 'otra' } }))[0], 401);
+    assert.equal((await esc.llamar('DELETE', '/api/cuenta', { token, cuerpo: { clave: 'una clave segura' } }))[0], 204);
+    assert.equal((await entrar('hugo@ejemplo.com', 'una clave segura'))[0], 401);
+    assert.equal(esc.db.contarLecturas(maceta.id), 0, 'sus lecturas se borran con la cuenta');
+    const [, r] = await maceta.sync();
+    assert.equal(r.vinculado, false, 'la maceta vuelve a quedar libre');
   });
 });

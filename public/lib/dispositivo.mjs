@@ -70,6 +70,16 @@ export async function activarAvisos(api) {
   return true;
 }
 
+/** Deja de recibir avisos en este teléfono (al cerrar la sesión). */
+export async function desactivarAvisos(api) {
+  if (!soportaAvisos()) return;
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return;
+  await api('/api/push/suscripcion', { metodo: 'DELETE', cuerpo: { endpoint: sub.endpoint } }).catch(() => {});
+  await sub.unsubscribe().catch(() => {});
+}
+
 export async function avisosActivos() {
   if (!soportaAvisos() || Notification.permission !== 'granted') return false;
   const reg = await navigator.serviceWorker.getRegistration();

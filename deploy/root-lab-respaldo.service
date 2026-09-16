@@ -1,0 +1,20 @@
+# Copia de la base de root-lab (la dispara root-lab-respaldo.timer).
+#
+#   systemctl start root-lab-respaldo     respaldo ya
+#   ls /var/lib/root-lab/respaldos
+
+[Unit]
+Description=root-lab: respaldo de la base de datos
+
+[Service]
+Type=oneshot
+User=rootlab
+Group=rootlab
+WorkingDirectory=/opt/root-lab
+EnvironmentFile=/etc/root-lab.env
+ExecStart=/opt/root-lab-node/bin/node --disable-warning=ExperimentalWarning tools/respaldar.mjs /var/lib/root-lab 14
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/root-lab

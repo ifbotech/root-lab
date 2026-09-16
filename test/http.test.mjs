@@ -13,13 +13,13 @@ import { resolve } from 'node:path';
 
 import { crearServidorHttp, normalizarBase, quitarBase } from '../server/http.mjs';
 import { crearApi } from '../server/api.mjs';
-import { crearAlmacen } from '../server/almacen.mjs';
+import { abrirBase } from '../server/db.mjs';
 import { crearIA } from '../server/ia.mjs';
 
 const RAIZ = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 function levantar(base) {
-  const api = crearApi({ almacen: crearAlmacen(), ia: crearIA({ clave: '' }), version: 'prueba' });
+  const api = crearApi({ db: abrirBase(), ia: crearIA({ clave: '' }), version: 'prueba' });
   const servidor = crearServidorHttp({ api, raiz: RAIZ, base });
   return new Promise((ok) => {
     servidor.listen(0, '127.0.0.1', () => ok({ servidor, url: `http://127.0.0.1:${servidor.address().port}` }));
@@ -82,12 +82,13 @@ describe('servidor en /rootkit', () => {
   });
 
   test('la API recibe cuerpos y devuelve errores legibles', async () => {
-    const r = await pedir(`${s.url}/rootkit/api/cuenta`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"tz":"America/Argentina/Buenos_Aires"}',
+    const r = await pedir(`${s.url}/rootkit/api/cuenta/registro`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: '{"email":"http@ejemplo.com","clave":"una clave segura","tz":"America/Argentina/Buenos_Aires"}',
     });
     assert.equal(r.status, 201);
     assert.ok((await r.json()).token);
-    const mal = await pedir(`${s.url}/rootkit/api/cuenta`, { method: 'POST', body: '{roto' });
+    const mal = await pedir(`${s.url}/rootkit/api/cuenta/registro`, { method: 'POST', body: '{roto' });
     assert.equal(mal.status, 400);
     assert.match((await mal.json()).error, /JSON/);
   });
