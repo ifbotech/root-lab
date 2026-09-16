@@ -27,7 +27,8 @@
  *                   personaje, días sanos, ficha de cuidados y el prompt del
  *                   chat. Desvincular no la borra: la marca.
  *   lecturas        TODAS las lecturas, para siempre, de la planta a la que
- *                   pertenecían cuando se midieron
+ *                   pertenecían cuando se midieron; `escurre` marca las que
+ *                   el Rooti tomó justo después de un riego que se escurrió
  *   chat            lo que se habló con cada planta (cifrado)
  *   ia_uso          cada llamada a la IA con sus tokens y su costo: de acá
  *                   salen los límites diarios y el tope de gasto
@@ -51,7 +52,7 @@ import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { crearCripto } from './cripto.mjs';
 
-export const VERSION_ESQUEMA = 2;
+export const VERSION_ESQUEMA = 3;
 
 export const normalizarEmail = (e) => String(e || '').trim().toLowerCase();
 
@@ -101,7 +102,8 @@ CREATE TABLE IF NOT EXISTS lecturas (
   tsuelo      INTEGER, bat INTEGER, crudo INTEGER,
   usb         INTEGER NOT NULL DEFAULT 0,
   animo       TEXT NOT NULL,
-  sev         TEXT NOT NULL
+  sev         TEXT NOT NULL,
+  escurre     INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS lecturas_planta_t ON lecturas(planta, t);
 CREATE INDEX IF NOT EXISTS lecturas_dispositivo_t ON lecturas(dispositivo, t);
@@ -451,14 +453,14 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
 
     /* ----------------------------------------------------------- lecturas */
     lecturaInsertar(l) {
-      q(`INSERT INTO lecturas (dispositivo, planta, t, suelo, temp, hr, lux, tsuelo, bat, crudo, usb, animo, sev)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      q(`INSERT INTO lecturas (dispositivo, planta, t, suelo, temp, hr, lux, tsuelo, bat, crudo, usb, animo, sev, escurre)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(l.dispositivo, nulo(l.planta), l.t, nulo(l.suelo), nulo(l.temp), nulo(l.hr), nulo(l.lux),
-          nulo(l.tsuelo), nulo(l.bat), nulo(l.crudo), bool(l.usb), l.animo, l.sev);
+          nulo(l.tsuelo), nulo(l.bat), nulo(l.crudo), bool(l.usb), l.animo, l.sev, bool(l.escurre));
     },
     lecturasDePlanta(planta, desde) {
-      return q('SELECT t, suelo, temp, hr, lux, tsuelo, animo, sev FROM lecturas WHERE planta = ? AND t >= ? ORDER BY t')
-        .all(planta, desde);
+      return q('SELECT t, suelo, temp, hr, lux, tsuelo, animo, sev, escurre FROM lecturas WHERE planta = ? AND t >= ? ORDER BY t')
+        .all(planta, desde).map((l) => ({ ...l, escurre: Boolean(l.escurre) }));
     },
     contarLecturas(dispositivo) {
       return q('SELECT COUNT(*) n FROM lecturas WHERE dispositivo = ?').get(dispositivo).n;
@@ -561,6 +563,14 @@ function migrar(db, cripto) {
   if (v < 2) migrarV1aV2(db, cripto);
   /* Idempotente: una base vieja o incompleta recibe las tablas que le falten. */
   db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2}`);
+  if (v < 3) migrarV2aV3(db);
+}
+
+/* v2 -> v3: cada lectura sabe si vino de un riego que se escurrió. */
+function migrarV2aV3(db) {
+  const columnas = db.prepare('PRAGMA table_info(lecturas)').all().map((c) => c.name);
+  if (!columnas.includes('escurre')) db.exec('ALTER TABLE lecturas ADD COLUMN escurre INTEGER NOT NULL DEFAULT 0');
+  db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '3')").run();
 }
 
 /**

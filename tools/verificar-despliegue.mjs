@@ -47,7 +47,7 @@ const basePath = new URL(BASE).pathname.replace(/\/+$/, '');
 
 const salud = await json('/api/salud').catch((e) => [0, { error: e.message }]);
 ok('responde /api/salud', salud[0] === 200 && salud[1]?.ok, JSON.stringify(salud));
-ok('base de datos en el esquema 2 (datos personales cifrados)', salud[1]?.esquema === 2, `esquema ${salud[1]?.esquema}`);
+ok('base de datos en el esquema 3 (datos personales cifrados)', salud[1]?.esquema === 3, `esquema ${salud[1]?.esquema}`);
 if (salud[1]?.version) console.log(`    versión ${salud[1].version}, ${salud[1].cuentas} cuentas, ${salud[1].plantas} plantas, ${salud[1].dispositivos} aparatos`);
 
 const pagina = await pedir('/');

@@ -12,6 +12,14 @@
  *
  * Mientras el módulo carga —o si el navegador no tiene WebAssembly— se
  * muestra la imagen fija de public/caras/<modelo>-<ANIMO>.png.
+ *
+ * LA CARA NO SALTA DE ÁNIMO
+ *
+ * Cuando el ánimo cambia, el firmware dibuja una transición de un tercio de
+ * segundo (ui/cara.h). Acá se lleva el reloj: `actualizar({animo})` la
+ * arranca, y una cara nueva con la misma `clave` (el id de la planta) que
+ * una que ya se mostró arranca desde el ánimo que esa tenía, así la
+ * transición sobrevive a que la vista se vuelva a pintar.
  */
 
 import { enBase } from './base.mjs';
@@ -44,6 +52,7 @@ export function cargarCaras(url = enBase('caras/rootkit_caras.wasm')) {
           modulo.personas.set(texto(modulo.x.persona_id(i)), i);
         }
         modulo.despertarMs = modulo.x.despertar_ms();
+        modulo.transicionMs = modulo.x.transicion_ms ? modulo.x.transicion_ms() : 0;
         return modulo;
       } catch (e) {
         console.warn('caras sin WebAssembly:', e.message);
@@ -86,7 +95,13 @@ function pintar(e, ahora) {
     }
   } else {
     const animo = Math.max(0, ANIMOS.indexOf(e.animo));
-    x.cara(idx, animo, e.etapa || 0, ms);
+    const pasado = e.desde !== undefined ? performance.now() - e.transicion : Infinity;
+    if (pasado < modulo.transicionMs && x.cara_mezcla) {
+      x.cara_mezcla(idx, Math.max(0, ANIMOS.indexOf(e.desde)), animo, x.cara_anim_pct(Math.floor(pasado)), e.etapa || 0, 0, ms);
+    } else {
+      e.desde = undefined;
+      x.cara(idx, animo, e.etapa || 0, ms);
+    }
   }
   const datos = new Uint8ClampedArray(x.memory.buffer, x.rgba(), e.px * e.px * 4);
   e.ctx.putImageData(new ImageData(new Uint8ClampedArray(datos), e.px, e.px), 0, 0);
@@ -102,7 +117,9 @@ function bucle(t) {
     }
     e.visto = true;
     if (e.oculta) continue;
-    if (t - e.ultimo < 1000 / e.fps) continue;
+    /* Durante la transición se dibuja a 30 cuadros, sea cual sea el ritmo
+       de reposo de esa cara: es un tercio de segundo y tiene que ser suave. */
+    if (t - e.ultimo < 1000 / (e.desde !== undefined ? 30 : e.fps)) continue;
     e.ultimo = t;
     if (modulo) pintar(e, performance.timeOrigin + t);
   }
@@ -122,6 +139,12 @@ const observador = typeof IntersectionObserver !== 'undefined'
   })
   : null;
 
+/* El último ánimo que mostró cada planta, para que una cara recién creada
+   arranque desde ahí. Se olvida a los dos minutos: después de tanto, un
+   cambio ya no es "una transición" sino otra visita. */
+const ultimoAnimo = new Map();
+const RECUERDO_MS = 120000;
+
 /**
  * Un lienzo con una cara viva.
  *
@@ -130,13 +153,15 @@ const observador = typeof IntersectionObserver !== 'undefined'
  *   etapa     0..4, los adornos que ganó el vínculo
  *   modo      'cara' | 'dormida' | 'despertar'
  *   lado      tamaño en pixeles CSS
+ *   clave     identidad de la cara entre repintadas (el id de la planta):
+ *             con ella, un cambio de ánimo se anima aunque el lienzo sea nuevo
  *
  * Devuelve el <canvas>, con un método `actualizar({...})` para cambiar
  * ánimo, modo o persona sin recrearlo.
  */
 export function cara({
   persona = '', animo = 'HAPPY', etapa = 0, modo = 'cara', lado = 120,
-  clase = '', fps = 24, alTerminar = null, etiqueta = '',
+  clase = '', fps = 24, alTerminar = null, etiqueta = '', clave = '',
 } = {}) {
   const c = document.createElement('canvas');
   const densidad = Math.min(2, window.devicePixelRatio || 1);
@@ -154,13 +179,27 @@ export function cara({
   }
 
   const e = {
-    c, ctx: c.getContext('2d'), px, persona, animo, etapa, modo, fps, alTerminar,
+    c, ctx: c.getContext('2d'), px, persona, animo, etapa, modo, fps, alTerminar, clave,
     inicio: Date.now(), ultimo: -1e9, creada: performance.now(), visto: false, oculta: false,
   };
+  if (clave && persona && modo === 'cara') {
+    const previo = ultimoAnimo.get(clave);
+    if (previo && previo.animo !== animo && performance.now() - previo.t < RECUERDO_MS) {
+      e.desde = previo.animo;
+      e.transicion = performance.now();
+      c.style.backgroundImage = `url(${enBase(`caras/${persona}-${previo.animo}.png`)})`;
+    }
+    ultimoAnimo.set(clave, { animo, t: performance.now() });
+  }
   c._cara = e;
   c.actualizar = (cambios) => {
     if (cambios.modo && cambios.modo !== e.modo) e.inicio = Date.now();
+    if (cambios.animo && cambios.animo !== e.animo && e.modo === 'cara' && (cambios.modo || 'cara') === 'cara') {
+      e.desde = e.animo;
+      e.transicion = performance.now();
+    }
     Object.assign(e, cambios);
+    if (e.clave && e.persona) ultimoAnimo.set(e.clave, { animo: e.animo, t: performance.now() });
     e.ultimo = -1e9;
   };
   activas.add(e);

@@ -203,6 +203,7 @@ export function crearApi({
         batt_mv: d?.bat_mv || null,
         usb: Boolean(d?.usb),
         age_s: u ? Math.max(0, Math.floor((t - u.t) / 1000)) : null,
+        escurre: Boolean(u?.escurre),
       },
       nodo: d ? {
         id: d.id,
@@ -428,6 +429,8 @@ export function crearApi({
         opcional('bat', l.bat, 0, 5000);
         opcional('crudo', l.suelo_raw, 0, 4095);
         if (l.usb) r.usb = true;
+        /* El Rooti vio un riego que se escurrió sin empapar (nodo/soil.h). */
+        if (l.escurre === true || (Number(l.fallas) & 0x10)) r.escurre = true;
         db.lecturaInsertar({ ...r, dispositivo: idDisp, planta: planta?.id || null });
         d.ultima = r;
         d.animo = animo;
@@ -783,7 +786,7 @@ export function crearApi({
       const todas = db.lecturasDePlanta(p.id, t - horas * H);
       const paso = Math.max(1, Math.ceil(todas.length / 240));
       const puntos = todas.filter((_, i) => i % paso === 0 || i === todas.length - 1).map((l) => ({
-        t: l.t, soil_pct: l.suelo, temp_dc: l.temp, rh_pct: l.hr, lux: l.lux, mood: l.animo,
+        t: l.t, soil_pct: l.suelo, temp_dc: l.temp, rh_pct: l.hr, lux: l.lux, mood: l.animo, ...(l.escurre ? { escurre: true } : {}),
       }));
       return [200, { id: p.id, horas, total: todas.length, puntos }];
     }

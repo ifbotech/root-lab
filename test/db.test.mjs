@@ -151,7 +151,7 @@ test('una base v1 (email en claro) se migra a v2 sin perder nada', () => conDir(
 
   const cripto = crearCripto(randomBytes(32));
   const db = abrirBase(archivo, { cripto });
-  assert.equal(db.version(), 2);
+  assert.equal(db.version(), VERSION_ESQUEMA, 'llega hasta la versión actual');
   const c = db.cuentaPorEmail('vieja@ejemplo.com');
   assert.equal(c.id, 'c1');
   assert.equal(c.email, 'vieja@ejemplo.com');
@@ -166,8 +166,27 @@ test('una base v1 (email en claro) se migra a v2 sin perder nada', () => conDir(
   assert.equal(db.planta('p1'), null, 'las claves foráneas siguen andando después de reconstruir la tabla');
   db.cerrar();
   const otraVez = abrirBase(archivo, { cripto });
-  assert.equal(otraVez.version(), 2, 'abrirla de nuevo no vuelve a migrar');
+  assert.equal(otraVez.version(), VERSION_ESQUEMA, 'abrirla de nuevo no vuelve a migrar');
   otraVez.cerrar();
+}));
+
+test('una base v2 recibe la columna de escurrimiento sin perder lecturas', () => conDir((dir) => {
+  const archivo = join(dir, 'rootkit.db');
+  const cripto = crearCripto(randomBytes(32));
+  let db = abrirBase(archivo, { cripto });
+  db.lecturaInsertar({ dispositivo: 'D', planta: 'p1', t: 1, suelo: 40, animo: 'HAPPY', sev: 'OK' });
+  db.cerrar();
+  /* Se la deja como la dejaba la versión 2: sin la columna y con su número. */
+  const cruda = new DatabaseSync(archivo);
+  cruda.exec("ALTER TABLE lecturas DROP COLUMN escurre; UPDATE meta SET valor = '2' WHERE clave = 'esquema'");
+  cruda.close();
+  db = abrirBase(archivo, { cripto });
+  assert.equal(db.version(), 3);
+  db.lecturaInsertar({ dispositivo: 'D', planta: 'p1', t: 2, suelo: 18, animo: 'THIRSTY', sev: 'URGENT', escurre: true });
+  const l = db.lecturasDePlanta('p1', 0);
+  assert.equal(l.length, 2);
+  assert.deepEqual(l.map((x) => x.escurre), [false, true]);
+  db.cerrar();
 }));
 
 test('el uso de IA se suma por período y se cuenta por cuenta y por Rooti', () => {

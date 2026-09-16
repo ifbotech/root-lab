@@ -158,10 +158,16 @@ function medir() {
      cada lectura sea posterior a la anterior, igual que en la placa. */
   if (reloj() <= ultimoReloj) relojBase += ultimoReloj - reloj() + 1;
   ultimoReloj = reloj();
+  /* El detector de riego del firmware: subir el deslizador de golpe y
+     bajarlo enseguida es el agua que se escurre. */
+  if (!(l.fallas & 1) && x.riego_paso) x.riego_paso(l.suelo, reloj());
+  const escurre = Boolean(x.riego_escurre && x.riego_escurre(reloj()));
   const r = {
     reloj: reloj(), suelo: l.suelo, suelo_raw: 2650 - l.suelo * 14, lux: l.lux, usb: l.usb,
-    animo: ANIMOS[animo], sev: SEV[sev], fallas: l.fallas,
+    animo: ANIMOS[animo], sev: SEV[sev], fallas: l.fallas | (escurre ? 16 : 0),
+    ...(escurre ? { escurre: true } : {}),
   };
+  $('estado-linea').classList.toggle('escurre', escurre);
   if (!(l.fallas & 2)) { r.temp = l.temp; r.hr = l.hr; }
   if (l.bat) r.bat = l.bat;
   pendientes.push(r);
@@ -258,6 +264,9 @@ $('s-panel').addEventListener('change', (e) => {
 });
 
 /* --------------------------------------------------------------- bucle ----- */
+let animoPantalla = null;
+let animoDesde = null;
+let transicionT0 = 0;
 const MODELOS = {
   cresta: '#62c536', kawaii: '#ffa8d0', visor: '#3a526a', ciclope: '#ffa838', hongo: '#ba8ef2',
   'chico-malo': '#9d0208', 'chica-chill': '#0466c8', glitch: '#2a2a36',
@@ -337,8 +346,19 @@ function cuadro(t) {
       break;
     default: {
       const etapa = nube.dias_sanos >= 180 ? 4 : nube.dias_sanos >= 90 ? 3 : nube.dias_sanos >= 30 ? 2 : nube.dias_sanos >= 7 ? 1 : 0;
-      if (cierre > 0) x.cara_cierre(idx, animo, etapa, cierre, Date.now());
-      else x.cara(idx, animo, etapa, Date.now());
+      /* La transición entre ánimos, con el mismo reloj que la placa. */
+      if (animo !== animoPantalla) {
+        if (animoPantalla !== null) { animoDesde = animoPantalla; transicionT0 = ms; }
+        animoPantalla = animo;
+      }
+      const pasado = animoDesde === null ? Infinity : ms - transicionT0;
+      if (pasado < x.transicion_ms()) {
+        x.cara_mezcla(idx, animoDesde, animo, x.cara_anim_pct(Math.floor(pasado)), etapa, cierre, Date.now());
+      } else {
+        animoDesde = null;
+        if (cierre > 0) x.cara_cierre(idx, animo, etapa, cierre, Date.now());
+        else x.cara(idx, animo, etapa, Date.now());
+      }
     }
   }
   const px = new Uint8ClampedArray(x.memory.buffer, x.rgba(), lado * lado * 4);

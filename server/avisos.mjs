@@ -33,6 +33,7 @@ export const ESPERA = {
   URGENT: 3 * H,
   bateria: 24 * H,
   caido: 24 * H,
+  escurre: 24 * H,
 };
 
 export const CALMA = { desde: 23, hasta: 8 };
@@ -129,6 +130,18 @@ export function avisosPendientes({ planta, dispositivo, especie = null, ahora, e
       const [titulo, cuerpo] = TEXTOS[animo](nombre, dispositivo.ultima, especie);
       salida.push({ clave, urgente, tag: `${planta.id}:animo`, titulo, cuerpo, icono: icono(animo), url });
     }
+  }
+
+  /* --- el riego que se escurrió ------------------------------------------ */
+  /* Es un aviso que enseña: la persona acaba de regar, y si no se lo dicen
+     ahora, cree que la planta está bien. Por eso no espera al ánimo. */
+  if (dispositivo.ultima?.escurre && !calma && vencido('escurre', ESPERA.escurre)) {
+    salida.push({
+      clave: 'escurre', urgente: false, tag: `${planta.id}:escurre`,
+      titulo: `El riego de ${nombre} se escurrió`,
+      cuerpo: 'El agua pasó por los costados sin empapar la tierra. Regá despacio, en dos o tres veces.',
+      icono: icono(animo && TEXTOS[animo] ? animo : 'THIRSTY'), url,
+    });
   }
 
   /* --- batería ----------------------------------------------------------- */

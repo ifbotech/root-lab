@@ -130,6 +130,33 @@ describe('el primer encendido hasta la cara', () => {
     assert.equal(hist.puntos[1].mood, 'THIRSTY');
   });
 
+  test('el escurrimiento que detecta el Rooti llega al tablero, al historial y al chat', async () => {
+    const maceta = aparato(esc);
+    const token = await cuenta(esc);
+    await maceta.sync();
+    const [, planta] = await esc.llamar('POST', '/api/vinculo', { token, cuerpo: { codigo: maceta.codigo } });
+    await esc.llamar('POST', `/api/plantas/${planta.id}/cofre`, { token });
+    await esc.llamar('PATCH', `/api/plantas/${planta.id}`, { token, cuerpo: { nombre: 'Rulo', especie: 'monstera' } });
+    maceta.medir({ suelo: 18, animo: 'THIRSTY', sev: 'URGENT', fallas: 16, escurre: true });
+    maceta.pasar(60);
+    await maceta.sync();
+    const [, estado] = await esc.llamar('GET', '/api/estado', { token });
+    assert.equal(estado.nodes[0].tel.escurre, true);
+    const [, hist] = await esc.llamar('GET', `/api/plantas/${planta.id}/historial`, { token, query: { horas: '1' } });
+    assert.equal(hist.puntos.at(-1).escurre, true);
+    assert.equal(hist.puntos.at(-1).soil_pct, 18);
+    maceta.medir({ suelo: 45, animo: 'HAPPY', sev: 'OK' });
+    maceta.pasar(900);
+    await maceta.sync();
+    const [, despues] = await esc.llamar('GET', '/api/estado', { token });
+    assert.equal(despues.nodes[0].tel.escurre, false, 'la bandera viaja con cada lectura');
+    /* Y lo que llegó como bit 0x10 en `fallas`, sin la clave explícita, también. */
+    maceta.medir({ suelo: 20, animo: 'THIRSTY', sev: 'URGENT', fallas: 16 });
+    maceta.pasar(900);
+    await maceta.sync();
+    assert.equal((await esc.llamar('GET', '/api/estado', { token }))[1].nodes[0].tel.escurre, true);
+  });
+
   test('una respuesta perdida no duplica lecturas', async () => {
     const maceta = aparato(esc);
     await maceta.sync();

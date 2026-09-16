@@ -78,3 +78,6 @@ select { background: var(--panel-alto); color: var(--tinta); border: 2px solid v
 .deslizador input { grid-column: 1 / -1; width: 100%; accent-color: var(--azul); }
 details { color: var(--tinta-2); }
 pre { max-height: 260px; overflow: auto; background: #081116; border-radius: 12px; padding: 10px; font-size: 11px; color: #bfe3f5; white-space: pre-wrap; }
+
+/* El detector de riego marcó un escurrimiento: se dice al lado del estado. */
+.estado-linea.escurre::after { content: " · el último riego se escurrió"; color: var(--rojo); }

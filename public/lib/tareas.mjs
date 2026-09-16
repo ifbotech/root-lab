@@ -142,6 +142,17 @@ export function tareasDe(nodo, especie) {
       break;
   }
 
+  /* --- el riego que se escurrió ---------------------------------------- */
+  /* El Rooti vio la tierra subir de golpe y bajar enseguida: el agua pasó
+   * por los costados sin empapar. Es la tarea más pedagógica que hay, porque
+   * la persona cree que regó y la planta sigue con sed. Si además hay sed,
+   * las dos tareas conviven: una dice qué pasó, la otra qué hacer. */
+  if (tel.escurre) {
+    add('escurrio', `El agua se escurrió en ${nombre}`,
+      'La tierra subió y bajó enseguida: el riego pasó por los costados sin empapar. Regá despacio, en dos o tres veces, esperando que la tierra absorba. Si sigue pasando, aflojá la tierra o cambiá el sustrato.',
+      'pronto', 'gota');
+  }
+
   /* --- lo que no depende del ánimo ------------------------------------ */
 
   /* El enlace caído tapa todo lo demás: si no llegan datos, lo que muestre

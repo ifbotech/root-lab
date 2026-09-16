@@ -107,6 +107,17 @@ describe('avisos', () => {
     assert.equal(avisosPendientes({ planta, dispositivo: disp({ visto: noche, sev: 'URGENT' }), ahora: noche, tz }).length, 1);
   });
 
+  test('un riego que se escurrió avisa aunque el ánimo esté bien, una vez por día', () => {
+    const d = disp({ animo: 'HAPPY', sev: 'OK', ultima: { suelo: 30, temp: 220, hr: 50, lux: 3000, escurre: true } });
+    const [a] = avisosPendientes({ planta, dispositivo: d, especie: esp, ahora: T, tz });
+    assert.equal(a.clave, 'escurre');
+    assert.match(a.titulo, /se escurrió/);
+    assert.match(a.cuerpo, /dos o tres veces/);
+    assert.equal(avisosPendientes({ planta, dispositivo: d, ahora: T, enviados: { escurre: T - 3600 * 1000 }, tz }).length, 0);
+    const noche = Date.parse('2026-09-16T02:00:00-03:00');
+    assert.equal(avisosPendientes({ planta, dispositivo: d, ahora: noche, tz }).length, 0, 'de noche no');
+  });
+
   test('batería baja, pero no enchufado', () => {
     const baja = avisosPendientes({ planta, dispositivo: disp({ sev: 'OK', bat_mv: 3400 }), ahora: T, tz });
     assert.equal(baja.length, 1);

@@ -85,6 +85,17 @@ describe('tareas del día', () => {
     assert.ok(tipos.includes('pila'));
   });
 
+  test('un riego que se escurrió es una tarea que enseña, y convive con la sed', () => {
+    const solo = tareasDe(nodo({ tel: { ...nodo().tel, escurre: true } }), MONSTERA);
+    assert.equal(solo.length, 1);
+    assert.equal(solo[0].tipo, 'escurrio');
+    assert.match(solo[0].detalle, /dos o tres veces/);
+    assert.equal(solo[0].auto, true, 'la esconde el sensor cuando la tierra queda bien');
+    const conSed = tareasDe(nodo({ mood: 'THIRSTY', severity: 'URGENT', tel: { ...nodo().tel, soil_pct: 15, escurre: true } }), MONSTERA);
+    assert.deepEqual(conSed.map((t) => t.tipo), ['regar', 'escurrio']);
+    assert.equal(ordenarTareas(conSed)[0].tipo, 'regar', 'lo urgente sigue arriba');
+  });
+
   test('un aparato caído pide revisión', () => {
     const t = tareasDe(nodo({ link: 'CAIDO' }), MONSTERA);
     assert.ok(t.some((x) => x.tipo === 'revisar'));

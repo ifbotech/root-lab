@@ -28,6 +28,7 @@ export function caraDeNodo(n, lado, extra = {}) {
       lado,
       fps: extra.fps || 20,
       etiqueta: `${n.nombre || 'Tu Rooti'}: ${n.reason || ''}`,
+      clave: n.id,
     }));
 }
 

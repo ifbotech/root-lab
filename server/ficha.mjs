@@ -168,6 +168,9 @@ export function contextoVivo({ nodo, especie, lecturas = [], t, tz, persona = ''
     lineas.push(`- Luz ahora: ${miles(tel.lux)} lux (tu rango de día: ${miles(e.lux_min)}–${miles(e.lux_max)} lux)`);
   }
   if (nodo?.reason) lineas.push(`- Cómo te sentís según tu Rooti: ${nodo.reason}`);
+  if (tel.escurre) {
+    lineas.push('- Tu Rooti vio que el último riego se escurrió por los costados sin empapar la tierra: si preguntan por el agua, pedí que rieguen despacio, en dos o tres veces.');
+  }
   if (tel.age_s !== null && tel.age_s !== undefined) {
     const min = Math.round(tel.age_s / 60);
     lineas.push(`- Última medición: hace ${min < 1 ? 'menos de un minuto' : `${min} minutos`}`);
