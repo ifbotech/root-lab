@@ -97,6 +97,9 @@ const TRAZOS = {
   flecha: 'M5 12 h14 M13 6 l6 6 -6 6',
   basura: 'M4 7 h16 M9 7 V4 h6 v3 M6 7 l1 13 h10 l1-13',
   enchufe: 'M9 2 v6 M15 2 v6 M6 8 h12 v4 a6 6 0 0 1-12 0 Z M12 18 v4',
+  chat: 'M4 5 h16 v11 H10 l-5 4 v-4 H4 Z M8 9.5 h8 M8 12.5 h5',
+  candado: 'M6 11 h12 v10 H6 Z M8.5 11 V8 a3.5 3.5 0 0 1 7 0 v3 M12 15 v2',
+  paleta: 'M12 3 a9 9 0 1 0 0 18 c1.5 0 2-1 2-2 s-1-2 0-3 h3 a4 4 0 0 0 4-4 C21 7 17 3 12 3 Z M7.5 12 h.01 M9 7.5 h.01 M15 7.5 h.01',
 };
 
 /** Un icono SVG. `lado` en pixeles. */

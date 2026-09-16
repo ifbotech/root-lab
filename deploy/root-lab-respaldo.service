@@ -15,6 +15,10 @@ EnvironmentFile=/etc/root-lab.env
 ExecStart=/opt/root-lab-node/bin/node --disable-warning=ExperimentalWarning tools/respaldar.mjs /var/lib/root-lab 14
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/root-lab
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+UMask=0027

@@ -8,7 +8,7 @@
  * CAMBIAR ESPECIE: la misma identificación del alta, para una planta
  * existente (se equivocó la foto, o se cambió la planta de maceta).
  *
- * AGREGAR: vincular otro ROOTKIT tipeando el código que muestra debajo de
+ * AGREGAR: vincular otro Rooti tipeando el código que muestra debajo de
  * su QR. Escanear el QR con la cámara del teléfono lleva al mismo lugar.
  */
 import { h, render, icono } from '../lib/ui.mjs';
@@ -31,7 +31,7 @@ export function vistaDiagnostico(ctx) {
   const n = (estado?.nodes || []).find((x) => x.id === plantaId);
   const cont = h('div', { class: 'vista' });
   if (!n) {
-    render(cont, h('section', { class: 'panel vacio' }, h('p', {}, 'Esa maceta ya no está.'),
+    render(cont, h('section', { class: 'panel vacio' }, h('p', {}, 'Esa planta ya no está.'),
       h('button', { class: 'boton', type: 'button', onClick: volver }, 'Volver')));
     return cont;
   }
@@ -82,19 +82,20 @@ export function vistaEspecie(ctx) {
   const n = (estado?.nodes || []).find((x) => x.id === plantaId);
   const cont = h('div', { class: 'alta' });
   if (!n) {
-    render(cont, h('p', {}, 'Esa maceta ya no está.'));
+    render(cont, h('p', {}, 'Esa planta ya no está.'));
     return cont;
   }
   render(cont,
     h('header', { class: 'vista-cab' }, h('button', { class: 'boton chico', type: 'button', onClick: volver }, '‹')),
     selectorEspecie({ ...ctx, alta: { nombre: n.nombre } }, {
+      planta: n.id,
       textoGuardar: 'Guardar',
       alGuardar: async (e) => {
         try {
           await api(`/api/plantas/${n.id}`, {
             metodo: 'PATCH', cuerpo: { especie: ctx.especies?.some((x) => x.id === e.id) ? e.id : e },
           });
-          avisar(`Listo: ${e.nombre}. La maceta lo aplica en su próxima consulta.`);
+          avisar(`Listo: ${e.nombre}. Tu Rooti lo aplica en su próxima consulta.`);
           await recargar();
           volver();
         } catch (err) { avisar(err.message, true); }
@@ -108,7 +109,7 @@ export function vistaAgregar(ctx) {
   const input = h('input', {
     type: 'text', id: 'codigo', maxlength: '9', autocomplete: 'off', autocapitalize: 'characters',
     placeholder: 'K7Q2-M9XA', class: 'mono', style: 'text-align:center;font-size:26px;letter-spacing:.14em',
-    'aria-label': 'Código del ROOTKIT',
+    'aria-label': 'Código del Rooti',
   });
   const error = h('p', { class: 'errores', role: 'alert', hidden: true });
   const seguir = (ev) => {
@@ -125,7 +126,7 @@ export function vistaAgregar(ctx) {
   render(cont,
     h('header', { class: 'vista-cab' }, h('button', { class: 'boton chico', type: 'button', onClick: volver }, '‹')),
     h('form', { class: 'alta-cuerpo', onSubmit: seguir },
-      h('h1', { class: 'alta-titulo' }, 'Agregar un ROOTKIT'),
+      h('h1', { class: 'alta-titulo' }, 'Agregar un Rooti'),
       h('p', { class: 'alta-texto' },
         'Encendelo: en su pantalla aparece un QR. Escanealo con la cámara del teléfono, o escribí acá el código que está debajo.'),
       input, error),

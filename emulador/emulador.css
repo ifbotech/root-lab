@@ -1,11 +1,16 @@
+/* Colores de Vibrant Tones, la paleta de ROOTLAB (public/lib/paletas.mjs). */
 :root {
-  --fondo: #0b161d; --panel: #13242e; --panel-alto: #1a303c; --borde: #25404e;
-  --tinta: #eef5f8; --tinta-2: #9ab4c2; --verde: #58cc02; --verde-canto: #46a302;
-  --azul: #1cb0f6; --rojo: #ff4b4b; --rojo-canto: #d43333;
+  --fondo: #0c1217; --panel: #1c2731; --panel-alto: #23313c; --borde: #2e3e4d;
+  --tinta: #f8f9fa; --tinta-2: #bcc9d4; --verde: #90be6d; --verde-canto: #5b7944;
+  --azul: #277da1; --rojo: #f94144; --rojo-canto: #a02628;
+}
+@font-face {
+  font-family: "Nunito"; font-style: normal; font-weight: 600 900; font-display: swap;
+  src: url("../fuentes/nunito-latin.woff2") format("woff2");
 }
 * { box-sizing: border-box; }
 body {
-  margin: 0; background: radial-gradient(90% 60% at 30% 0%, #16303d 0%, transparent 70%), var(--fondo);
+  margin: 0; background: radial-gradient(90% 60% at 30% 0%, #293846 0%, transparent 70%), var(--fondo);
   color: var(--tinta); font: 700 15px/1.45 "Nunito", system-ui, sans-serif; min-height: 100vh;
 }
 .cab { padding: 22px 24px 4px; max-width: 1100px; margin: 0 auto; }
@@ -64,8 +69,8 @@ body {
 }
 .btn:active { transform: translateY(3px); box-shadow: none; }
 .btn[disabled] { opacity: .45; pointer-events: none; }
-.btn.verde { --b: var(--verde); --c: var(--verde-canto); color: #fff; }
-.btn.rojo { --b: var(--rojo); --c: var(--rojo-canto); color: #fff; }
+.btn.verde { --b: var(--verde); --c: var(--verde-canto); color: #0b0f14; }
+.btn.rojo { --b: var(--rojo); --c: var(--rojo-canto); color: #0b0f14; }
 .caja { display: inline-flex; align-items: center; gap: 8px; color: var(--tinta-2); }
 select { background: var(--panel-alto); color: var(--tinta); border: 2px solid var(--borde); border-radius: 10px; padding: 6px 8px; font: inherit; }
 .deslizador { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; color: var(--tinta-2); }

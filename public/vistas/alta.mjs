@@ -1,4 +1,4 @@
-/* alta.mjs — del QR de la maceta a la primera cara.
+/* alta.mjs — del QR del Rooti a la primera cara.
  *
  * EL ORDEN DE LOS PASOS NO ES ARBITRARIO
  *
@@ -7,12 +7,13 @@
  *              para la app instalada: pedirlas antes sería pedir algo que
  *              no se puede dar. Y porque la app instalada no comparte datos
  *              con Safari: la cuenta se abre ya adentro de la app.
- *   cuenta     la maceta va a quedar a nombre de alguien, y sus datos se
+ *   cuenta     el Rooti va a quedar a nombre de alguien, y sus datos se
  *              guardan en esa cuenta. Se saltea si ya hay sesión.
  *   avisos     ahora que se puede, y a nombre de la cuenta
- *   wifi       la maceta se conecta a la red de la casa por su portal
+ *   wifi       el Rooti se conecta a la red de la casa por su portal
  *   vincular   la nube la ve con el mismo código que leyó el QR: es tuya
- *   cofre      quién vive en tu maceta (y en ese momento abre los ojos)
+ *   cofre      quién es tu Rooti (y en ese momento abre los ojos); si
+ *              tiene paleta propia, ROOTLAB se pinta con sus colores
  *   nombre     ya sabés quién es: ahora se puede bautizar
  *   foto       qué planta cuida, y con eso qué necesita
  *   listo
@@ -39,6 +40,8 @@ const NOMBRES = {
   ciclope: ['Ojito', 'Faro', 'Lupa', 'Tuerto'],
   hongo: ['Siesta', 'Musgo', 'Esporas', 'Boletus'],
   glitch: ['404', 'Ruido', 'Estática', 'Bug'],
+  'chico-malo': ['Brasa', 'Rocky', 'Canela', 'Chispa'],
+  'chica-chill': ['Lola', 'Brisa', 'Luna', 'Sabia'],
 };
 
 const legible = (c) => (c && c.length === 8 ? `${c.slice(0, 4)}-${c.slice(4)}` : c || '');
@@ -62,11 +65,11 @@ function esperando(texto) {
 function pasoHola(ctx) {
   return [
     h('div', { class: 'alta-cuerpo' },
-      marcoCara({ modo: 'dormida', lado: 184, etiqueta: 'Un ROOTKIT dormido' }),
-      h('h1', { class: 'alta-titulo' }, '¡Encontraste un ROOTKIT!'),
+      marcoCara({ modo: 'dormida', lado: 184, etiqueta: 'Un Rooti dormido' }),
+      h('h1', { class: 'alta-titulo' }, '¡Encontraste un Rooti!'),
       h('p', { class: 'alta-texto' },
-        'En un par de minutos lo conectamos, abrís su cofre y descubrís quién vive en tu maceta.'),
-      h('span', { class: 'codigo-chip mono', title: 'El código de tu ROOTKIT' }, legible(ctx.alta.codigo))),
+        'En un par de minutos lo conectamos, abrís su cofre y descubrís quién va a cuidar tu planta.'),
+      h('span', { class: 'codigo-chip mono', title: 'El código de tu Rooti' }, legible(ctx.alta.codigo))),
     h('div', { class: 'alta-pie' },
       h('button', { class: 'boton primario ancho', type: 'button', onClick: () => ctx.siguiente() }, 'Empezar')),
   ];
@@ -88,7 +91,7 @@ function pasoInstalar(ctx) {
           h('li', { class: 'paso' }, h('span', { class: 'paso-num' }, '2'),
             h('div', {}, h('b', {}, '“Agregar a inicio”'), h('span', {}, 'Bajá un poco en la lista para encontrarlo.'))),
           h('li', { class: 'paso' }, h('span', { class: 'paso-num' }, '3'),
-            h('div', {}, h('b', {}, 'Abrí ROOTKIT desde el inicio'), h('span', {}, 'Seguimos ahí, en este mismo paso.')))));
+            h('div', {}, h('b', {}, 'Abrí ROOTLAB desde el inicio'), h('span', {}, 'Seguimos ahí, en este mismo paso.')))));
       render(pie, h('button', { class: 'enlace-boton', type: 'button', onClick: () => ctx.siguiente() }, 'Seguir en Safari'));
     } else if (puedeInstalarConBoton()) {
       render(cuerpo, icon,
@@ -121,10 +124,10 @@ function pasoCuenta(ctx) {
   }
   return [
     h('div', { class: 'alta-cuerpo' },
-      marcoCara({ modo: 'dormida', lado: 120, etiqueta: 'Un ROOTKIT dormido' }),
-      h('h1', { class: 'alta-titulo' }, 'Tu cuenta'),
+      marcoCara({ modo: 'dormida', lado: 120, etiqueta: 'Un Rooti dormido' }),
+      h('h1', { class: 'alta-titulo' }, 'Tu cuenta de ROOTLAB'),
       h('p', { class: 'alta-texto' },
-        'Tu ROOTKIT va a quedar a tu nombre, y todo lo que mida se guarda ahí. Entrá desde cualquier teléfono y está todo.'),
+        'Tu Rooti va a quedar a tu nombre, y todo lo que mida se guarda ahí, protegido. Entrá desde cualquier teléfono y está todo.'),
       formularioCuenta(ctx, {
         modo: 'crear',
         alListo: async (r) => {
@@ -174,7 +177,7 @@ function pasoAvisos(ctx) {
 
 function pasoWifi(ctx) {
   const ssid = `ROOTKIT-${ctx.alta.codigo.slice(0, 4)}`;
-  const estado = h('div', {}, esperando('Esperando a tu ROOTKIT…'));
+  const estado = h('div', {}, esperando('Esperando a tu Rooti…'));
   const lista = h('ol', { class: 'pasos' },
     h('li', { class: 'paso' }, h('span', { class: 'paso-num' }, '1'),
       h('div', {}, h('b', {}, 'Dejalo encendido con el QR'), h('span', {}, 'Enchufado o con batería, mostrando el código.'))),
@@ -206,7 +209,7 @@ function pasoWifi(ctx) {
       if (v.visto) {
         vivo = false;
         [...lista.children].forEach((li) => li.classList.add('hecho'));
-        render(estado, h('p', { class: 'espera', style: 'color:var(--verde)' }, icono('tilde', 20), '¡Llegó! Ya está en tu wifi.'));
+        render(estado, h('p', { class: 'espera', style: 'color:var(--bien-texto)' }, icono('tilde', 20), '¡Llegó! Ya está en tu wifi.'));
         setTimeout(() => ctx.siguiente(), 1100);
         return;
       }
@@ -223,7 +226,7 @@ function pasoWifi(ctx) {
       h('details', { class: 'nota', style: 'text-align:left;width:100%' },
         h('summary', {}, '¿No aparece la red?'),
         h('p', {}, 'Tu wifi tiene que ser de 2,4 GHz (si tu router muestra dos redes, usá la que no dice 5G). '
-          + 'Si el ROOTKIT ya estuvo en otra casa, mantené apretado su botón 10 segundos: los ojos se cierran y vuelve a mostrar el QR con la red nueva.'))),
+          + 'Si el Rooti ya estuvo en otra casa, mantené apretado su botón 10 segundos: los ojos se cierran y vuelve a mostrar el QR con la red nueva.'))),
   ];
 }
 
@@ -238,7 +241,7 @@ function pasoVincular(ctx) {
       render(cuerpo,
         h('div', { class: 'exito', 'aria-hidden': 'true' }, icono('tilde', 64)),
         h('h1', { class: 'alta-titulo' }, '¡Es tuyo!'),
-        h('p', { class: 'alta-texto' }, 'Tu ROOTKIT quedó vinculado. Ahora está dormido, esperando que abras su cofre.'));
+        h('p', { class: 'alta-texto' }, 'Tu Rooti quedó vinculado. Ahora está dormido, esperando que abras su cofre.'));
       render(pie, h('button', { class: 'boton primario ancho', type: 'button', onClick: () => ctx.siguiente() }, 'Ir al cofre'));
     } catch (e) {
       if (e.estado === 409 && /todavía no se conectó/.test(e.message)) {
@@ -249,7 +252,7 @@ function pasoVincular(ctx) {
         h('h1', { class: 'alta-titulo' }, 'No se pudo vincular'),
         h('p', { class: 'alta-texto' }, e.message),
         /otra cuenta/.test(e.message)
-          ? h('p', { class: 'nota' }, 'Si este ROOTKIT era de otra persona, pedile que lo desvincule desde su app, o mantené apretado su botón 10 segundos para reiniciarlo.')
+          ? h('p', { class: 'nota' }, 'Si este Rooti era de otra persona, pedile que lo desvincule desde su app, o mantené apretado su botón 10 segundos para reiniciarlo.')
           : null);
       render(pie, h('button', { class: 'boton ancho', type: 'button', onClick: () => ctx.ir('vincular') }, 'Probar de nuevo'));
     }
@@ -271,6 +274,7 @@ function pasoCofre(ctx) {
         ctx.guardarAlta({ persona: m.id, fondo: m.fondo });
         return m;
       },
+      alPintar: (m, origen) => ctx.pintarApp(m.paleta, origen),
       alSeguir: () => ctx.siguiente(),
     }),
   ];
@@ -339,7 +343,7 @@ export function tarjetaEspecie(e, { confianza = null, foto = null } = {}) {
  * Identificar por foto y elegir especie. Se usa en el alta y desde el
  * detalle de una planta ("cambiar especie").
  */
-export function selectorEspecie(ctx, { alGuardar, textoGuardar = 'Es esta' }) {
+export function selectorEspecie(ctx, { planta, alGuardar, textoGuardar = 'Es esta' }) {
   const zona = h('div', { class: 'alta-cuerpo' });
   const pie = h('div', { class: 'alta-pie' });
   const especies = ctx.especies || [];
@@ -386,7 +390,7 @@ export function selectorEspecie(ctx, { alGuardar, textoGuardar = 'Es esta' }) {
       esperando('Reconociendo tu planta…'));
     render(pie);
     try {
-      const r = await ctx.api('/api/identificar', { metodo: 'POST', cuerpo: { image_b64: foto.image_b64, mime: foto.mime } });
+      const r = await ctx.api('/api/identificar', { metodo: 'POST', cuerpo: { planta, image_b64: foto.image_b64, mime: foto.mime } });
       const dudosa = r.confianza < 0.7;
       render(zona,
         h('h1', { class: 'alta-titulo' }, dudosa ? '¿Puede ser esta?' : '¡La reconocí!'),
@@ -397,12 +401,15 @@ export function selectorEspecie(ctx, { alGuardar, textoGuardar = 'Es esta' }) {
           : null);
       render(pie,
         h('button', { class: 'boton primario ancho', type: 'button', onClick: () => alGuardar(r.especie) }, textoGuardar),
+        r.cuota ? h('p', { class: 'nota', style: 'text-align:center' }, `Reconocimientos de hoy para este Rooti: te quedan ${r.cuota.restantes}.`) : null,
         h('button', { class: 'enlace-boton', type: 'button', onClick: () => lista(r.alternativas?.filter((a) => a.id) || []) }, 'No, es otra'));
     } catch (e) {
+      /* Sin cuota o con la IA en pausa, otra foto no va a andar: la lista sí. */
+      const sinIA = e.estado === 429 || e.estado === 503 || e.estado === 403;
       render(zona,
-        h('h1', { class: 'alta-titulo' }, 'No pude reconocerla'),
+        h('h1', { class: 'alta-titulo' }, sinIA ? 'Por hoy, elegila de la lista' : 'No pude reconocerla'),
         h('p', { class: 'alta-texto' }, e.message),
-        campoFoto('Probar con otra foto'));
+        sinIA ? null : campoFoto('Probar con otra foto'));
       render(pie, h('button', { class: 'enlace-boton', type: 'button', onClick: () => lista() }, 'Elegir de la lista'));
     }
   }
@@ -410,7 +417,7 @@ export function selectorEspecie(ctx, { alGuardar, textoGuardar = 'Es esta' }) {
   render(zona,
     h('h1', { class: 'alta-titulo' }, 'Presentame a tu planta'),
     h('p', { class: 'alta-texto' },
-      `Sacale una foto a la planta donde pusiste ${ctx.alta?.nombre ? `a ${ctx.alta.nombre}` : 'tu ROOTKIT'}: la reconozco y ajusto todo a lo que necesita.`),
+      `Sacale una foto a la planta donde pusiste ${ctx.alta?.nombre ? `a ${ctx.alta.nombre}` : 'tu Rooti'}: la reconozco, ajusto todo a lo que necesita y ya pueden charlar.`),
     campoFoto('Sacar la foto'));
   render(pie, h('button', { class: 'enlace-boton', type: 'button', onClick: () => lista() }, 'Elegir de la lista'));
   return [zona, pie];
@@ -418,6 +425,7 @@ export function selectorEspecie(ctx, { alGuardar, textoGuardar = 'Es esta' }) {
 
 function pasoFoto(ctx) {
   return selectorEspecie(ctx, {
+    planta: ctx.alta.plantaId,
     alGuardar: async (e) => {
       try {
         await ctx.api(`/api/plantas/${ctx.alta.plantaId}`, {
@@ -432,13 +440,13 @@ function pasoFoto(ctx) {
 }
 
 function pasoListo(ctx) {
-  const nombre = ctx.alta.nombre || 'Tu ROOTKIT';
+  const nombre = ctx.alta.nombre || 'Tu Rooti';
   return [
     h('div', { class: 'alta-cuerpo' },
       marcoCara({ persona: ctx.alta.persona, animo: 'HAPPY', lado: 200 }, ctx.alta.fondo),
       h('h1', { class: 'alta-titulo' }, `${nombre} ya te cuida`),
       h('p', { class: 'alta-texto' },
-        'Mirá su cara en la maceta: si algo le falta, lo vas a notar. Y si no estás mirando, te aviso acá.')),
+        'Mirá la cara de tu Rooti: si algo le falta, lo vas a notar. Y si no estás mirando, te aviso acá. Cuando quieras, charlá con ella desde su ficha.')),
     h('div', { class: 'alta-pie' },
       h('button', {
         class: 'boton primario ancho', type: 'button',

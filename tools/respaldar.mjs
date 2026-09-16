@@ -7,11 +7,14 @@
  * copias más viejas que N días (14 por defecto). En el VPS lo corre el timer
  * root-lab-respaldo todos los días (deploy/instalar.sh).
  *
- * Para sacar las copias del servidor, ver docs/despliegue.md.
+ * No necesita ROOTLAB_SECRETO: copia la base tal cual, con los emails, los
+ * nombres y el chat CIFRADOS. Por eso un respaldo solo no expone a nadie, y
+ * por eso mismo para restaurarlo hace falta la clave maestra (guardala aparte,
+ * ver docs/seguridad.md).
  */
-import { copyFileSync, existsSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, readdirSync, rmSync, statSync, mkdirSync, chmodSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { abrirBase } from '../server/db.mjs';
+import { DatabaseSync } from 'node:sqlite';
 
 const DATOS = resolve(process.argv[2] || process.env.ROOTLAB_DATOS || 'data');
 const DIAS = Number(process.argv[3]) || 14;
@@ -24,11 +27,15 @@ if (!existsSync(archivo)) {
   process.exit(1);
 }
 
-const db = abrirBase(archivo);
+mkdirSync(DESTINO, { recursive: true, mode: 0o750 });
+const db = new DatabaseSync(archivo);
+db.exec('PRAGMA busy_timeout = 10000');
 const copia = join(DESTINO, `rootkit-${fecha}.db`);
-db.respaldar(copia);
-const conteo = db.contar();
-db.cerrar();
+db.prepare('VACUUM INTO ?').run(copia);
+const n = (tabla) => db.prepare(`SELECT COUNT(*) n FROM ${tabla}`).get().n;
+const conteo = { cuentas: n('cuentas'), plantas: n('plantas'), lecturas: n('lecturas') };
+db.close();
+try { chmodSync(copia, 0o640); } catch { /* Windows */ }
 
 if (existsSync(join(DATOS, 'vapid.json'))) {
   copyFileSync(join(DATOS, 'vapid.json'), join(DESTINO, `vapid-${fecha}.json`));

@@ -31,9 +31,43 @@ export const MIME = {
   '.ico': 'image/x-icon',
   '.wasm': 'application/wasm',
   '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8',
 };
 
 const LIMITE_CUERPO = 8 * 1024 * 1024;
+
+/* Cabeceras de seguridad en TODAS las respuestas.
+ *
+ * La política de contenido es estricta porque la app no carga nada de
+ * terceros: fuentes, íconos, módulos y el renderer de caras se sirven desde
+ * acá. Scripts sólo del mismo origen ('wasm-unsafe-eval' es lo mínimo para
+ * instanciar WebAssembly; no habilita eval de JavaScript). Estilos en línea
+ * sí, porque las vistas pintan colores de Rooties en atributos `style`; eso
+ * no ejecuta código. Nadie puede meter la app en un iframe.
+ *
+ * HSTS lo pone el proxy (Caddy), que es quien termina HTTPS. */
+export const CABECERAS_SEGURIDAD = {
+  'content-security-policy': [
+    "default-src 'self'",
+    "script-src 'self' 'wasm-unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "manifest-src 'self'",
+    "worker-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; '),
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+  'x-frame-options': 'DENY',
+  'cross-origin-opener-policy': 'same-origin',
+  'cross-origin-resource-policy': 'same-origin',
+  'permissions-policy': 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+};
 
 /** "/rootkit/" -> "/rootkit"; "" y "/" -> "". */
 export function normalizarBase(b) {
@@ -114,7 +148,7 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
         'content-type': MIME[extname(destino)] || 'application/octet-stream',
         /* El service worker maneja el caché del armazón; el navegador siempre
            revalida, así una versión nueva llega en la próxima carga. */
-        'cache-control': extname(destino) === '.png' ? 'public, max-age=86400' : 'no-cache',
+        'cache-control': ['.png', '.woff2'].includes(extname(destino)) ? 'public, max-age=604800' : 'no-cache',
       });
       res.end(datos);
     } catch {
@@ -135,8 +169,7 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
   }
 
   return createServer(async (req, res) => {
-    res.setHeader('x-content-type-options', 'nosniff');
-    res.setHeader('referrer-policy', 'no-referrer');
+    for (const [k, v] of Object.entries(CABECERAS_SEGURIDAD)) res.setHeader(k, v);
 
     let url;
     try {

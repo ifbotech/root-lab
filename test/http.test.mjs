@@ -118,6 +118,31 @@ describe('servidor en /rootkit', () => {
     assert.equal(sw.status, 200);
   });
 
+  test('toda respuesta lleva las cabeceras de seguridad', async () => {
+    for (const ruta of ['/rootkit/', '/rootkit/api/config', '/rootkit/style.css', '/rootkit/nada.js', '/rootkit/emulador/']) {
+      const r = await pedir(`${s.url}${ruta}`);
+      const csp = r.headers.get('content-security-policy');
+      assert.match(csp, /default-src 'self'/, ruta);
+      assert.match(csp, /frame-ancestors 'none'/, ruta);
+      assert.ok(!/unsafe-eval'/.test(csp.replace("'wasm-unsafe-eval'", '')), 'no hay eval de JavaScript');
+      assert.equal(r.headers.get('x-frame-options'), 'DENY');
+      assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(r.headers.get('referrer-policy'), 'no-referrer');
+    }
+  });
+
+  test('la app no pide nada a terceros', async () => {
+    const html = await (await pedir(`${s.url}/rootkit/`)).text();
+    const css = await (await pedir(`${s.url}/rootkit/style.css`)).text();
+    const emu = await (await pedir(`${s.url}/rootkit/emulador/`)).text();
+    for (const texto of [html, css, emu]) {
+      assert.ok(!/https?:\/\/(?!www\.w3\.org)/.test(texto.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '')), 'sin URLs externas');
+    }
+    const fuente = await pedir(`${s.url}/rootkit/fuentes/nunito-latin.woff2`);
+    assert.equal(fuente.status, 200);
+    assert.equal(fuente.headers.get('content-type'), 'font/woff2');
+  });
+
   test('no se sale de la carpeta pública', async () => {
     for (const intento of ['/rootkit/../package.json', '/rootkit/%2e%2e/server/api.mjs', '/rootkit/..%2f..%2fpackage.json']) {
       const r = await pedir(`${s.url}${intento}`);

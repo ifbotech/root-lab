@@ -9,9 +9,18 @@
 # configuración (/etc/root-lab.env) ni los datos (/var/lib/root-lab), y antes
 # de actualizar hace un respaldo de la base.
 #
+# LA CLAVE MAESTRA
+#
+# Si /etc/root-lab.env no tiene ROOTLAB_SECRETO, se genera una (32 bytes al
+# azar) y se agrega. Con ella se cifran los emails, los nombres y las charlas,
+# y se deriva la pimienta de las contraseñas: SIN ELLA LA BASE NO SIRVE. El
+# script no la imprime (no tiene que quedar en ningún log): dice cómo leerla
+# para guardarla en un gestor de contraseñas (docs/seguridad.md). Nunca se
+# regenera si ya existe.
+#
 # NODE PROPIO
 #
-# root-lab necesita Node 22.13 o más nuevo (usa node:sqlite). En vez de
+# root-lab necesita Node 24.7 o más nuevo (node:sqlite y Argon2id). En vez de
 # cambiar el Node del sistema, que puede estar usando otra cosa del servidor,
 # baja el Node 24 oficial a /opt/root-lab-node, verifica su SHA-256 y lo usa
 # sólo para este servicio.
@@ -81,6 +90,7 @@ chmod 750 "$DATOS" "$DATOS/respaldos"
 
 paso "Respaldo antes de actualizar"
 if [ -f "$DATOS/rootkit.db" ] && [ -f "$DIR/tools/respaldar.mjs" ]; then
+  # Antes de una actualización que puede migrar el esquema: siempre copia.
   runuser -u rootlab -- "$NODE" --disable-warning=ExperimentalWarning "$DIR/tools/respaldar.mjs" "$DATOS" \
     || echo "no se pudo respaldar (se sigue igual)"
 else
@@ -109,15 +119,35 @@ ROOTLAB_BASE=$BASE
 ROOTLAB_URL_PUBLICA=$PUBLICA
 ROOTLAB_DATOS=$DATOS
 ROOTLAB_TOFU=1
+
+# IA (docs/ia.md). Sin clave, simulada.
 # ANTHROPIC_API_KEY=
 # ROOTLAB_IA_MODELO=claude-opus-5
+# ROOTLAB_IA_MODELO_CHAT=claude-sonnet-5
+ROOTLAB_IA_TOPE_DIA_USD=2
+ROOTLAB_IA_TOPE_MES_USD=20
+# ROOTLAB_CUOTA_CHAT=3
+
+# Correo (docs/correo.md). Sin SMTP, los emails quedan en $DATOS/correos.
+# ROOTLAB_SMTP_HOST=smtp-relay.brevo.com
+# ROOTLAB_SMTP_PORT=587
+# ROOTLAB_SMTP_USUARIO=
+# ROOTLAB_SMTP_CLAVE=
+# ROOTLAB_CORREO_REMITENTE=ROOTLAB <no-reply@ifbotech.com>
+# ROOTLAB_ADMIN_EMAIL=
 EOF
-  chmod 640 "$ENV_FILE"
-  chgrp rootlab "$ENV_FILE"
   echo "creado $ENV_FILE"
 else
   echo "se conserva $ENV_FILE"
 fi
+if ! grep -qE '^ROOTLAB_SECRETO=.{40,}' "$ENV_FILE"; then
+  SECRETO="$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
+  printf '\n# Clave maestra: cifra los datos personales. NO la pierdas ni la cambies.\nROOTLAB_SECRETO=%s\n' "$SECRETO" >> "$ENV_FILE"
+  printf '\n\033[1;33m!!\033[0m Clave maestra nueva en %s (no se muestra: no tiene que quedar en ningún log).\n   Guardá una copia fuera del servidor, en un gestor de contraseñas:\n     sudo grep ROOTLAB_SECRETO %s\n   Sin ella, los emails y las contraseñas de la base no se recuperan.\n\n' "$ENV_FILE" "$ENV_FILE"
+  unset SECRETO
+fi
+chmod 640 "$ENV_FILE"
+chgrp rootlab "$ENV_FILE"
 
 paso "Servicio y respaldo diario"
 install -m 644 "$DIR/deploy/root-lab.service" /etc/systemd/system/root-lab.service

@@ -6,7 +6,7 @@
  * DOS PUERTAS DE ENTRADA
  *
  *   /v/<CÓDIGO>   lo que abre el QR de la maceta. Arranca (o retoma) el alta
- *                 de ese ROOTKIT. Si ya es tuyo, va directo a su planta.
+ *                 de ese Rooti. Si ya es tuyo, va directo a su planta.
  *   /#hoy ...     la app de todos los días.
  *
  * El estado del alta se guarda en el teléfono en cada paso: salir a los
@@ -29,7 +29,10 @@ import { vistaPlantas, vistaDetalle } from './vistas/plantas.mjs';
 import { vistaDiagnostico, vistaEspecie, vistaAgregar } from './vistas/escaner.mjs';
 import { vistaColeccion } from './vistas/coleccion.mjs';
 import { vistaAjustes } from './vistas/ajustes.mjs';
-import { vistaEntrar } from './vistas/cuenta.mjs';
+import { vistaEntrar, vistaRestablecer, vistaVerificar } from './vistas/cuenta.mjs';
+import { vistaChat } from './vistas/chat.mjs';
+import { aplicarPaleta } from './lib/tema.mjs';
+import { PALETA_POR_DEFECTO } from './lib/paletas.mjs';
 import { desactivarAvisos } from './lib/dispositivo.mjs';
 
 const REFRESCO_MS = 15000;
@@ -90,6 +93,8 @@ async function recargar() {
   try {
     app.estado = await api('/api/estado');
     app.cuenta = app.estado.cuenta || app.cuenta;
+    /* La paleta es de la cuenta: si se cambió en otro teléfono, llega acá. */
+    aplicarPaleta(app.cuenta?.paleta);
     app.sinRed = false;
     const hoy = new Date().toISOString().slice(0, 10);
     const c = contarEstados(app.estado.nodes);
@@ -115,14 +120,17 @@ function cerrarSesionLocal() {
   app.estado = null;
 }
 
+const VISTAS_DE_CUENTA = new Set(['entrar', 'clave', 'verificar']);
+
 /* Recién entró o creó la cuenta. Si estaba en medio del alta, se queda ahí. */
 async function alEntrar(r, { quedarse = false } = {}) {
   guardarToken(r.token);
   app.cuenta = r.cuenta;
+  aplicarPaleta(app.cuenta?.paleta);
   await recargar();
   if (!quedarse) {
     avisar(`Hola${app.cuenta?.nombre ? `, ${app.cuenta.nombre}` : ''}.`);
-    if (ruta().vista === 'entrar' || !location.hash) irA('hoy');
+    if (VISTAS_DE_CUENTA.has(ruta().vista) || !location.hash) irA('hoy');
     else pintar();
   }
 }
@@ -133,6 +141,7 @@ async function salir() {
   cerrarSesionLocal();
   app.alta = null;
   escribir(LS.alta, null);
+  aplicarPaleta(PALETA_POR_DEFECTO);
   history.replaceState(null, '', enBase('#entrar'));
   pintar();
 }
@@ -164,7 +173,7 @@ async function terminarAlta(plantaId) {
   pintar();
 }
 
-/* Ubica el alta según lo que ya pasó en la nube: si el ROOTKIT ya es tuyo,
+/* Ubica el alta según lo que ya pasó en la nube: si el Rooti ya es tuyo,
    no tiene sentido volver a pedir el wifi. */
 async function entrarConCodigo(codigo) {
   if (!/^[0-9A-Z]{8}$/.test(codigo)) {
@@ -242,16 +251,20 @@ function contexto() {
     alEntrar,
     salir,
     cerrarSesionLocal,
+    alChat: (id) => irA('chat', id),
+    alVerificar: () => { if (app.cuenta) recargar(); },
+    /* Pinta la app con una paleta, con el círculo que crece desde `origen`. */
+    pintarApp: (paleta, origen = null) => aplicarPaleta(paleta, { animar: true, origen }),
   };
 }
 
 const PESTANA = {
-  hoy: 'hoy', plantas: 'plantas', planta: 'plantas', diagnostico: 'plantas', especie: 'plantas',
+  hoy: 'hoy', plantas: 'plantas', planta: 'plantas', diagnostico: 'plantas', especie: 'plantas', chat: 'plantas',
   coleccion: 'coleccion', ajustes: 'ajustes',
 };
-const SIN_TABS = new Set(['alta', 'agregar', 'especie', 'entrar']);
+const SIN_TABS = new Set(['alta', 'agregar', 'especie', 'entrar', 'clave', 'verificar']);
 /* Lo único que se ve sin sesión, además del alta. */
-const PUBLICAS = new Set(['agregar', 'entrar']);
+const PUBLICAS = new Set(['agregar', 'entrar', 'clave', 'verificar']);
 
 function pintar() {
   const r = ruta();
@@ -272,6 +285,9 @@ function pintar() {
     sinTabs = SIN_TABS.has(r.vista);
     switch (r.vista) {
       case 'entrar': vista = app.cuenta ? vistaHoy(ctx) : vistaEntrar(ctx); break;
+      case 'clave': vista = vistaRestablecer(ctx); break;
+      case 'verificar': vista = vistaVerificar(ctx); break;
+      case 'chat': vista = vistaChat(ctx); break;
       case 'plantas': vista = vistaPlantas(ctx); break;
       case 'planta': vista = vistaDetalle(ctx); break;
       case 'diagnostico': vista = vistaDiagnostico(ctx); break;
@@ -311,7 +327,8 @@ function pintar() {
    reiniciar un gráfico cada quince segundos. */
 async function refrescar() {
   const r = ruta();
-  if (document.hidden || r.codigo || SIN_TABS.has(r.vista) || r.vista === 'diagnostico') return;
+  /* La charla y el diagnóstico no se repintan solos: se perdería lo escrito. */
+  if (document.hidden || r.codigo || SIN_TABS.has(r.vista) || r.vista === 'diagnostico' || r.vista === 'chat') return;
   const antes = app.firma;
   const sinRedAntes = app.sinRed;
   await recargar();
@@ -340,6 +357,7 @@ async function inicio() {
   if (tokenGuardado()) {
     try {
       app.cuenta = await api('/api/cuenta');
+      aplicarPaleta(app.cuenta?.paleta);
     } catch (e) {
       if (e.estado === 401) cerrarSesionLocal();
       else app.sinRed = true;

@@ -7,16 +7,22 @@
  *                Contrato: root-kit/docs/nube.md y docs/api.md.
  *
  *   LA APP       /api/*, con la sesión de una CUENTA (email y contraseña).
- *                Cada cuenta ve sólo sus plantas. Vincula, abre el cofre,
- *                bautiza, identifica y mira.
+ *                Cada cuenta ve sólo sus plantas. Vincula su Rooti, abre el
+ *                cofre, bautiza, reconoce la especie, charla con la planta.
  *
  * `manejar()` recibe un pedido ya parseado y devuelve [código, cuerpo]. Así
  * los tests recorren el flujo completo —de la primera consulta del aparato
- * a la notificación de sed— sin abrir un socket. Los datos viven en SQLite
- * (server/db.mjs).
+ * a la notificación de sed— sin abrir un socket.
+ *
+ * Dónde está cada cosa:
+ *
+ *   db.mjs           los datos (emails, nombres y chat, cifrados)
+ *   claves.mjs       contraseñas con Argon2id y pimienta
+ *   correo.mjs       emails (recuperar la contraseña, verificar el email)
+ *   presupuesto.mjs  tope de gasto y cuotas de la IA
+ *   ficha.mjs        la ficha de cuidados y el prompt del chat
  */
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
-import { promisify } from 'node:util';
+import { randomBytes } from 'node:crypto';
 import {
   ESPECIES, MODELOS, FRASES, ANIMOS, especiePorId, modeloPorId, validarEspecie,
 } from './catalogo.mjs';
@@ -25,8 +31,18 @@ import {
 } from './codigo.mjs';
 import { abrirCofre, PROBABILIDADES, probabilidadDe } from './cofre.mjs';
 import { avisosPendientes } from './avisos.mjs';
+import { crearCripto } from './cripto.mjs';
+import { crearClaves } from './claves.mjs';
+import { crearCorreo } from './correo.mjs';
+import { crearPresupuesto } from './presupuesto.mjs';
+import { MAX_TOKENS, validarFoto } from './ia.mjs';
+import { fichaDePlanta, promptDePlanta, contextoVivo } from './ficha.mjs';
+import { normalizarEmail } from './db.mjs';
+import { diaLocal, TZ_POR_DEFECTO } from './tiempo.mjs';
+import * as plantillas from './plantillas-correo.mjs';
+import { PALETA_POR_DEFECTO, paletaPorId, paletaDeRooti } from '../public/lib/paletas.mjs';
 
-const scrypt = promisify(scryptCb);
+export { diaLocal, normalizarEmail };
 
 const MIN = 60 * 1000;
 const H = 60 * MIN;
@@ -39,7 +55,9 @@ export const TIBIO_MS = 6 * H;
 /* Una sesión que no se usa en seis meses se cierra sola. */
 export const SESION_VENCE_MS = 180 * DIA;
 export const CLAVE_MIN = 8;
-const TZ_POR_DEFECTO = 'America/Argentina/Buenos_Aires';
+export const RESTABLECER_VENCE_MS = 30 * MIN;
+export const VERIFICAR_VENCE_MS = 48 * H;
+export const CHAT_MAX = 500;
 
 class ErrorApi extends Error {
   constructor(codigo, mensaje) { super(mensaje); this.codigo = codigo; }
@@ -50,15 +68,7 @@ const entero = (v, def = 0) => (Number.isFinite(Number(v)) ? Math.trunc(Number(v
 const texto = (v, max) => String(v ?? '').trim().slice(0, max);
 const nuevoId = (prefijo) => `${prefijo}${randomBytes(6).toString('hex')}`;
 
-/** Fecha local "AAAA-MM-DD" en la zona del usuario. */
-export function diaLocal(ms, tz = TZ_POR_DEFECTO) {
-  try {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
-      .format(new Date(ms));
-  } catch {
-    return new Date(ms).toISOString().slice(0, 10);
-  }
-}
+export const emailValido = (e) => e.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
 
 const diasEntre = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
 
@@ -76,40 +86,14 @@ export function bateriaPct(mv) {
   return 0;
 }
 
-/* ------------------------------------------------------------ contraseñas */
-/* scrypt: lento a propósito y con sal por cuenta. Se guarda con sus
-   parámetros para poder subirlos en el futuro sin invalidar las viejas. */
-const SCRYPT = { N: 16384, r: 8, p: 1, largo: 64 };
-
-export async function hashClave(clave) {
-  const sal = randomBytes(16);
-  const h = await scrypt(String(clave).normalize('NFKC'), sal, SCRYPT.largo,
-    { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p, maxmem: 64 * 1024 * 1024 });
-  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${sal.toString('base64')}$${h.toString('base64')}`;
-}
-
-export async function verificarClave(clave, guardado) {
-  const partes = String(guardado || '').split('$');
-  if (partes.length !== 6 || partes[0] !== 'scrypt') return false;
-  const [, N, r, p, sal, h] = partes;
-  const esperado = Buffer.from(h, 'base64');
-  const calculado = await scrypt(String(clave).normalize('NFKC'), Buffer.from(sal, 'base64'), esperado.length,
-    { N: Number(N), r: Number(r), p: Number(p), maxmem: 64 * 1024 * 1024 });
-  return calculado.length === esperado.length && timingSafeEqual(calculado, esperado);
-}
-
-export const normalizarEmail = (e) => String(e || '').trim().toLowerCase();
-export const emailValido = (e) => e.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
-
-/* Hash falso para comparar cuando el email no existe: la respuesta tarda lo
-   mismo y no deja adivinar qué emails tienen cuenta. */
-let hashFalso = null;
-
 export function crearApi({
   db,
   ia,
   push = null,
+  correo = crearCorreo({ transporte: 'memoria', registro: {} }),
+  claves = crearClaves(crearCripto(randomBytes(32))),
   reloj = () => Date.now(),
+  presupuesto = crearPresupuesto({ db, reloj }),
   azar,
   tofu = true,
   urlPublica = () => '',
@@ -204,6 +188,8 @@ export function crearApi({
       revelado: Boolean(p.revelado),
       especie: p.especie?.id || null,
       especie_info: p.especie || null,
+      ficha: p.ficha ? { cuidados: p.ficha.cuidados, dificultad: p.ficha.dificultad, fuente: p.ficha.fuente } : null,
+      chat: Boolean(p.especie && p.nombre),
       link,
       mood: moodVisible,
       severity: link === 'CAIDO' ? 'WATCH' : (d?.sev || 'OK'),
@@ -243,12 +229,22 @@ export function crearApi({
       tengo,
       total: MODELOS.filter((m) => m.rareza !== 'SECRETO').length,
       probabilidades: PROBABILIDADES,
-      catalogo: visibles.map((m) => ({ ...m, tengo: tengo.includes(m.id), probabilidad: probabilidadDe(m) })),
+      catalogo: visibles.map((m) => ({
+        ...m, tengo: tengo.includes(m.id), probabilidad: probabilidadDe(m), paleta: paletaDeRooti(m.id)?.id || null,
+      })),
     };
   }
 
   const cuentaPublica = (c) => ({
-    id: c.id, email: c.email, nombre: c.nombre, tz: c.tz, coleccion: c.coleccion,
+    id: c.id,
+    email: c.email,
+    nombre: c.nombre,
+    tz: c.tz,
+    coleccion: c.coleccion,
+    paleta: c.paleta || PALETA_POR_DEFECTO,
+    plan: c.plan,
+    email_verificado: Boolean(c.email_verificado),
+    ia: presupuesto.limitesDe(c),
     avisos: db.suscripciones(c.id).length,
     plantas: db.plantasDe(c.id).length,
     creada: c.creada,
@@ -265,6 +261,52 @@ export function crearApi({
     if (c.length < CLAVE_MIN) falla(400, `La contraseña tiene que tener al menos ${CLAVE_MIN} caracteres.`);
     if (c.length > 200) falla(400, 'La contraseña es demasiado larga.');
     return c;
+  }
+
+  function zonaValida(tz) {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: String(tz) });
+      return true;
+    } catch { return false; }
+  }
+
+  /* ----------------------------------------------------------- correos --- */
+  const enlace = (ruta) => `${urlPublica().replace(/\/+$/, '')}/#${ruta}`;
+
+  function mandarVerificacion(c) {
+    const token = tokenNuevo();
+    const t = reloj();
+    db.tokenCuentaCrear(hash(token), c.id, 'verificar', t, t + VERIFICAR_VENCE_MS);
+    correo.enviar({
+      tipo: 'verificar', para: c.email,
+      ...plantillas.verificarEmail({ nombre: c.nombre, url: enlace(`verificar/${token}`), horas: VERIFICAR_VENCE_MS / H, paleta: c.paleta }),
+    });
+  }
+
+  function mandarClaveCambiada(c) {
+    correo.enviar({
+      tipo: 'clave-cambiada', para: c.email,
+      ...plantillas.claveCambiada({ nombre: c.nombre, paleta: c.paleta, url: enlace('entrar') }),
+    });
+  }
+
+  /* ---------------------------------------------------------------- IA --- */
+  function prepararPrompt(p) {
+    if (p.ficha && p.nombre) p.prompt = promptDePlanta({ nombre: p.nombre, ficha: p.ficha, persona: p.persona });
+  }
+
+  /** Llama a la IA con tope y cuota; anota el uso aunque la respuesta falle. */
+  async function conIA({ cuenta, planta, tipo, modelo, entrada, llamada }) {
+    if (ia.proveedor === 'claude') presupuesto.verificarTope(modelo, { entrada, salida: MAX_TOKENS[tipo] });
+    let r;
+    try {
+      r = await llamada();
+    } catch (e) {
+      if (e.uso) presupuesto.registrar({ cuenta, planta, tipo, fuente: 'claude', modelo: e.modelo, uso: e.uso });
+      falla(e.codigo || 502, e.message);
+    }
+    presupuesto.registrar({ cuenta, planta, tipo, fuente: r.fuente, modelo: r.modelo, uso: r.uso });
+    return r;
   }
 
   /* ----------------------------------------------------------- avisos --- */
@@ -440,11 +482,13 @@ export function crearApi({
         url_publica: urlPublica(),
         probabilidades: PROBABILIDADES,
         clave_min: CLAVE_MIN,
+        chat_max: CHAT_MAX,
+        cuotas: presupuesto.limitesDe({ plan: 'gratis' }),
       }];
     }
 
     if (metodo === 'GET' && ruta === '/api/salud') {
-      return [200, { ok: true, version, activo_s: Math.round(process.uptime()), ...db.contar() }];
+      return [200, { ok: true, version, esquema: db.version(), activo_s: Math.round(process.uptime()), ...db.contar() }];
     }
 
     if (metodo === 'GET' && ruta === '/api/especies') return [200, ESPECIES];
@@ -456,34 +500,35 @@ export function crearApi({
       if (!emailValido(email)) falla(400, 'Ese email no es válido.');
       const clave = validarClaveNueva(cuerpo?.clave);
       if (db.cuentaPorEmail(email)) falla(409, 'Ya hay una cuenta con ese email. Entrá con tu contraseña.');
-      let tz = TZ_POR_DEFECTO;
-      try {
-        if (cuerpo?.tz) {
-          new Intl.DateTimeFormat('en', { timeZone: String(cuerpo.tz) });
-          tz = texto(cuerpo.tz, 64);
-        }
-      } catch { /* zona desconocida: la de Argentina */ }
       const c = {
-        id: nuevoId('c'), email, nombre: texto(cuerpo?.nombre, 40), clave_hash: await hashClave(clave),
-        tz, coleccion: [], creada: t,
+        id: nuevoId('c'), email, nombre: texto(cuerpo?.nombre, 40), clave_hash: await claves.hash(clave),
+        tz: cuerpo?.tz && zonaValida(cuerpo.tz) ? texto(cuerpo.tz, 64) : TZ_POR_DEFECTO,
+        coleccion: [], creada: t,
       };
       try {
         db.cuentaCrear(c);
       } catch {
         falla(409, 'Ya hay una cuenta con ese email. Entrá con tu contraseña.');
       }
-      return [201, await abrirSesion(db.cuenta(c.id), headers)];
+      const creada = db.cuenta(c.id);
+      mandarVerificacion(creada);
+      return [201, await abrirSesion(creada, headers)];
     }
 
     if (metodo === 'POST' && ruta === '/api/cuenta/entrar') {
       const email = normalizarEmail(cuerpo?.email);
       limitar(`entrar:${ip}`, 30, 15 * MIN);
       limitar(`entrar:${email}`, 10, 15 * MIN);
+      const clave = String(cuerpo?.clave ?? '');
       const c = emailValido(email) ? db.cuentaPorEmail(email) : null;
-      if (!hashFalso) hashFalso = await hashClave(randomBytes(12).toString('hex'));
-      const bien = await verificarClave(String(cuerpo?.clave ?? ''), c?.clave_hash || hashFalso);
+      /* Mismo trabajo exista o no la cuenta: la respuesta no dice qué emails
+         están registrados. */
+      const bien = c ? await claves.verificar(clave, c.clave_hash) : await claves.verificarFalso(clave);
       if (!c || !bien) falla(401, 'Email o contraseña incorrectos.');
-      return [200, await abrirSesion(c, headers)];
+      if (claves.hayQueRehacer(c.clave_hash)) {
+        db.cuentaActualizar(c.id, { clave_hash: await claves.hash(clave) });
+      }
+      return [200, await abrirSesion(db.cuenta(c.id), headers)];
     }
 
     if (metodo === 'POST' && ruta === '/api/cuenta/salir') {
@@ -492,16 +537,79 @@ export function crearApi({
       return [204, null];
     }
 
+    if (metodo === 'POST' && ruta === '/api/cuenta/olvide') {
+      const email = normalizarEmail(cuerpo?.email);
+      limitar(`olvide:${ip}`, 10, H);
+      if (!emailValido(email)) falla(400, 'Ese email no es válido.');
+      limitar(`olvide:${email}`, 3, H);
+      const c = db.cuentaPorEmail(email);
+      if (c) {
+        const token = tokenNuevo();
+        db.tokenCuentaCrear(hash(token), c.id, 'restablecer', t, t + RESTABLECER_VENCE_MS);
+        correo.enviar({
+          tipo: 'restablecer', para: c.email,
+          ...plantillas.restablecerClave({
+            nombre: c.nombre, url: enlace(`clave/${token}`), minutos: RESTABLECER_VENCE_MS / MIN, paleta: c.paleta,
+          }),
+        });
+      }
+      /* La misma respuesta exista o no: no se puede usar para averiguar
+         quién tiene cuenta. */
+      return [202, { ok: true }];
+    }
+
+    if (ruta === '/api/cuenta/restablecer' && metodo === 'GET') {
+      limitar(`restablecer:${ip}`, 30, 15 * MIN);
+      return [200, { valido: db.tokenCuentaVigente(hash(String(query.token || '')), 'restablecer', t) }];
+    }
+
+    if (ruta === '/api/cuenta/restablecer' && metodo === 'POST') {
+      limitar(`restablecer:${ip}`, 30, 15 * MIN);
+      /* La contraseña se valida ANTES de gastar el enlace: una contraseña
+         corta no puede quemar un enlace de un solo uso. */
+      const clave = validarClaveNueva(cuerpo?.clave);
+      const id = db.tokenCuentaUsar(hash(String(cuerpo?.token || '')), 'restablecer', t);
+      const c = id ? db.cuenta(id) : null;
+      if (!c) falla(400, 'Este enlace ya no sirve: venció o ya se usó. Pedí uno nuevo.');
+      db.cuentaActualizar(c.id, { clave_hash: await claves.hash(clave), email_verificado: c.email_verificado || t });
+      /* Quien tenía la sesión abierta con la contraseña vieja, la pierde. */
+      db.sesionesBorrarTodas(c.id);
+      mandarClaveCambiada(c);
+      return [200, await abrirSesion(db.cuenta(c.id), headers)];
+    }
+
+    if (metodo === 'POST' && ruta === '/api/cuenta/verificar') {
+      limitar(`verificar:${ip}`, 30, 15 * MIN);
+      const id = db.tokenCuentaUsar(hash(String(cuerpo?.token || '')), 'verificar', t);
+      if (!id || !db.cuenta(id)) falla(400, 'Este enlace ya no sirve: venció o ya se usó.');
+      db.cuentaActualizar(id, { email_verificado: t });
+      return [200, { ok: true }];
+    }
+
+    if (metodo === 'POST' && ruta === '/api/cuenta/verificar/reenviar') {
+      const c = cuentaDe(headers);
+      if (c.email_verificado) return [200, { ok: true, verificado: true }];
+      limitar(`reenviar:${c.id}`, 3, H);
+      mandarVerificacion(c);
+      return [202, { ok: true }];
+    }
+
     if (ruta === '/api/cuenta' && (metodo === 'GET' || metodo === 'PATCH')) {
       const c = cuentaDe(headers);
       if (metodo === 'PATCH') {
         const cambios = {};
         if (cuerpo?.nombre !== undefined) cambios.nombre = texto(cuerpo.nombre, 40);
         if (cuerpo?.tz) {
-          try {
-            new Intl.DateTimeFormat('en', { timeZone: String(cuerpo.tz) });
-            cambios.tz = texto(cuerpo.tz, 64);
-          } catch { falla(400, 'Zona horaria inválida.'); }
+          if (!zonaValida(cuerpo.tz)) falla(400, 'Zona horaria inválida.');
+          cambios.tz = texto(cuerpo.tz, 64);
+        }
+        if (cuerpo?.paleta !== undefined) {
+          const pal = paletaPorId(cuerpo.paleta || PALETA_POR_DEFECTO);
+          if (!pal) falla(400, 'Esa paleta no existe.');
+          if (pal.rooti && !(c.coleccion || []).includes(pal.rooti)) {
+            falla(403, `La paleta ${pal.nombre} es de su Rooti: conseguilo en un cofre para usarla.`);
+          }
+          cambios.paleta = pal.id;
         }
         db.cuentaActualizar(c.id, cambios);
       }
@@ -511,21 +619,22 @@ export function crearApi({
     if (metodo === 'POST' && ruta === '/api/cuenta/clave') {
       const c = cuentaDe(headers);
       limitar(`clave:${c.id}`, 10, 15 * MIN);
-      if (!(await verificarClave(String(cuerpo?.actual ?? ''), c.clave_hash))) {
+      if (!(await claves.verificar(String(cuerpo?.actual ?? ''), c.clave_hash))) {
         falla(401, 'La contraseña actual no es correcta.');
       }
       const nueva = validarClaveNueva(cuerpo?.nueva);
-      db.cuentaActualizar(c.id, { clave_hash: await hashClave(nueva) });
+      db.cuentaActualizar(c.id, { clave_hash: await claves.hash(nueva) });
       /* Cambiar la contraseña cierra las demás sesiones: si alguien la
          conocía, deja de tener acceso en ese momento. */
       db.sesionesBorrarOtras(c.id, hash(bearer(headers)));
+      mandarClaveCambiada(c);
       return [200, { ok: true }];
     }
 
     if (metodo === 'DELETE' && ruta === '/api/cuenta') {
       const c = cuentaDe(headers);
       limitar(`borrar:${c.id}`, 5, 15 * MIN);
-      if (!(await verificarClave(String(cuerpo?.clave ?? ''), c.clave_hash))) {
+      if (!(await claves.verificar(String(cuerpo?.clave ?? ''), c.clave_hash))) {
         falla(401, 'La contraseña no es correcta.');
       }
       db.cuentaBorrar(c.id);
@@ -560,11 +669,11 @@ export function crearApi({
       const codigo = normalizarCodigo(cuerpo?.codigo);
       if (!codigo) falla(400, 'Ese código no es válido');
       const d = db.dispositivoPorCodigo(codigo);
-      if (!d) falla(409, 'Tu ROOTKIT todavía no se conectó. Terminá el paso del wifi.');
+      if (!d) falla(409, 'Tu Rooti todavía no se conectó. Terminá el paso del wifi.');
       if (d.planta) {
         const p = db.planta(d.planta);
         if (p && p.cuenta === cuenta.id) return [200, nodoDe(p, t)];
-        if (p) falla(409, 'Ese ROOTKIT ya está vinculado a otra cuenta.');
+        if (p) falla(409, 'Ese Rooti ya es de otra cuenta.');
       }
       const p = {
         id: nuevoId('p'), cuenta: cuenta.id, dispositivo: d.id, epoca: d.epoca, creada: t,
@@ -604,15 +713,20 @@ export function crearApi({
           p.nombre = n;
         }
         if (cuerpo?.especie !== undefined) {
+          let e;
           if (typeof cuerpo.especie === 'string') {
-            const e = especiePorId(cuerpo.especie);
+            e = especiePorId(cuerpo.especie);
             if (!e) falla(400, 'Especie desconocida');
-            p.especie = e;
           } else {
-            const e = validarEspecie(cuerpo.especie);
-            if (!e) falla(400, 'Los rangos de esa especie no son coherentes');
-            p.especie = especiePorId(e.id) || e;
+            const v = validarEspecie(cuerpo.especie);
+            if (!v) falla(400, 'Los rangos de esa especie no son coherentes');
+            e = especiePorId(v.id) || v;
           }
+          p.especie = e;
+          /* Con la especie nace la ficha: con los cuidados del reconocimiento
+             si la foto dio esta misma especie, o sólo con los rangos. */
+          const cuidados = p.identificacion?.especie?.id === e.id ? p.identificacion.cuidados : null;
+          p.ficha = fichaDePlanta(e, cuidados);
         }
         if (cuerpo?.pantalla !== undefined) {
           if (!['toque', 'siempre'].includes(cuerpo.pantalla)) falla(400, 'Modo de pantalla inválido');
@@ -621,6 +735,7 @@ export function crearApi({
         if (cuerpo?.brillo !== undefined) {
           p.brillo = Math.min(100, Math.max(10, entero(cuerpo.brillo, 80)));
         }
+        if (cuerpo?.nombre !== undefined || cuerpo?.especie !== undefined) prepararPrompt(p);
         db.plantaGuardar(p);
         return [200, nodoDe(p, t)];
       }
@@ -635,6 +750,7 @@ export function crearApi({
       const p = plantaMia(cuenta, m[1]);
       const d = db.dispositivo(p.dispositivo);
       let nuevo = false;
+      let paleta = null;
       if (!p.revelado) {
         const modelo = abrirCofre(d?.persona_fabrica, azar);
         p.persona = modelo.id;
@@ -645,15 +761,18 @@ export function crearApi({
           coleccion.push(modelo.id);
           nuevo = true;
         }
+        /* Un Rooti con paleta propia pinta la app con sus colores. */
+        paleta = paletaDeRooti(modelo.id)?.id || null;
         db.transaccion(() => {
           db.plantaGuardar(p);
-          db.cuentaActualizar(cuenta.id, { coleccion });
+          db.cuentaActualizar(cuenta.id, { coleccion, ...(paleta ? { paleta } : {}) });
         });
       }
       const modelo = modeloPorId(p.persona);
       return [200, {
         ...modelo, nuevo, probabilidad: probabilidadDe(modelo),
         de_fabrica: Boolean(d?.persona_fabrica), planta: nodoDe(p, t),
+        paleta: paletaDeRooti(modelo.id)?.id || null, pinta: Boolean(paleta),
       }];
     }
 
@@ -669,30 +788,87 @@ export function crearApi({
       return [200, { id: p.id, horas, total: todas.length, puntos }];
     }
 
-    /* --- IA -------------------------------------------------------------- */
+    /* --- chat con la planta ------------------------------------------------ */
+    if ((m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/chat$/)) && (metodo === 'GET' || metodo === 'POST')) {
+      const cuenta = cuentaDe(headers);
+      const p = plantaMia(cuenta, m[1]);
+      const disponible = Boolean(p.especie && p.nombre && p.revelado);
+      if (metodo === 'GET') {
+        return [200, {
+          disponible,
+          mensajes: db.chatDe(p.id, 60),
+          cuota: presupuesto.cuota(cuenta, 'chat'),
+          plan: cuenta.plan,
+          ia: ia.proveedor,
+        }];
+      }
+      limitar(`chat:${cuenta.id}`, 12, MIN);
+      if (!disponible) falla(409, 'Para charlar, tu planta necesita nombre y especie. Sacale una foto primero.');
+      const mensaje = texto(cuerpo?.texto, CHAT_MAX + 1);
+      if (!mensaje) falla(400, 'Escribí algo.');
+      if (mensaje.length > CHAT_MAX) falla(400, `Como mucho ${CHAT_MAX} caracteres.`);
+      presupuesto.verificarCuota(cuenta, 'chat');
+      const sinPrompt = !p.prompt;
+      if (sinPrompt) {
+        if (!p.ficha) p.ficha = fichaDePlanta(p.especie, p.identificacion?.especie?.id === p.especie.id ? p.identificacion.cuidados : null);
+        prepararPrompt(p);
+      }
+      const nodo = nodoDe(p, t);
+      const contexto = contextoVivo({
+        nodo, especie: p.especie, lecturas: db.lecturasDePlanta(p.id, t - DIA), t, tz: cuenta.tz, persona: cuenta.nombre,
+      });
+      const historial = db.chatDe(p.id, 10);
+      const r = await conIA({
+        cuenta, planta: p.id, tipo: 'chat', modelo: ia.modeloChat,
+        entrada: Math.ceil((p.prompt.length + contexto.length + historial.reduce((s, x) => s + x.texto.length, 0) + mensaje.length) / 3),
+        llamada: () => ia.conversar({ nombre: p.nombre, prompt: p.prompt, contexto, historial, mensaje }),
+      });
+      const tuyo = { t, rol: 'persona', texto: mensaje };
+      const suyo = { t: t + 1, rol: 'planta', texto: r.texto };
+      db.transaccion(() => {
+        if (sinPrompt) db.plantaGuardar(p);
+        db.chatAgregar({ planta: p.id, cuenta: cuenta.id, ...tuyo });
+        db.chatAgregar({ planta: p.id, cuenta: cuenta.id, ...suyo });
+      });
+      return [200, { mensajes: [tuyo, suyo], cuota: presupuesto.cuota(cuenta, 'chat'), fuente: r.fuente }];
+    }
+
+    /* --- IA con foto ------------------------------------------------------ */
     if (metodo === 'POST' && ruta === '/api/identificar') {
       const cuenta = cuentaDe(headers);
       limitar(`ia:${cuenta.id}`, 30, H);
-      try {
-        return [200, await ia.identificar({ image_b64: cuerpo?.image_b64, mime: cuerpo?.mime })];
-      } catch (e) {
-        falla(e.codigo || 502, e.message);
-      }
+      if (!cuerpo?.planta) falla(403, 'Para reconocer una planta primero registrá un Rooti.');
+      const p = plantaMia(cuenta, String(cuerpo.planta));
+      if (!p.revelado) falla(409, 'Abrí el cofre de tu Rooti antes de reconocer la planta.');
+      const foto = { image_b64: cuerpo?.image_b64, mime: cuerpo?.mime };
+      const error = validarFoto(foto);
+      if (error) falla(400, error);
+      presupuesto.verificarCuota(cuenta, 'identificar', p.id);
+      const r = await conIA({
+        cuenta, planta: p.id, tipo: 'identificar', modelo: ia.modelo, entrada: 3500,
+        llamada: () => ia.identificar(foto),
+      });
+      p.identificacion = { especie: r.especie, cuidados: r.cuidados || null, t, fuente: r.fuente };
+      db.plantaGuardar(p);
+      const { uso: _u, modelo: _m, cuidados: _c, ...publico } = r;
+      return [200, { ...publico, cuota: presupuesto.cuota(cuenta, 'identificar', p.id) }];
     }
+
     if (metodo === 'POST' && ruta === '/api/diagnosticar') {
       const cuenta = cuentaDe(headers);
       limitar(`ia:${cuenta.id}`, 30, H);
       const p = plantaMia(cuenta, String(cuerpo?.planta || ''));
+      const foto = { image_b64: cuerpo?.image_b64, mime: cuerpo?.mime };
+      const error = validarFoto(foto);
+      if (error) falla(400, error);
+      presupuesto.verificarCuota(cuenta, 'diagnosticar', p.id);
       const d = db.dispositivo(p.dispositivo);
-      try {
-        const r = await ia.diagnosticar(
-          { image_b64: cuerpo?.image_b64, mime: cuerpo?.mime },
-          { tel: d?.ultima || null, especie: p.especie },
-        );
-        return [200, { planta: p.id, ...r }];
-      } catch (e) {
-        falla(e.codigo || 502, e.message);
-      }
+      const r = await conIA({
+        cuenta, planta: p.id, tipo: 'diagnosticar', modelo: ia.modelo, entrada: 3000,
+        llamada: () => ia.diagnosticar(foto, { tel: d?.ultima || null, especie: p.especie }),
+      });
+      const { uso: _u, modelo: _m, ...publico } = r;
+      return [200, { planta: p.id, ...publico, cuota: presupuesto.cuota(cuenta, 'diagnosticar', p.id) }];
     }
 
     /* --- colección ------------------------------------------------------- */
@@ -728,7 +904,7 @@ export function crearApi({
       let n = 0;
       for (const s of db.suscripciones(cuenta.id)) {
         const r = await push.enviar(s, {
-          titulo: p ? `${p.nombre || 'Tu planta'} te saluda` : 'ROOTKIT',
+          titulo: p ? `${p.nombre || 'Tu planta'} te saluda` : 'ROOTLAB',
           cuerpo: 'Así te vamos a avisar cuando tu planta necesite algo.',
           icono: p ? `caras/${p.persona}-HAPPY.png` : 'iconos/icono-192.png',
           url: './', tag: 'prueba',
@@ -749,11 +925,17 @@ export function crearApi({
         return await manejar(pedido);
       } catch (e) {
         if (e instanceof ErrorApi) return [e.codigo, { error: e.message }];
+        /* Errores con código propio (cuotas y tope de la IA). */
+        if (Number.isInteger(e.codigo) && e.codigo >= 400 && e.codigo < 600) {
+          return [e.codigo, { error: e.message, ...(e.cuota ? { cuota: e.cuota } : {}) }];
+        }
         console.error(e);
         return [500, { error: 'Error interno' }];
       }
     },
     revisar,
     nodoDe,
+    correo,
+    presupuesto,
   };
 }

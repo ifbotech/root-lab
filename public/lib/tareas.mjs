@@ -63,7 +63,7 @@ export function tareasDe(nodo, especie) {
   const t = [];
   const n = nodo;
   const tel = n.tel || {};
-  const nombre = n.nombre || 'tu ROOTKIT';
+  const nombre = n.nombre || 'tu Rooti';
   const sev = n.severity || 'OK';
   const urgente = sev === 'URGENT';
 
@@ -147,7 +147,7 @@ export function tareasDe(nodo, especie) {
   /* El enlace caído tapa todo lo demás: si no llegan datos, lo que muestre
    * la app sobre esa planta es viejo y no hay que actuar sobre eso. */
   if (n.link === 'CAIDO') {
-    add('revisar', conNombre('Revisar el ROOTKIT de', nombre),
+    add('revisar', conNombre('Revisar el Rooti de', nombre),
       'Hace horas que no manda datos. Puede ser el wifi o la batería.',
       'pronto', 'antena', false);
   }
@@ -163,7 +163,7 @@ export function tareasDe(nodo, especie) {
    * maceta duerme, y sin especie no sabe con qué umbrales juzgar. */
   if (n.revelado === false) {
     add('cofre', 'Abrir el cofre',
-      'Tu ROOTKIT duerme hasta que abras el cofre y descubras quién es.',
+      'Tu Rooti duerme hasta que abras el cofre y descubras quién es.',
       'pronto', 'caja', false);
   } else if (!n.especie) {
     add('especie', conNombre('Sacarle una foto a', nombre),

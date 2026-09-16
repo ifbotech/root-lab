@@ -1,6 +1,6 @@
 /* cofre.mjs — la ceremonia de abrir el cofre.
  *
- * Es el momento en que la maceta deja de ser un aparato y pasa a ser
+ * Es el momento en que el Rooti deja de ser un aparato y pasa a ser
  * alguien, y por eso se toma su tiempo: tres toques, cada uno más fuerte,
  * y recién al tercero se abre. El pedido al servidor sale en ese tercer
  * toque y no antes, porque en el mismo instante en que la nube registra el
@@ -10,7 +10,11 @@
  * que pasen juntos.
  *
  * La cara que sale del cofre es la animación de despertar del firmware,
- * dibujada por el mismo código que corre en la maceta.
+ * dibujada por el mismo código que corre en el Rooti.
+ *
+ * Si el Rooti tiene paleta propia (Chico Malo, Chica Chill...), apenas
+ * aparece la app se pinta con sus colores: un círculo que crece desde el
+ * cofre (`alPintar`, ver lib/tema.mjs).
  */
 import { h, render } from '../lib/ui.mjs';
 import { cara } from '../lib/caras.mjs';
@@ -101,7 +105,7 @@ function lanzarConfeti(colores) {
  * La escena completa. `abrir()` hace el pedido y devuelve el modelo;
  * `alSeguir(modelo)` se llama cuando el usuario ya lo vio.
  */
-export function escenaCofre({ abrir, alSeguir, probabilidades = null }) {
+export function escenaCofre({ abrir, alSeguir, alPintar = null, probabilidades = null }) {
   const escena = h('div', { class: 'cofre-escena' });
   const rayos = h('div', { class: 'rayos', 'aria-hidden': 'true' });
   const toques = h('div', { class: 'cofre-toques', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'));
@@ -164,9 +168,11 @@ export function escenaCofre({ abrir, alSeguir, probabilidades = null }) {
           h('h2', {}, m.nombre),
           h('p', {}, m.lema),
           m.nuevo ? h('span', { class: 'nuevo' }, '¡NUEVO EN TU COLECCIÓN!') : null,
-          h('p', { class: 'nota' }, 'Mirá tu maceta: ya abrió los ojos.'),
+          m.pinta ? h('p', { class: 'nota' }, `ROOTLAB se pintó con los colores de ${m.nombre}.`) : null,
+          h('p', { class: 'nota' }, 'Mirá tu Rooti: ya abrió los ojos.'),
           h('button', { class: 'boton primario ancho', type: 'button', onClick: () => alSeguir(m) },
             `¡Hola, ${m.nombre === '?????' ? 'misterio' : m.nombre}!`)));
+      if (m.pinta && alPintar) setTimeout(() => alPintar(m, marco), 650);
     }, 420);
   }
 

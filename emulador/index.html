@@ -5,23 +5,20 @@
 <!-- El servidor escribe acá la base de la app (ROOTLAB_BASE). -->
 <base href="/">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Emulador ROOTKIT</title>
+<title>Emulador de Rooti · ROOTLAB</title>
 <link rel="icon" href="iconos/icono-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap">
 <link rel="stylesheet" href="emulador/emulador.css">
 </head>
 <body>
 <header class="cab">
-  <h1>ROOT<span>KIT</span> <small>emulador</small></h1>
-  <p>Un ROOTKIT virtual que corre el firmware real (compilado a WebAssembly) y habla con este servidor igual que la placa.</p>
+  <h1>ROOT<span>LAB</span> <small>emulador de Rooti</small></h1>
+  <p>Un Rooti virtual que corre el firmware real del ROOTKIT (compilado a WebAssembly) y habla con ROOTLAB igual que la placa.</p>
 </header>
 
 <main class="banco">
   <section class="maceta-zona" aria-label="El aparato">
     <div class="carcasa" id="carcasa">
-      <div class="bisel"><canvas id="pantalla" width="240" height="320" aria-label="Pantalla del ROOTKIT"></canvas></div>
+      <div class="bisel"><canvas id="pantalla" width="240" height="320" aria-label="Pantalla del Rooti"></canvas></div>
       <button type="button" class="boton-fisico" id="boton" aria-label="Botón: tocar, o mantener 10 segundos para reiniciar"></button>
     </div>
     <div class="maceta" aria-hidden="true"></div>
@@ -69,7 +66,7 @@
 
     <div class="tarjeta">
       <h2>Fábrica</h2>
-      <label class="caja">Personaje grabado
+      <label class="caja">Rooti grabado
         <select id="s-persona">
           <option value="">ninguno (el cofre tira)</option>
           <option value="cresta">Cresta</option>
@@ -77,6 +74,8 @@
           <option value="visor">Visor</option>
           <option value="ciclope">Cíclope</option>
           <option value="hongo">Hongo</option>
+          <option value="chico-malo">Chico Malo (pinta la app)</option>
+          <option value="chica-chill">Chica Chill (pinta la app)</option>
           <option value="glitch">????? (secreto)</option>
         </select>
       </label>

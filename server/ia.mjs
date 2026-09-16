@@ -1,35 +1,42 @@
-/* ia.mjs — identificar la planta y diagnosticarla por foto.
+/* ia.mjs — reconocer la planta, diagnosticarla y dejarla hablar.
  *
  * DOS PROVEEDORES, UNA INTERFAZ
  *
- *   claude     Si hay ANTHROPIC_API_KEY, la foto va a Claude con visión.
- *   simulada   Si no, una respuesta estable derivada de la foto. Sirve para
- *              desarrollar la interfaz y correr los tests sin gastar ni
- *              depender de la red, y la app avisa que es simulada.
+ *   claude     Si hay ANTHROPIC_API_KEY, se llama a la API de Anthropic.
+ *   simulada   Si no, respuestas estables derivadas de la entrada. Sirven
+ *              para desarrollar la interfaz y correr los tests sin gastar ni
+ *              depender de la red, y la app avisa que son simuladas.
+ *
+ * Cada llamada real devuelve `uso` (tokens de entrada, salida y caché) para
+ * que presupuesto.mjs la cobre contra el tope y la cuota.
  *
  * QUÉ SE LE PIDE AL MODELO, Y QUÉ NO SE LE CREE
  *
- * Se le pide un JSON cerrado: la especie, su nombre científico, la confianza
- * y, si la planta está en nuestro catálogo, su id. Si está, los umbrales
- * salen del catálogo curado y no del modelo: una tabla revisada a mano es
- * más confiable que una estimación, y la maceta va a juzgar a la planta con
- * esos números durante años. Si no está, se usan los rangos que propone el
- * modelo, pasados por la misma validación que aplica el firmware (acotados,
- * coherentes), y se guardan como especie propia de esa maceta.
+ * Reconocer: un JSON cerrado con la especie, su nombre científico, la
+ * confianza, su id si está en nuestro catálogo, y los CUIDADOS de la especie
+ * (con eso nace la ficha y el chat, ver ficha.mjs). Si la planta está en el
+ * catálogo, los umbrales salen del catálogo curado y no del modelo: la
+ * maceta va a juzgar a la planta con esos números durante años. Si no está,
+ * se usan los rangos que propone el modelo, pasados por la misma validación
+ * que aplica el firmware.
  *
- * Para el diagnóstico se le pide sólo HALLAZGOS VISIBLES de una lista
- * cerrada. La causa no la decide el modelo: sale de cruzar esos hallazgos
- * con lo que miden los sensores, en public/lib/diagnostico.mjs. Así el mismo
- * síntoma con la tierra seca o encharcada da causas distintas, que es
- * exactamente lo que una foto sola no puede distinguir.
+ * Diagnosticar: sólo HALLAZGOS VISIBLES de una lista cerrada. La causa sale
+ * de cruzarlos con los sensores (public/lib/diagnostico.mjs).
+ *
+ * Conversar: el prompt de sistema de la planta (ficha.mjs) + las mediciones
+ * de este momento + los últimos mensajes. Respuesta corta, con tope de
+ * tokens: una charla nunca puede costar más que lo que previó el tope.
  */
 import { createHash } from 'node:crypto';
 import { ESPECIES, especiePorId, validarEspecie } from './catalogo.mjs';
+import { CAMPOS_CUIDADO } from './ficha.mjs';
 
 export const HALLAZGOS = [
   'sana', 'hojas_amarillas', 'puntas_marrones', 'manchas', 'caida',
   'tallo_estirado', 'plagas', 'moho', 'hojas_quemadas', 'hojas_enrolladas',
 ];
+
+export const MAX_TOKENS = { identificar: 1500, diagnosticar: 400, chat: 350 };
 
 const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_B64 = 7_000_000;
@@ -64,9 +71,13 @@ Respondé SOLO un objeto JSON, sin texto alrededor, con esta forma:
     "lux_min": lux diurnos mínimos, "lux_max": lux máximos antes de quemarse,
     "dificultad": 0 (imposible de matar) a 100 (muy exigente)
   },
+  "cuidados": {
+${CAMPOS_CUIDADO.map((c) => `    "${c}": "una o dos frases concretas en español rioplatense, en primera persona como si hablara la planta"`).join(',\n')}
+  },
   "alternativas": [ { "nombre": "...", "catalogo": "id o null", "confianza": 0.0 } ],
   "no_es_planta": false
 }
+En "toxicidad" decí si es tóxica para perros, gatos o personas según lo que se sabe de la especie.
 Ids del catálogo: ${ESPECIES.map((e) => `${e.id} (${e.nombre}, ${e.cientifico})`).join('; ')}.
 Si la foto no muestra una planta, poné "no_es_planta": true.`;
 
@@ -94,14 +105,22 @@ export function especieDesdeModelo(r) {
   return propia ? { especie: propia, catalogo: false } : null;
 }
 
+const usoDe = (u = {}) => ({
+  entrada: u.input_tokens || 0,
+  salida: u.output_tokens || 0,
+  cache_escritura: u.cache_creation_input_tokens || 0,
+  cache_lectura: u.cache_read_input_tokens || 0,
+});
+
 export function crearIA({
   clave = process.env.ANTHROPIC_API_KEY,
   modelo = process.env.ROOTLAB_IA_MODELO || 'claude-opus-5',
+  modeloChat = process.env.ROOTLAB_IA_MODELO_CHAT || 'claude-sonnet-5',
   fetch: pedir = globalThis.fetch,
 } = {}) {
   const real = Boolean(clave);
 
-  async function claude(foto, texto) {
+  async function llamar({ modelo: m, system, messages, maxTokens }) {
     const r = await pedir('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -111,23 +130,41 @@ export function crearIA({
       },
       signal: AbortSignal.timeout(45000),
       body: JSON.stringify({
-        model: modelo,
-        max_tokens: 1024,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: foto.mime || 'image/jpeg', data: foto.image_b64 } },
-            { type: 'text', text: texto },
-          ],
-        }],
+        model: m,
+        max_tokens: maxTokens,
+        ...(system ? { system } : {}),
+        messages,
       }),
     });
-    if (!r.ok) throw new Error(`el servicio de IA respondió ${r.status}`);
+    if (!r.ok) {
+      const e = new Error(r.status === 429 || r.status === 529
+        ? 'El servicio de IA está saturado. Probá en un rato.'
+        : `el servicio de IA respondió ${r.status}`);
+      e.codigo = 502;
+      throw e;
+    }
     const j = await r.json();
-    const out = (j.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n');
-    const obj = extraerJson(out);
-    if (!obj) throw new Error('la IA no devolvió una respuesta legible');
-    return obj;
+    return {
+      texto: (j.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim(),
+      uso: usoDe(j.usage),
+      modelo: j.model || m,
+    };
+  }
+
+  async function conFoto(foto, texto, tipo) {
+    const r = await llamar({
+      modelo, maxTokens: MAX_TOKENS[tipo],
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: foto.mime || 'image/jpeg', data: foto.image_b64 } },
+          { type: 'text', text: texto },
+        ],
+      }],
+    });
+    const obj = extraerJson(r.texto);
+    if (!obj) throw Object.assign(new Error('la IA no devolvió una respuesta legible'), { codigo: 502, uso: r.uso, modelo: r.modelo });
+    return { obj, uso: r.uso, modelo: r.modelo };
   }
 
   /* ------------------------------------------------------ simulada ----- */
@@ -143,6 +180,12 @@ export function crearIA({
       alternativas: [1, 2].map((k) => ESPECIES[(h + k * 7) % ESPECIES.length])
         .filter((x) => x.id !== especie.id)
         .map((x) => ({ id: x.id, nombre: x.nombre, confianza: dudosa ? 0.3 : 0.03 })),
+      cuidados: {
+        sustrato: 'Me gusta un sustrato suelto que drene bien, con algo de perlita.',
+        abono: 'Un fertilizante líquido suave una vez por mes en primavera y verano.',
+        plagas: 'Revisame las hojas de vez en cuando por cochinillas y arañuela.',
+        toxicidad: 'No sé con certeza si soy tóxica: mantenete del lado seguro y alejame de mascotas curiosas.',
+      },
       fuente: 'simulada',
     };
   }
@@ -162,22 +205,46 @@ export function crearIA({
     return { hallazgos, confianza: 0.86, observacion: '', fuente: 'simulada' };
   }
 
+  /* Sin IA la planta igual contesta, con sus datos: sirve para diseñar la
+     charla y para los tests, y no finge saber lo que no sabe. */
+  function conversarSimulado({ nombre, contexto, mensaje }) {
+    const m = String(mensaje).toLowerCase();
+    const dato = (re) => (contexto.match(re) || [])[0]?.replace(/^- /, '');
+    const fuera = /(program|código|codigo|noticia|polític|politic|tarea|receta|chiste|bitcoin|fútbol|futbol)/.test(m);
+    let texto;
+    if (fuera) {
+      texto = `Soy ${nombre} y de eso no sé nada: sólo sé ser planta. Si querés, te cuento cómo cuidarme.`;
+    } else if (/(agua|regar|riego|sed)/.test(m)) {
+      const tierra = dato(/- Humedad de la tierra:[^\n]*/);
+      texto = tierra
+        ? `${tierra}. ${/tierra:[^\n]*por debajo/.test(contexto) ? '¡Un vasito me vendría bárbaro!' : 'Por ahora estoy bien de agua.'}`
+        : 'Ahora no tengo el dato de la tierra.';
+    } else if (/(luz|sol|ventana)/.test(m)) {
+      texto = dato(/- Luz ahora:[^\n]*/) || 'Ahora no tengo el dato de la luz.';
+    } else {
+      const animo = dato(/- Cómo te sentís según tu Rooti:[^\n]*/);
+      texto = `Hola, soy ${nombre}. ${animo ? animo.replace('Cómo te sentís según tu Rooti: ', 'Hoy: ') : 'Todavía no sé bien cómo estoy.'}`;
+    }
+    return { texto: `${texto} (respuesta simulada)`, fuente: 'simulada', uso: {}, modelo: null };
+  }
+
   return {
     proveedor: real ? 'claude' : 'simulada',
     modelo: real ? modelo : null,
+    modeloChat: real ? modeloChat : null,
 
     async identificar(foto) {
       const error = validarFoto(foto);
       if (error) throw Object.assign(new Error(error), { codigo: 400 });
       if (!real) return identificarSimulado(foto);
 
-      const r = await claude(foto, PROMPT_IDENTIFICAR());
+      const { obj: r, uso, modelo: m } = await conFoto(foto, PROMPT_IDENTIFICAR(), 'identificar');
       if (r.no_es_planta) {
         throw Object.assign(new Error('No encontré una planta en la foto. Probá con otra más de cerca.'),
-          { codigo: 422 });
+          { codigo: 422, uso, modelo: m });
       }
       const e = especieDesdeModelo(r);
-      if (!e) throw Object.assign(new Error('No pude identificarla. Elegila de la lista.'), { codigo: 422 });
+      if (!e) throw Object.assign(new Error('No pude identificarla. Elegila de la lista.'), { codigo: 422, uso, modelo: m });
       return {
         ...e,
         confianza: Math.min(1, Math.max(0, Number(r.confianza) || 0)),
@@ -185,7 +252,10 @@ export function crearIA({
           const c = especiePorId(a.catalogo);
           return { id: c?.id || null, nombre: c?.nombre || String(a.nombre || ''), confianza: Number(a.confianza) || 0 };
         }).filter((a) => a.nombre),
+        cuidados: r.cuidados && typeof r.cuidados === 'object' ? r.cuidados : null,
         fuente: 'claude',
+        uso,
+        modelo: m,
       };
     },
 
@@ -193,14 +263,50 @@ export function crearIA({
       const error = validarFoto(foto);
       if (error) throw Object.assign(new Error(error), { codigo: 400 });
       if (!real) return diagnosticarSimulado(foto, tel, especie);
-      const r = await claude(foto, PROMPT_DIAGNOSTICAR(especie));
+      const { obj: r, uso, modelo: m } = await conFoto(foto, PROMPT_DIAGNOSTICAR(especie), 'diagnosticar');
       const hallazgos = (Array.isArray(r.hallazgos) ? r.hallazgos : []).filter((x) => HALLAZGOS.includes(x));
       return {
         hallazgos: hallazgos.length ? hallazgos : ['sana'],
         confianza: Math.min(1, Math.max(0, Number(r.confianza) || 0)),
         observacion: String(r.observacion || '').slice(0, 200),
         fuente: 'claude',
+        uso,
+        modelo: m,
       };
+    },
+
+    /**
+     * Un mensaje a la planta. `historial`: [{ rol: 'persona'|'planta', texto }],
+     * del más viejo al más nuevo, sin el mensaje nuevo.
+     */
+    async conversar({ nombre, prompt, contexto, historial = [], mensaje }) {
+      if (!real) return conversarSimulado({ nombre, contexto, mensaje });
+      /* La API pide alternar usuario y asistente empezando por el usuario. */
+      const turnos = [];
+      for (const h of historial) {
+        const role = h.rol === 'planta' ? 'assistant' : 'user';
+        if (!turnos.length && role === 'assistant') continue;
+        if (turnos.length && turnos[turnos.length - 1].role === role) {
+          turnos[turnos.length - 1].content += `\n${h.texto}`;
+        } else {
+          turnos.push({ role, content: h.texto });
+        }
+      }
+      if (turnos.length && turnos[turnos.length - 1].role === 'user') turnos.pop();
+      turnos.push({ role: 'user', content: mensaje });
+      const r = await llamar({
+        modelo: modeloChat,
+        maxTokens: MAX_TOKENS.chat,
+        system: [
+          /* El prompt fijo va con caché: en una charla larga, desde el
+             segundo mensaje se cobra a una décima parte. */
+          { type: 'text', text: prompt, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: contexto },
+        ],
+        messages: turnos,
+      });
+      if (!r.texto) throw Object.assign(new Error('La planta no encontró qué decir. Probá de nuevo.'), { codigo: 502, uso: r.uso, modelo: r.modelo });
+      return { texto: r.texto.slice(0, 1200), fuente: 'claude', uso: r.uso, modelo: r.modelo };
     },
   };
 }

@@ -1,12 +1,19 @@
-/* ajustes.mjs — la cuenta, las notificaciones y lo demás.
+/* ajustes.mjs — la cuenta, la paleta, las notificaciones y lo demás.
  *
  * Las plantas viven en la cuenta, no en el teléfono (ver lib/api.mjs): para
  * verlas en otro lado alcanza con entrar con el mismo email. Por eso esta
- * pantalla sólo tiene lo que se toca de vez en cuando: el nombre, la
- * contraseña, cerrar la sesión y borrar todo.
+ * pantalla sólo tiene lo que se toca de vez en cuando: el nombre, la paleta,
+ * la contraseña, cerrar la sesión y borrar todo.
+ *
+ * LA PALETA
+ *
+ * ROOTLAB se pinta con la paleta de tu Rooti al abrir su cofre. Acá se puede
+ * volver a Vibrant Tones o elegir la de cualquier Rooti que ya tengas; las de
+ * los que faltan se ven apagadas, con candado.
  */
-import { h, render } from '../lib/ui.mjs';
+import { h, render, icono } from '../lib/ui.mjs';
 import { motivoSinAvisos, activarAvisos, avisosActivos } from '../lib/dispositivo.mjs';
+import { paletasDisponibles, PALETA_POR_DEFECTO } from '../lib/paletas.mjs';
 
 export function vistaAjustes(ctx) {
   const { api, avisar, config, cuenta } = ctx;
@@ -38,6 +45,34 @@ export function vistaAjustes(ctx) {
   };
   refrescarAvisos();
 
+  /* -------------------------------------------------------------- paleta --- */
+  const actual = cuenta?.paleta || PALETA_POR_DEFECTO;
+  const paletas = h('div', { class: 'paletas', role: 'radiogroup', 'aria-label': 'Paleta de colores' },
+    paletasDisponibles(cuenta?.coleccion || []).map((p) => h('button', {
+      type: 'button',
+      class: `paleta ${p.id === actual ? 'activa' : ''}`,
+      role: 'radio',
+      'aria-checked': p.id === actual ? 'true' : 'false',
+      'aria-disabled': p.bloqueada ? 'true' : null,
+      onClick: async (ev) => {
+        if (p.bloqueada) {
+          avisar(`La paleta ${p.nombre} se desbloquea cuando te toca su Rooti en un cofre.`);
+          return;
+        }
+        if (p.id === actual) return;
+        const boton = ev.currentTarget;
+        try {
+          await api('/api/cuenta', { metodo: 'PATCH', cuerpo: { paleta: p.id } });
+          await ctx.pintarApp(p.id, boton);
+          await ctx.recargar();
+        } catch (e) { avisar(e.message, true); }
+      },
+    },
+    h('span', { class: 'muestras', 'aria-hidden': 'true' }, p.colores.map((c) => h('i', { style: `background:${c.hex}`, title: c.nombre }))),
+    h('b', {}, p.nombre),
+    h('small', {}, p.bloqueada ? 'Conseguí su Rooti' : p.rooti ? 'De tu Rooti' : 'La de ROOTLAB'),
+    p.bloqueada ? h('span', { class: 'paleta-candado', 'aria-label': 'Bloqueada' }, icono('candado', 16)) : null)));
+
   /* -------------------------------------------------------------- nombre --- */
   const inputNombre = h('input', { type: 'text', id: 'ajustes-nombre', maxlength: '40', value: cuenta?.nombre || '', autocomplete: 'given-name' });
   const guardarNombre = async (ev) => {
@@ -65,7 +100,7 @@ export function vistaAjustes(ctx) {
       await api('/api/cuenta/clave', { metodo: 'POST', cuerpo: { actual: claveActual.value, nueva: claveNueva.value } });
       claveActual.value = '';
       claveNueva.value = '';
-      avisar('Cambiada. Las sesiones en otros teléfonos se cerraron.');
+      avisar('Cambiada. Las sesiones en otros teléfonos se cerraron y te mandamos un aviso por email.');
     } catch (e) {
       errorClave.textContent = e.message;
       errorClave.hidden = false;
@@ -78,7 +113,7 @@ export function vistaAjustes(ctx) {
     const clave = h('input', { type: 'password', id: 'ajustes-clave-borrar', autocomplete: 'current-password', maxlength: '200' });
     const error = h('p', { class: 'errores', role: 'alert', hidden: true });
     render(zonaBorrar,
-      h('p', { class: 'nota' }, 'Se borran la cuenta, todas tus plantas y su historial, en todos los teléfonos. Tus ROOTKIT vuelven a mostrar el QR. No se puede deshacer.'),
+      h('p', { class: 'nota' }, 'Se borran la cuenta, todas tus plantas, su historial y sus charlas, en todos los teléfonos. Tus Rooties vuelven a mostrar el QR. No se puede deshacer.'),
       h('div', { class: 'campo' }, h('label', { for: 'ajustes-clave-borrar' }, 'Tu contraseña, para confirmar'), clave),
       error,
       h('div', { class: 'fila-botones' },
@@ -103,6 +138,23 @@ export function vistaAjustes(ctx) {
   const botonBorrar = h('button', { class: 'enlace-boton peligro', type: 'button', onClick: pedirBorrar }, 'Borrar mi cuenta');
   render(zonaBorrar, botonBorrar);
 
+  /* ---------------------------------------------------- verificar email --- */
+  const reenviar = h('button', {
+    class: 'boton chico', type: 'button',
+    onClick: async (ev) => {
+      ev.currentTarget.disabled = true;
+      try {
+        await api('/api/cuenta/verificar/reenviar', { metodo: 'POST' });
+        avisar(`Te mandamos el enlace a ${cuenta.email}.`);
+      } catch (e) {
+        avisar(e.message, true);
+        ev.target.disabled = false;
+      }
+    },
+  }, 'Reenviar');
+
+  const limites = cuenta?.ia || config?.cuotas || {};
+
   render(cont,
     h('header', { class: 'vista-cab' }, h('h2', {}, 'Ajustes')),
 
@@ -110,13 +162,30 @@ export function vistaAjustes(ctx) {
       h('h3', { class: 'panel-tit' }, 'Tu cuenta'),
       h('div', { class: 'fila-ajuste' },
         h('div', {}, h('b', {}, cuenta?.email || '—'), h('span', {}, 'Entrá con este email en cualquier teléfono y vas a ver tus plantas.')),
-        h('button', { class: 'boton chico', type: 'button', onClick: () => ctx.salir() }, 'Salir'))),
+        h('button', { class: 'boton chico', type: 'button', onClick: () => ctx.salir() }, 'Salir')),
+      cuenta && !cuenta.email_verificado
+        ? h('div', { class: 'banda', role: 'status' }, icono('campana', 18),
+            h('span', {}, 'Confirmá tu email: así podés recuperar la contraseña.'), reenviar)
+        : null),
+
+    h('section', { class: 'panel' },
+      h('h3', { class: 'panel-tit' }, 'Paleta'),
+      h('p', { class: 'nota', style: 'margin-bottom:12px' }, 'ROOTLAB se pinta con los colores de tu Rooti cuando sale del cofre. Podés cambiarla cuando quieras.'),
+      paletas),
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Notificaciones'),
       h('div', { class: 'fila-ajuste' },
         h('div', {}, h('b', {}, 'Avisos de tus plantas'), estadoAvisos),
         botonAvisos)),
+
+    h('section', { class: 'panel' },
+      h('h3', { class: 'panel-tit' }, 'Tu plan'),
+      h('div', { class: 'fila-ajuste' },
+        h('div', {},
+          h('b', {}, cuenta?.plan === 'pro' ? 'ROOTLAB Pro' : 'Gratis'),
+          h('span', {}, `${limites.chat ?? 3} mensajes por día con tus plantas, ${limites.identificar ?? 3} reconocimientos y ${limites.diagnosticar ?? 2} diagnósticos por día por Rooti.`)),
+        cuenta?.plan === 'pro' ? null : h('span', { class: 'pildora plan' }, 'Pro, pronto'))),
 
     h('form', { class: 'panel form', onSubmit: guardarNombre },
       h('h3', { class: 'panel-tit' }, 'Tu nombre'),
@@ -132,11 +201,11 @@ export function vistaAjustes(ctx) {
       h('button', { class: 'boton ancho', type: 'submit' }, 'Cambiar')),
 
     h('section', { class: 'panel' },
-      h('h3', { class: 'panel-tit' }, 'Sobre ROOTKIT'),
+      h('h3', { class: 'panel-tit' }, 'Sobre ROOTLAB'),
       h('dl', { class: 'datos' },
         h('div', {}, h('dt', {}, 'Versión'), h('dd', {}, config?.version || '—')),
-        h('div', {}, h('dt', {}, 'Reconocimiento'), h('dd', {}, config?.ia === 'claude' ? 'Claude' : 'Simulado'))),
-      h('p', { class: 'nota', style: 'margin-top:12px' }, 'Para desvincular un ROOTKIT, entrá a la planta y bajá hasta el final. En la maceta, mantener apretado el botón 10 segundos la reinicia por completo.')),
+        h('div', {}, h('dt', {}, 'Inteligencia'), h('dd', {}, config?.ia === 'claude' ? 'Claude' : 'Simulada'))),
+      h('p', { class: 'nota', style: 'margin-top:12px' }, 'Tus datos personales (email, nombre y charlas) se guardan cifrados. Para desvincular un Rooti, entrá a su planta y bajá hasta el final; en el Rooti, mantener apretado el botón 10 segundos lo reinicia por completo.')),
 
     h('section', { class: 'panel' }, zonaBorrar));
 

@@ -5,16 +5,18 @@
  *
  * Sirve desde el mismo proceso:
  *
- *   /             la app (public/), instalable como PWA
- *   /v/<CÓDIGO>   la misma app, entrando por el QR de un ROOTKIT
- *   /emulador/    un ROOTKIT virtual para recorrer el flujo sin placa
+ *   /             ROOTLAB, la app (public/), instalable como PWA
+ *   /v/<CÓDIGO>   la misma app, entrando por el QR de un Rooti
+ *   /emulador/    un Rooti virtual para recorrer el flujo sin placa
  *   /api/...      la API de la app y la de los aparatos (server/api.mjs)
  *
  * Todo eso puede ir debajo de una subruta (ROOTLAB_BASE=/rootkit). Ver
  * server/http.mjs y docs/despliegue.md.
  *
  * Configuración por variables de entorno o un archivo .env (ver
- * .env.example). Nada es obligatorio para desarrollar.
+ * .env.example). Nada es obligatorio para desarrollar: sin SMTP los emails
+ * quedan en data/correos, sin clave de Anthropic la IA es simulada y sin
+ * ROOTLAB_SECRETO se genera uno en data/secreto.key.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
@@ -24,6 +26,11 @@ import { fileURLToPath } from 'node:url';
 import { abrirBase } from './db.mjs';
 import { crearApi } from './api.mjs';
 import { crearIA } from './ia.mjs';
+import { cargarSecreto, crearCripto, enmascararEmail } from './cripto.mjs';
+import { crearClaves } from './claves.mjs';
+import { configCorreoDesdeEntorno, crearCorreo } from './correo.mjs';
+import { crearPresupuesto, LIMITES_POR_DEFECTO, PRECIOS_POR_DEFECTO } from './presupuesto.mjs';
+import { alertaGasto } from './plantillas-correo.mjs';
 import { crearPush } from './push.mjs';
 import { crearServidorHttp, normalizarBase } from './http.mjs';
 
@@ -58,8 +65,39 @@ function ipLocal() {
 }
 const URL_PUBLICA = (process.env.ROOTLAB_URL_PUBLICA || `http://${ipLocal()}:${PUERTO}${BASE}`).replace(/\/+$/, '');
 
-const db = abrirBase(join(DATOS, 'rootkit.db'));
+const numero = (v, def) => (v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : def);
+function jsonDe(nombre, def) {
+  if (!process.env[nombre]) return def;
+  try { return { ...def, ...JSON.parse(process.env[nombre]) }; } catch {
+    console.warn(`${nombre} no es JSON válido: se usan los valores por defecto`);
+    return def;
+  }
+}
+
+const cripto = crearCripto(cargarSecreto({ archivo: join(DATOS, 'secreto.key') }));
+const claves = crearClaves(cripto);
+const db = abrirBase(join(DATOS, 'rootkit.db'), { cripto });
 const ia = crearIA();
+const correo = crearCorreo(configCorreoDesdeEntorno(process.env, DATOS));
+const ADMIN = process.env.ROOTLAB_ADMIN_EMAIL || '';
+const presupuesto = crearPresupuesto({
+  db,
+  topeDiaUsd: numero(process.env.ROOTLAB_IA_TOPE_DIA_USD, 2),
+  topeMesUsd: numero(process.env.ROOTLAB_IA_TOPE_MES_USD, 20),
+  precios: jsonDe('ROOTLAB_IA_PRECIOS', PRECIOS_POR_DEFECTO),
+  limites: {
+    ...LIMITES_POR_DEFECTO,
+    gratis: {
+      chat: numero(process.env.ROOTLAB_CUOTA_CHAT, LIMITES_POR_DEFECTO.gratis.chat),
+      identificar: numero(process.env.ROOTLAB_CUOTA_IDENTIFICAR, LIMITES_POR_DEFECTO.gratis.identificar),
+      diagnosticar: numero(process.env.ROOTLAB_CUOTA_DIAGNOSTICAR, LIMITES_POR_DEFECTO.gratis.diagnosticar),
+    },
+  },
+  alAlerta: ({ periodo, gastado, tope, umbral }) => {
+    console.warn(`IA: ${umbral}% del tope ${periodo} (US$ ${gastado.toFixed(2)} de ${tope.toFixed(2)})`);
+    if (ADMIN) correo.enviar({ tipo: 'alerta-gasto', para: ADMIN, ...alertaGasto({ gastado, tope, periodo }) });
+  },
+});
 let push = null;
 try {
   push = crearPush({ dirDatos: DATOS });
@@ -67,7 +105,7 @@ try {
   console.warn(`notificaciones desactivadas: ${e.message}`);
 }
 const api = crearApi({
-  db, ia, push,
+  db, ia, push, correo, claves, presupuesto,
   tofu: process.env.ROOTLAB_TOFU !== '0',
   urlPublica: () => URL_PUBLICA,
   version: VERSION,
@@ -76,21 +114,33 @@ const api = crearApi({
 const servidor = crearServidorHttp({ api, raiz: RAIZ, base: BASE });
 servidor.listen(PUERTO, HOST, () => {
   const local = `http://localhost:${PUERTO}${BASE}`;
-  console.log(`\n  root-lab ${VERSION}`);
+  console.log(`\n  ROOTLAB ${VERSION}`);
   console.log(`  app        ${local}/`);
   console.log(`  emulador   ${local}/emulador/`);
   console.log(`  pública    ${URL_PUBLICA}/   (lo que va en el QR)`);
-  console.log(`  IA         ${ia.proveedor}${ia.modelo ? ` (${ia.modelo})` : ' — definí ANTHROPIC_API_KEY para usar Claude'}`);
+  console.log(`  IA         ${ia.proveedor}${ia.modelo ? ` (${ia.modelo}, chat ${ia.modeloChat})` : ' — definí ANTHROPIC_API_KEY para usar Claude'}`);
+  const e = presupuesto.estado();
+  console.log(`  tope IA    US$ ${e.tope_dia_usd}/día, US$ ${e.tope_mes_usd}/mes (gastado: ${e.gastado_dia_usd.toFixed(2)} hoy, ${e.gastado_mes_usd.toFixed(2)} este mes)`);
+  console.log(`  correo     ${correo.transporte}${correo.transporte === 'archivo' ? ` (${join(DATOS, 'correos')})` : ''}, remitente ${correo.remitente}${ADMIN ? `, alertas a ${enmascararEmail(ADMIN)}` : ''}`);
   console.log(`  avisos     ${push ? 'web push listo' : 'desactivados'}`);
-  console.log(`  base       ${join(DATOS, 'rootkit.db')}\n`);
+  console.log(`  base       ${join(DATOS, 'rootkit.db')} (esquema ${db.version()}, datos personales cifrados)\n`);
 });
 
 const temporizador = setInterval(() => { api.revisar().catch(() => {}); }, 10 * 60 * 1000);
 temporizador.unref();
 
+if (correo.transporte === 'smtp') {
+  correo.verificar()
+    .then(() => console.log('  correo: relay SMTP conectado'))
+    .catch((err) => console.error(`  correo: el relay SMTP no responde (${err.message})`));
+}
+
 for (const senal of ['SIGINT', 'SIGTERM']) {
-  process.on(senal, () => {
+  process.on(senal, async () => {
     servidor.close();
+    /* Los emails en cola salen antes de apagar (hasta 10 s). */
+    await Promise.race([correo.esperar(), new Promise((ok) => setTimeout(ok, 10000))]);
+    correo.cerrar();
     db.cerrar();
     process.exit(0);
   });

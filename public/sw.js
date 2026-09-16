@@ -10,7 +10,7 @@
  */
 
 /* Subir la versión invalida el caché entero. */
-const CACHE = 'rootkit-v7';
+const CACHE = 'rootlab-v8';
 
 /* La app puede estar montada en una subruta (/rootkit/): todo se resuelve
    contra el alcance del service worker, nunca contra la raíz del dominio. */
@@ -24,6 +24,9 @@ const ARMAZON = [
   'index.html',
   'app.js',
   'style.css',
+  'tema.js',
+  'fuentes/nunito-latin.woff2',
+  'fuentes/nunito-latin-ext.woff2',
   'lib/api.mjs',
   'lib/base.mjs',
   'lib/caras.mjs',
@@ -31,10 +34,13 @@ const ARMAZON = [
   'lib/dispositivo.mjs',
   'lib/gamificacion.mjs',
   'lib/model.mjs',
+  'lib/paletas.mjs',
   'lib/tareas.mjs',
+  'lib/tema.mjs',
   'lib/ui.mjs',
   'vistas/ajustes.mjs',
   'vistas/alta.mjs',
+  'vistas/chat.mjs',
   'vistas/cofre.mjs',
   'vistas/coleccion.mjs',
   'vistas/cuenta.mjs',
@@ -92,8 +98,8 @@ self.addEventListener('fetch', (e) => {
 /* ------------------------------------------------------- notificaciones -- */
 self.addEventListener('push', (e) => {
   let d = {};
-  try { d = e.data ? e.data.json() : {}; } catch { d = { titulo: 'ROOTKIT', cuerpo: e.data?.text() || '' }; }
-  e.waitUntil(self.registration.showNotification(d.titulo || 'ROOTKIT', {
+  try { d = e.data ? e.data.json() : {}; } catch { d = { titulo: 'ROOTLAB', cuerpo: e.data?.text() || '' }; }
+  e.waitUntil(self.registration.showNotification(d.titulo || 'ROOTLAB', {
     body: d.cuerpo || '',
     icon: enAlcance(d.icono || 'iconos/icono-192.png'),
     badge: enAlcance('iconos/icono-192.png'),

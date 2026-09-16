@@ -124,7 +124,7 @@ export const LOGROS = [
   {
     id: 'trio',
     nombre: 'Se está poniendo lindo',
-    detalle: 'Tener tres macetas a la vez',
+    detalle: 'Tener tres Rooties a la vez',
     cumple: (e) => e.nodos.length >= 3,
   },
   {
@@ -166,15 +166,15 @@ export const LOGROS = [
   },
   {
     id: 'coleccion',
-    nombre: 'Las cinco',
-    detalle: 'Tener los cinco modelos a la vista',
+    nombre: 'Colección completa',
+    detalle: 'Tener todos los Rooties a la vista',
     /* No da XP: tenerlas demuestra que compraste cajas, no que sepas regar. */
     cumple: (e) => (e.coleccion?.completa === true),
   },
   {
     id: 'secreto',
     nombre: 'El secreto',
-    detalle: 'Que te salga el modelo que no está en la caja',
+    detalle: 'Que te salga el Rooti que no está en la caja',
     cumple: (e) => (e.coleccion?.secretos || 0) >= 1,
   },
 ];

@@ -13,74 +13,10 @@ import { randomBytes } from 'node:crypto';
 import { crearApi, diaLocal, bateriaPct, SESION_VENCE_MS } from '../server/api.mjs';
 import { abrirBase } from '../server/db.mjs';
 import { crearIA } from '../server/ia.mjs';
-import { crearPushDePrueba } from '../server/push.mjs';
 import { codigoVinculo, tokenApi } from '../server/codigo.mjs';
-
-const H = 3600 * 1000;
-const T0 = Date.parse('2026-09-16T15:00:00-03:00');
-
-function escenario() {
-  const reloj = { t: T0 };
-  const db = abrirBase();
-  const push = crearPushDePrueba();
-  const api = crearApi({
-    db, push, ia: crearIA({ clave: '' }),
-    reloj: () => reloj.t,
-    azar: (n) => 0,
-  });
-  const llamar = (metodo, ruta, { cuerpo = null, token = null, query = {}, ip = '1.2.3.4' } = {}) =>
-    api.manejar({
-      metodo, ruta, cuerpo, query, ip,
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-    });
-  return { reloj, db, push, api, llamar };
-}
-
-/* Un ROOTKIT de mentira que habla igual que el de verdad. */
-function aparato(esc, { persona = 'kawaii', id = 'A1B2C3D4E5F6' } = {}) {
-  const secreto = randomBytes(16);
-  const yo = {
-    id, secreto, token: tokenApi(secreto), epoca: 0, reloj: 1000, arranques: 1,
-    vinculado: false, pendientes: [],
-    get codigo() { return codigoVinculo(secreto, this.epoca); },
-  };
-  yo.medir = (l) => {
-    yo.pendientes.push({ ...l, reloj: yo.reloj });
-  };
-  yo.sync = async (extra = {}) => {
-    const cuerpo = {
-      id: yo.id, fw: '0.5.0', placa: 'c3-supermini', pantalla: 'ili9341-240x320',
-      persona, estado: yo.vinculado ? 'ACTIVO' : 'SIN_VINCULO', epoca: yo.epoca,
-      ...(yo.vinculado ? {} : { codigo: yo.codigo }),
-      reloj: yo.reloj, rssi: -60, usb: false, bat_mv: 3900, arranques: yo.arranques,
-      lecturas: yo.pendientes.map(({ reloj, ...l }) => ({ hace: yo.reloj - reloj, ...l })),
-      ...extra,
-    };
-    const [codigo, r] = await esc.llamar('POST', '/api/d/sync', { cuerpo, token: yo.token });
-    if (codigo === 200) {
-      yo.pendientes.splice(0, r.aceptadas);
-      if (yo.vinculado && !r.vinculado) yo.epoca += 1;
-      yo.vinculado = r.vinculado;
-    }
-    return [codigo, r];
-  };
-  yo.pasar = (segundos) => {
-    yo.reloj += segundos;
-    esc.reloj.t += segundos * 1000;
-  };
-  return yo;
-}
-
-let nCuentas = 0;
-async function cuenta(esc, { email = `persona${++nCuentas}@ejemplo.com`, clave = 'una clave segura' } = {}) {
-  const [c, r] = await esc.llamar('POST', '/api/cuenta/registro', {
-    cuerpo: { email, clave, nombre: 'Persona', tz: 'America/Argentina/Buenos_Aires' },
-  });
-  assert.equal(c, 201, JSON.stringify(r));
-  return r.token;
-}
-
-const FOTO = 'x'.repeat(4000);
+import {
+  escenario, aparato, cuenta, conRooti, FOTO, H,
+} from './ayudas.mjs';
 
 describe('el primer encendido hasta la cara', () => {
   let esc;
@@ -140,7 +76,7 @@ describe('el primer encendido hasta la cara', () => {
     assert.equal(cp, 200);
     assert.equal(p.nombre, 'Rulo');
     const [ci, ident] = await esc.llamar('POST', '/api/identificar', {
-      token, cuerpo: { image_b64: FOTO, mime: 'image/jpeg' },
+      token, cuerpo: { planta: planta.id, image_b64: FOTO, mime: 'image/jpeg' },
     });
     assert.equal(ci, 200);
     assert.ok(ident.especie?.id);
@@ -390,8 +326,8 @@ describe('bordes de la API', () => {
   });
 
   test('una foto que no es foto se rechaza', async () => {
-    const token = await cuenta(esc);
-    const [c, r] = await esc.llamar('POST', '/api/identificar', { token, cuerpo: { image_b64: 'abc' } });
+    const { token, planta } = await conRooti(esc);
+    const [c, r] = await esc.llamar('POST', '/api/identificar', { token, cuerpo: { planta: planta.id, image_b64: 'abc' } });
     assert.equal(c, 400);
     assert.match(r.error, /foto/);
   });
@@ -461,10 +397,10 @@ describe('cuentas', () => {
     assert.equal(dup, 409, 'un email, una cuenta, sin importar mayúsculas');
   });
 
-  test('la contraseña se guarda con scrypt, nunca en claro', async () => {
+  test('la contraseña se guarda con Argon2id y pimienta, nunca en claro', async () => {
     await registro({ email: 'beto@ejemplo.com', clave: 'mi clave secreta' });
     const c = esc.db.cuentaPorEmail('beto@ejemplo.com');
-    assert.match(c.clave_hash, /^scrypt\$16384\$8\$1\$/);
+    assert.match(c.clave_hash, /^argon2id\$p1\$m=\d+,t=\d+,p=1\$/);
     assert.ok(!c.clave_hash.includes('mi clave secreta'));
   });
 
@@ -533,12 +469,16 @@ describe('cuentas', () => {
       ['DELETE', `/api/plantas/${planta.id}`],
       ['POST', `/api/plantas/${planta.id}/cofre`],
       ['GET', `/api/plantas/${planta.id}/historial`],
+      ['GET', `/api/plantas/${planta.id}/chat`],
+      ['POST', `/api/plantas/${planta.id}/chat`],
     ]) {
       const [c] = await esc.llamar(metodo, ruta, { token: beto, cuerpo: { nombre: 'robada' } });
       assert.equal(c, 404, `${metodo} ${ruta}`);
     }
     const [cd] = await esc.llamar('POST', '/api/diagnosticar', { token: beto, cuerpo: { planta: planta.id, image_b64: 'x'.repeat(500) } });
     assert.equal(cd, 404);
+    const [ci] = await esc.llamar('POST', '/api/identificar', { token: beto, cuerpo: { planta: planta.id, image_b64: 'x'.repeat(500) } });
+    assert.equal(ci, 404, 'no se puede gastar IA con el Rooti de otra cuenta');
     const [, v] = await esc.llamar('GET', `/api/vinculo/${maceta.codigo}`, { token: beto });
     assert.equal(v.mio, false);
     assert.equal(v.planta, null, 'no se filtra el id de una planta ajena');

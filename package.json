@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=22.13"
+    "node": ">=24.7"
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server/index.mjs",
@@ -16,6 +16,7 @@
     "verificar": "node tools/verificar-despliegue.mjs"
   },
   "dependencies": {
+    "nodemailer": "^10.0.10",
     "web-push": "^3.6.7"
   }
 }

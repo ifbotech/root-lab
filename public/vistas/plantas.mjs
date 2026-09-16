@@ -15,6 +15,12 @@ import {
   ordenarNodos, etapaDe, progresoEtapa, bateriaDe,
 } from '../lib/model.mjs';
 import { caraDeNodo } from './hoy.mjs';
+import { token } from '../lib/tema.mjs';
+
+const CUIDADO_ES = {
+  riego: 'Riego', luz: 'Luz', temperatura: 'Temperatura', humedad: 'Humedad', sustrato: 'Sustrato',
+  abono: 'Abono', poda: 'Poda', plagas: 'Plagas', toxicidad: 'Toxicidad', curiosidad: 'Dato curioso',
+};
 
 const SEV_CLASE = { URGENT: 'urgente', WATCH: 'atencion', OK: 'bien' };
 
@@ -90,17 +96,19 @@ export function vistaPlantas(ctx) {
       h('button', { class: 'boton chico azul', type: 'button', onClick: () => irA('agregar') },
         icono('mas', 16), 'Agregar')),
     nodos.length === 0
-      ? h('section', { class: 'panel vacio' }, h('p', {}, 'Todavía no hay ningún ROOTKIT.'))
+      ? h('section', { class: 'panel vacio' }, h('p', {}, 'Todavía no tenés ningún Rooti.'))
       : h('ul', { class: 'plantas' }, nodos.map((n) => fila(n, porId.get(n.especie), modelos, alAbrir))));
   return cont;
 }
 
 /* ------------------------------------------------------------ gráfico --- */
+/* Los colores salen de la paleta aplicada (tokens dato-*), no de acá. */
 const SERIES = [
-  { clave: 'soil_pct', nombre: 'Tierra', color: '#1cb0f6', max: () => 100 },
-  { clave: 'temp_dc', nombre: 'Temperatura', color: '#ff9600', max: (p) => Math.max(350, ...p) },
-  { clave: 'lux', nombre: 'Luz', color: '#ffc800', max: (p) => Math.max(1000, ...p) },
+  { clave: 'soil_pct', nombre: 'Tierra', token: 'dato-tierra', max: () => 100 },
+  { clave: 'temp_dc', nombre: 'Temperatura', token: 'dato-temperatura', max: (p) => Math.max(350, ...p) },
+  { clave: 'lux', nombre: 'Luz', token: 'dato-luz', max: (p) => Math.max(1000, ...p) },
 ];
+const colorDe = (s) => token(s.token) || '#277da1';
 
 function grafico(puntos, horas, esp) {
   const ns = 'http://www.w3.org/2000/svg';
@@ -121,7 +129,8 @@ function grafico(puntos, horas, esp) {
     zona.setAttribute('width', W);
     zona.setAttribute('y', H - (esp.soil_max / 100) * (H - 8) - 4);
     zona.setAttribute('height', ((esp.soil_max - esp.soil_min) / 100) * (H - 8));
-    zona.setAttribute('fill', 'rgba(28,176,246,.10)');
+    zona.setAttribute('fill', colorDe(SERIES[0]));
+    zona.setAttribute('fill-opacity', '.12');
     svg.append(zona);
   }
   for (let i = 1; i < 4; i++) {
@@ -139,7 +148,7 @@ function grafico(puntos, horas, esp) {
     const path = document.createElementNS(ns, 'path');
     path.setAttribute('d', d);
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', s.color);
+    path.setAttribute('stroke', colorDe(s));
     path.setAttribute('stroke-width', '3');
     path.setAttribute('stroke-linejoin', 'round');
     path.setAttribute('stroke-linecap', 'round');
@@ -147,7 +156,7 @@ function grafico(puntos, horas, esp) {
     const u = pts[pts.length - 1];
     const c = document.createElementNS(ns, 'circle');
     c.setAttribute('cx', x(u.t)); c.setAttribute('cy', H - 4 - (u[s.clave] / max) * (H - 8));
-    c.setAttribute('r', 4.5); c.setAttribute('fill', s.color);
+    c.setAttribute('r', 4.5); c.setAttribute('fill', colorDe(s));
     svg.append(c);
   }
   return svg;
@@ -161,7 +170,7 @@ export function vistaDetalle(ctx) {
 
   if (!n) {
     render(cont, h('section', { class: 'panel vacio' },
-      h('p', {}, 'Esa maceta ya no está.'),
+      h('p', {}, 'Esa planta ya no está.'),
       h('button', { class: 'boton', type: 'button', onClick: volver }, 'Volver')));
     return cont;
   }
@@ -183,7 +192,7 @@ export function vistaDetalle(ctx) {
         return;
       }
       render(zonaGrafico, grafico(r.puntos, horas, esp),
-        h('div', { class: 'grafico-leyenda' }, SERIES.map((s) => h('span', {}, h('i', { style: `background:${s.color}` }), s.nombre))));
+        h('div', { class: 'grafico-leyenda' }, SERIES.map((s) => h('span', {}, h('i', { style: `background:${colorDe(s)}` }), s.nombre))));
     } catch (e) {
       render(zonaGrafico, h('p', { class: 'errores' }, e.message));
     }
@@ -228,10 +237,10 @@ export function vistaDetalle(ctx) {
     } catch (e) { avisar(e.message, true); }
   };
   const desvincular = async () => {
-    if (!confirm(`¿Desvincular a ${n.nombre || 'este ROOTKIT'}? Va a volver a mostrar el QR y se borran sus datos de esta cuenta.`)) return;
+    if (!confirm(`¿Desvincular a ${n.nombre || 'este Rooti'}? Va a volver a mostrar el QR. Su historial queda guardado en tu cuenta.`)) return;
     try {
       await api(`/api/plantas/${n.id}`, { metodo: 'DELETE' });
-      avisar('Listo. En la maceta va a aparecer el QR de nuevo.');
+      avisar('Listo. En el Rooti va a aparecer el QR de nuevo.');
       await recargar();
       irA('plantas');
     } catch (e) { avisar(e.message, true); }
@@ -255,7 +264,12 @@ export function vistaDetalle(ctx) {
     !n.revelado
       ? h('section', { class: 'panel' },
           h('button', { class: 'boton oro ancho', type: 'button', onClick: () => ctx.alRetomarAlta(n) }, icono('caja', 20), 'Abrir el cofre'))
-      : null,
+      : n.chat
+        ? h('button', { class: 'boton primario ancho', type: 'button', onClick: () => ctx.alChat(n.id) },
+            icono('chat', 20), `Hablar con ${n.nombre}`)
+        : h('section', { class: 'panel' },
+            h('p', { class: 'nota', style: 'margin-bottom:10px' }, `Para charlar con ${n.nombre || 'tu planta'}, primero reconozcamos su especie.`),
+            h('button', { class: 'boton azul ancho', type: 'button', onClick: () => alCambiarEspecie(n.id) }, icono('camara', 20), 'Sacarle una foto')),
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Ahora'),
@@ -281,6 +295,18 @@ export function vistaDetalle(ctx) {
         h('div', {}, h('dt', {}, 'Racha'), h('dd', {}, `${n.bond?.racha ?? 0} días`)),
         h('div', {}, h('dt', {}, 'Mejor racha'), h('dd', {}, `${n.bond?.mejor_racha ?? 0} días`)))),
 
+    n.ficha
+      ? h('section', { class: 'panel' },
+          h('h3', { class: 'panel-tit' }, `Cuidados · ${n.ficha.dificultad}`),
+          h('dl', { class: 'cuidados' },
+            Object.entries(n.ficha.cuidados || {})
+              .sort(([a], [b]) => Object.keys(CUIDADO_ES).indexOf(a) - Object.keys(CUIDADO_ES).indexOf(b))
+              .map(([k, v]) => h('div', { class: 'cuidado' }, h('dt', {}, CUIDADO_ES[k] || k), h('dd', {}, v)))),
+          n.ficha.fuente === 'ia'
+            ? h('p', { class: 'nota', style: 'margin-top:10px' }, 'Los rangos son del catálogo de ROOTLAB; el resto lo sumó la IA al reconocerla.')
+            : null)
+      : null,
+
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Especie'),
       esp
@@ -290,7 +316,7 @@ export function vistaDetalle(ctx) {
         icono('camara', 16), esp ? 'Cambiar' : 'Identificar')),
 
     h('section', { class: 'panel' },
-      h('h3', { class: 'panel-tit' }, 'La maceta'),
+      h('h3', { class: 'panel-tit' }, 'Tu Rooti'),
       h('div', { class: 'fila-ajuste' },
         h('label', { for: siempre.id }, h('b', {}, 'Pantalla siempre encendida'),
           h('span', {}, 'A batería se apaga a los 20 s y se prende al tocarla. Siempre encendida dura días, no meses.')),
@@ -300,7 +326,7 @@ export function vistaDetalle(ctx) {
       h('dl', { class: 'datos' },
         h('div', {}, h('dt', {}, 'Batería'), h('dd', {}, n.nodo?.usb ? 'Cargando' : bat === null ? '—' : `${bat} %`)),
         h('div', {}, h('dt', {}, 'Wifi'), h('dd', {}, n.nodo?.rssi ? `${n.nodo.rssi} dBm` : '—')),
-        h('div', {}, h('dt', {}, 'Personaje'), h('dd', {}, modelo?.nombre || '—')),
+        h('div', {}, h('dt', {}, 'Rooti'), h('dd', {}, modelo?.nombre || '—')),
         h('div', {}, h('dt', {}, 'Firmware'), h('dd', { class: 'mono' }, n.nodo?.fw || '—')))),
 
     h('button', { class: 'boton peligro ancho', type: 'button', onClick: desvincular }, icono('basura', 18), 'Desvincular'));

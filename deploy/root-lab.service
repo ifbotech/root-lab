@@ -24,17 +24,31 @@ ExecStart=/opt/root-lab-node/bin/node --disable-warning=ExperimentalWarning serv
 Restart=always
 RestartSec=3
 
-# Endurecimiento: nada fuera de su carpeta de datos, sin escalar privilegios.
+# Endurecimiento: nada fuera de su carpeta de datos, sin escalar privilegios,
+# sin capacidades del kernel y con archivos nuevos privados (umask 077).
+# `systemd-analyze security root-lab` da el puntaje.
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/root-lab
 ProtectKernelTunables=true
 ProtectKernelModules=true
+ProtectKernelLogs=true
 ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
 RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

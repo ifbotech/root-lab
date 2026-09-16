@@ -4,7 +4,7 @@
  * al abrir la app:
  *
  *   1. las CARAS, porque contestan "¿están bien?" antes de leer nada: son
- *      las mismas que están poniendo las macetas en este momento
+ *      las mismas que están poniendo los Rooties en este momento
  *   2. las TAREAS, porque son lo único accionable
  *   3. los CONTADORES, para el que tiene muchas plantas
  *   4. el NIVEL, porque es recompensa y la recompensa va después del trabajo
@@ -27,7 +27,7 @@ export function caraDeNodo(n, lado, extra = {}) {
       etapa: ETAPAS.indexOf(etapaDe(n.bond?.dias_sanos ?? 0)),
       lado,
       fps: extra.fps || 20,
-      etiqueta: `${n.nombre || 'Tu ROOTKIT'}: ${n.reason || ''}`,
+      etiqueta: `${n.nombre || 'Tu Rooti'}: ${n.reason || ''}`,
     }));
 }
 
@@ -37,7 +37,7 @@ function ronda(nodos, modelos, alAbrir, alAgregar) {
     nodos.map((n) => h('button', {
       class: 'ronda-item', type: 'button', role: 'listitem', onClick: () => alAbrir(n.id),
     }, caraDeNodo(n, 88, { fondo: fondo(n), fps: 12 }), h('b', {}, n.nombre || 'Sin nombre'))),
-    h('button', { class: 'ronda-item', type: 'button', onClick: alAgregar, 'aria-label': 'Agregar un ROOTKIT' },
+    h('button', { class: 'ronda-item', type: 'button', onClick: alAgregar, 'aria-label': 'Agregar un Rooti' },
       h('span', { class: 'ronda-agregar' }, icono('mas', 34)), h('b', {}, 'Agregar')));
 }
 
@@ -104,10 +104,10 @@ export function vistaHoy(ctx) {
     render(cont,
       h('section', { class: 'panel vacio' },
         h('div', { class: 'cara-marco' }, cara({ modo: 'dormida', lado: 150 })),
-        h('h2', {}, 'Todavía no tenés ningún ROOTKIT'),
+        h('h2', {}, 'Todavía no tenés ningún Rooti'),
         h('p', { class: 'nota' }, 'Encendelo y escaneá con la cámara el QR que aparece en su pantalla. O escribí el código que está abajo del QR.'),
         h('button', { class: 'boton primario ancho', type: 'button', onClick: () => irA('agregar') },
-          icono('mas', 20), 'Agregar mi ROOTKIT')));
+          icono('mas', 20), 'Agregar mi Rooti')));
     return cont;
   }
 

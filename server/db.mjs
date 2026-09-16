@@ -16,42 +16,49 @@
  *
  * LAS TABLAS
  *
- *   cuentas         una persona: email, contraseña (scrypt), zona horaria,
- *                   colección de personajes
- *   sesiones        un teléfono con la sesión abierta (se guarda el hash del
- *                   token, nunca el token)
- *   dispositivos    cada ROOTKIT: token, estado, código y época, última lectura
- *   plantas         el vínculo de un ROOTKIT con una cuenta: nombre, especie,
- *                   personaje, días sanos. Desvincular no la borra: la marca.
+ *   cuentas         una persona. El email y el nombre van CIFRADOS
+ *                   (cripto.mjs); para encontrar una cuenta por email se usa
+ *                   un índice ciego. Contraseña con Argon2id (claves.mjs).
+ *   sesiones        un teléfono con la sesión abierta (el hash del token)
+ *   tokens_cuenta   enlaces de un solo uso: restablecer la contraseña y
+ *                   verificar el email (el hash, nunca el token)
+ *   dispositivos    cada Rooti: token, estado, código y época, última lectura
+ *   plantas         el vínculo de un Rooti con una cuenta: nombre, especie,
+ *                   personaje, días sanos, ficha de cuidados y el prompt del
+ *                   chat. Desvincular no la borra: la marca.
  *   lecturas        TODAS las lecturas, para siempre, de la planta a la que
  *                   pertenecían cuando se midieron
+ *   chat            lo que se habló con cada planta (cifrado)
+ *   ia_uso          cada llamada a la IA con sus tokens y su costo: de acá
+ *                   salen los límites diarios y el tope de gasto
  *   suscripciones   notificaciones push de cada cuenta
  *   avisos          cuándo se mandó cada tipo de aviso por planta
+ *   meta            versión del esquema y marcas sueltas
  *
  * Cada lectura se guarda con la PLANTA vigente al medirla. Así el historial de
  * una planta es exactamente el suyo: si el aparato cambia de dueño, el nuevo
  * dueño no ve nada del anterior, por construcción y no por un filtro.
+ *
+ * LA API DE ESTE ARCHIVO HABLA EN CLARO
+ *
+ * Quien llama pasa y recibe emails y nombres normales; cifrar y descifrar
+ * pasa acá adentro, en un solo lugar. Así es imposible olvidarse de cifrar
+ * en una ruta nueva.
  */
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import { crearCripto } from './cripto.mjs';
 
-const VERSION_ESQUEMA = 1;
+export const VERSION_ESQUEMA = 2;
 
-const ESQUEMA = `
+export const normalizarEmail = (e) => String(e || '').trim().toLowerCase();
+
+const TABLAS_COMUNES = `
 CREATE TABLE IF NOT EXISTS meta (
   clave TEXT PRIMARY KEY,
   valor TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS cuentas (
-  id          TEXT PRIMARY KEY,
-  email       TEXT NOT NULL UNIQUE COLLATE NOCASE,
-  nombre      TEXT NOT NULL DEFAULT '',
-  clave_hash  TEXT NOT NULL,
-  tz          TEXT NOT NULL,
-  coleccion   TEXT NOT NULL DEFAULT '[]',
-  creada      INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sesiones (
@@ -85,24 +92,6 @@ CREATE TABLE IF NOT EXISTS dispositivos (
 );
 CREATE INDEX IF NOT EXISTS dispositivos_codigo ON dispositivos(codigo);
 
-CREATE TABLE IF NOT EXISTS plantas (
-  id           TEXT PRIMARY KEY,
-  cuenta       TEXT NOT NULL REFERENCES cuentas(id) ON DELETE CASCADE,
-  dispositivo  TEXT NOT NULL,
-  epoca        INTEGER NOT NULL,
-  creada       INTEGER NOT NULL,
-  persona      TEXT,
-  revelado     INTEGER NOT NULL DEFAULT 0,
-  revelada_en  INTEGER,
-  nombre       TEXT NOT NULL DEFAULT '',
-  especie      TEXT,
-  pantalla     TEXT NOT NULL DEFAULT 'toque',
-  brillo       INTEGER NOT NULL DEFAULT 80,
-  vinculo      TEXT NOT NULL,
-  desvinculada INTEGER
-);
-CREATE INDEX IF NOT EXISTS plantas_cuenta ON plantas(cuenta);
-
 CREATE TABLE IF NOT EXISTS lecturas (
   id          INTEGER PRIMARY KEY,
   dispositivo TEXT NOT NULL,
@@ -134,16 +123,89 @@ CREATE TABLE IF NOT EXISTS avisos (
 );
 `;
 
+const CUENTAS_V2 = `
+CREATE TABLE IF NOT EXISTS cuentas (
+  id               TEXT PRIMARY KEY,
+  email_indice     TEXT NOT NULL UNIQUE,
+  email_cifrado    TEXT NOT NULL,
+  nombre_cifrado   TEXT,
+  clave_hash       TEXT NOT NULL,
+  tz               TEXT NOT NULL,
+  coleccion        TEXT NOT NULL DEFAULT '[]',
+  paleta           TEXT,
+  plan             TEXT NOT NULL DEFAULT 'gratis',
+  email_verificado INTEGER,
+  creada           INTEGER NOT NULL
+);
+`;
+
+const PLANTAS_V2 = `
+CREATE TABLE IF NOT EXISTS plantas (
+  id             TEXT PRIMARY KEY,
+  cuenta         TEXT NOT NULL REFERENCES cuentas(id) ON DELETE CASCADE,
+  dispositivo    TEXT NOT NULL,
+  epoca          INTEGER NOT NULL,
+  creada         INTEGER NOT NULL,
+  persona        TEXT,
+  revelado       INTEGER NOT NULL DEFAULT 0,
+  revelada_en    INTEGER,
+  nombre         TEXT NOT NULL DEFAULT '',
+  especie        TEXT,
+  pantalla       TEXT NOT NULL DEFAULT 'toque',
+  brillo         INTEGER NOT NULL DEFAULT 80,
+  vinculo        TEXT NOT NULL,
+  desvinculada   INTEGER,
+  ficha          TEXT,
+  prompt         TEXT,
+  identificacion TEXT
+);
+CREATE INDEX IF NOT EXISTS plantas_cuenta ON plantas(cuenta);
+`;
+
+const NUEVAS_V2 = `
+CREATE TABLE IF NOT EXISTS tokens_cuenta (
+  token_hash  TEXT PRIMARY KEY,
+  cuenta      TEXT NOT NULL REFERENCES cuentas(id) ON DELETE CASCADE,
+  tipo        TEXT NOT NULL,
+  creado      INTEGER NOT NULL,
+  vence       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS tokens_cuenta_cuenta ON tokens_cuenta(cuenta, tipo);
+
+CREATE TABLE IF NOT EXISTS chat (
+  id         INTEGER PRIMARY KEY,
+  planta     TEXT NOT NULL,
+  cuenta     TEXT NOT NULL REFERENCES cuentas(id) ON DELETE CASCADE,
+  t          INTEGER NOT NULL,
+  rol        TEXT NOT NULL,
+  contenido  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chat_planta_t ON chat(planta, t);
+
+CREATE TABLE IF NOT EXISTS ia_uso (
+  id          INTEGER PRIMARY KEY,
+  t           INTEGER NOT NULL,
+  dia         TEXT NOT NULL,
+  cuenta      TEXT REFERENCES cuentas(id) ON DELETE SET NULL,
+  planta      TEXT,
+  tipo        TEXT NOT NULL,
+  fuente      TEXT NOT NULL,
+  modelo      TEXT,
+  tokens_in   INTEGER NOT NULL DEFAULT 0,
+  tokens_out  INTEGER NOT NULL DEFAULT 0,
+  costo_micro INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS ia_uso_t ON ia_uso(t);
+CREATE INDEX IF NOT EXISTS ia_uso_cuenta ON ia_uso(cuenta, tipo, dia);
+CREATE INDEX IF NOT EXISTS ia_uso_planta ON ia_uso(planta, tipo, dia);
+`;
+
 const json = (s, def = null) => {
   if (s === null || s === undefined) return def;
   try { return JSON.parse(s); } catch { return def; }
 };
 const nulo = (v) => (v === undefined ? null : v);
 const bool = (v) => (v ? 1 : 0);
-
-function filaCuenta(f) {
-  return f ? { ...f, coleccion: json(f.coleccion, []) } : null;
-}
 
 function filaDispositivo(f) {
   return f ? { ...f, usb: Boolean(f.usb), ultima: json(f.ultima) } : null;
@@ -155,15 +217,24 @@ function filaPlanta(f) {
     revelado: Boolean(f.revelado),
     especie: json(f.especie),
     vinculo: json(f.vinculo, {}),
+    ficha: json(f.ficha),
+    identificacion: json(f.identificacion),
   } : null;
 }
 
-export function abrirBase(archivo = ':memory:') {
+/**
+ * Abre (o crea) la base. `cripto` cifra emails, nombres y chat; en memoria,
+ * si no se pasa, se usa una clave al azar (tests).
+ */
+export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
+  if (!cripto) {
+    if (archivo !== ':memory:') throw new Error('abrirBase necesita cripto para una base en disco');
+    cripto = crearCripto(randomBytes(32));
+  }
   if (archivo !== ':memory:') mkdirSync(dirname(archivo), { recursive: true });
   const db = new DatabaseSync(archivo);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;');
-  db.exec(ESQUEMA);
-  db.prepare('INSERT OR IGNORE INTO meta (clave, valor) VALUES (?, ?)').run('esquema', String(VERSION_ESQUEMA));
+  migrar(db, cripto);
 
   const cache = new Map();
   const q = (sql) => {
@@ -174,6 +245,19 @@ export function abrirBase(archivo = ':memory:') {
     }
     return st;
   };
+
+  const filaCuenta = (f) => (f ? {
+    id: f.id,
+    email: cripto.descifrar(f.email_cifrado),
+    nombre: f.nombre_cifrado ? cripto.descifrar(f.nombre_cifrado) : '',
+    clave_hash: f.clave_hash,
+    tz: f.tz,
+    coleccion: json(f.coleccion, []),
+    paleta: f.paleta,
+    plan: f.plan,
+    email_verificado: f.email_verificado,
+    creada: f.creada,
+  } : null);
 
   const repo = {
     archivo,
@@ -199,6 +283,8 @@ export function abrirBase(archivo = ':memory:') {
       db.prepare('VACUUM INTO ?').run(destino);
     },
 
+    version() { return Number(q("SELECT valor FROM meta WHERE clave = 'esquema'").get()?.valor || 0); },
+
     contar() {
       return {
         cuentas: q('SELECT COUNT(*) n FROM cuentas').get().n,
@@ -208,22 +294,37 @@ export function abrirBase(archivo = ':memory:') {
       };
     },
 
+    metaLeer(clave) { return q('SELECT valor FROM meta WHERE clave = ?').get(clave)?.valor ?? null; },
+    metaEscribir(clave, valor) {
+      q('INSERT INTO meta (clave, valor) VALUES (?, ?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor')
+        .run(clave, String(valor));
+    },
+
     /* ------------------------------------------------------------ cuentas */
     cuentaCrear(c) {
-      q(`INSERT INTO cuentas (id, email, nombre, clave_hash, tz, coleccion, creada)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`)
-        .run(c.id, c.email, c.nombre || '', c.clave_hash, c.tz, JSON.stringify(c.coleccion || []), c.creada);
+      const email = normalizarEmail(c.email);
+      q(`INSERT INTO cuentas (id, email_indice, email_cifrado, nombre_cifrado, clave_hash, tz, coleccion, paleta, plan,
+           email_verificado, creada)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(c.id, cripto.indice(email), cripto.cifrar(email), c.nombre ? cripto.cifrar(c.nombre) : null,
+          c.clave_hash, c.tz, JSON.stringify(c.coleccion || []), nulo(c.paleta), c.plan || 'gratis',
+          nulo(c.email_verificado), c.creada);
     },
     cuenta(id) { return filaCuenta(q('SELECT * FROM cuentas WHERE id = ?').get(id)); },
-    cuentaPorEmail(email) { return filaCuenta(q('SELECT * FROM cuentas WHERE email = ?').get(email)); },
-    cuentaActualizar(id, c) {
-      const actual = repo.cuenta(id);
-      if (!actual) return;
-      q('UPDATE cuentas SET nombre = ?, tz = ?, clave_hash = ?, coleccion = ? WHERE id = ?')
-        .run(c.nombre ?? actual.nombre, c.tz ?? actual.tz, c.clave_hash ?? actual.clave_hash,
-          JSON.stringify(c.coleccion ?? actual.coleccion), id);
+    cuentaPorEmail(email) {
+      return filaCuenta(q('SELECT * FROM cuentas WHERE email_indice = ?').get(cripto.indice(normalizarEmail(email))));
     },
-    /** Borra la cuenta y todo lo suyo: plantas, lecturas, sesiones, avisos. */
+    cuentaActualizar(id, c) {
+      const a = repo.cuenta(id);
+      if (!a) return;
+      const nombre = c.nombre ?? a.nombre;
+      q(`UPDATE cuentas SET nombre_cifrado = ?, tz = ?, clave_hash = ?, coleccion = ?, paleta = ?, plan = ?,
+           email_verificado = ? WHERE id = ?`)
+        .run(nombre ? cripto.cifrar(nombre) : null, c.tz ?? a.tz, c.clave_hash ?? a.clave_hash,
+          JSON.stringify(c.coleccion ?? a.coleccion), c.paleta !== undefined ? c.paleta : a.paleta,
+          c.plan ?? a.plan, c.email_verificado !== undefined ? c.email_verificado : a.email_verificado, id);
+    },
+    /** Borra la cuenta y todo lo suyo: plantas, lecturas, chat, sesiones, avisos. */
     cuentaBorrar(id) {
       repo.transaccion(() => {
         const plantas = q('SELECT id, dispositivo FROM plantas WHERE cuenta = ?').all(id);
@@ -232,7 +333,9 @@ export function abrirBase(archivo = ':memory:') {
           q('DELETE FROM lecturas WHERE planta = ?').run(p.id);
           q('DELETE FROM avisos WHERE planta = ?').run(p.id);
         }
-        q('DELETE FROM cuentas WHERE id = ?').run(id);   /* cascada: sesiones, plantas, suscripciones */
+        /* cascada: sesiones, tokens, plantas, chat, suscripciones; el uso de
+           IA queda sin dueño, para que las cuentas del gasto cierren. */
+        q('DELETE FROM cuentas WHERE id = ?').run(id);
       });
     },
 
@@ -256,7 +359,32 @@ export function abrirBase(archivo = ':memory:') {
     sesionesBorrarOtras(cuenta, conservar) {
       q('DELETE FROM sesiones WHERE cuenta = ? AND token_hash != ?').run(cuenta, conservar);
     },
+    sesionesBorrarTodas(cuenta) { q('DELETE FROM sesiones WHERE cuenta = ?').run(cuenta); },
     sesionesDe(cuenta) { return q('SELECT COUNT(*) n FROM sesiones WHERE cuenta = ?').get(cuenta).n; },
+
+    /* ------------------------------------------------------ tokens de cuenta */
+    /** Un enlace nuevo invalida los anteriores del mismo tipo. */
+    tokenCuentaCrear(tokenHash, cuenta, tipo, t, vence) {
+      repo.transaccion(() => {
+        q('DELETE FROM tokens_cuenta WHERE cuenta = ? AND tipo = ?').run(cuenta, tipo);
+        q('INSERT INTO tokens_cuenta (token_hash, cuenta, tipo, creado, vence) VALUES (?, ?, ?, ?, ?)')
+          .run(tokenHash, cuenta, tipo, t, vence);
+      });
+    },
+    /** Consume el token: devuelve la cuenta si era válido, y deja de valer. */
+    tokenCuentaUsar(tokenHash, tipo, t) {
+      return repo.transaccion(() => {
+        const f = q('SELECT * FROM tokens_cuenta WHERE token_hash = ? AND tipo = ?').get(tokenHash, tipo);
+        if (!f) return null;
+        q('DELETE FROM tokens_cuenta WHERE token_hash = ?').run(tokenHash);
+        return f.vence >= t ? f.cuenta : null;
+      });
+    },
+    tokenCuentaVigente(tokenHash, tipo, t) {
+      const f = q('SELECT vence FROM tokens_cuenta WHERE token_hash = ? AND tipo = ?').get(tokenHash, tipo);
+      return Boolean(f && f.vence >= t);
+    },
+    tokensCuentaBorrar(cuenta, tipo) { q('DELETE FROM tokens_cuenta WHERE cuenta = ? AND tipo = ?').run(cuenta, tipo); },
 
     /* ------------------------------------------------------- dispositivos */
     dispositivo(id) { return filaDispositivo(q('SELECT * FROM dispositivos WHERE id = ?').get(id)); },
@@ -302,10 +430,11 @@ export function abrirBase(archivo = ':memory:') {
     },
     plantaGuardar(p) {
       q(`UPDATE plantas SET persona = ?, revelado = ?, revelada_en = ?, nombre = ?, especie = ?, pantalla = ?,
-           brillo = ?, vinculo = ? WHERE id = ?`)
+           brillo = ?, vinculo = ?, ficha = ?, prompt = ?, identificacion = ? WHERE id = ?`)
         .run(nulo(p.persona), bool(p.revelado), nulo(p.revelada_en), p.nombre || '',
           p.especie ? JSON.stringify(p.especie) : null, p.pantalla || 'toque', p.brillo ?? 80,
-          JSON.stringify(p.vinculo || {}), p.id);
+          JSON.stringify(p.vinculo || {}), p.ficha ? JSON.stringify(p.ficha) : null, nulo(p.prompt),
+          p.identificacion ? JSON.stringify(p.identificacion) : null, p.id);
     },
     /** Desvincula sin borrar: la planta y sus lecturas quedan guardadas. */
     plantaDesvincular(id, t) {
@@ -333,6 +462,50 @@ export function abrirBase(archivo = ':memory:') {
     },
     contarLecturas(dispositivo) {
       return q('SELECT COUNT(*) n FROM lecturas WHERE dispositivo = ?').get(dispositivo).n;
+    },
+
+    /* --------------------------------------------------------------- chat */
+    chatAgregar({ planta, cuenta, t, rol, texto }) {
+      q('INSERT INTO chat (planta, cuenta, t, rol, contenido) VALUES (?, ?, ?, ?, ?)')
+        .run(planta, cuenta, t, rol, cripto.cifrar(texto));
+    },
+    /** Los últimos `limite` mensajes de la planta, del más viejo al más nuevo. */
+    chatDe(planta, limite = 50) {
+      return q('SELECT t, rol, contenido FROM chat WHERE planta = ? ORDER BY t DESC, id DESC LIMIT ?')
+        .all(planta, limite).reverse()
+        .map((m) => ({ t: m.t, rol: m.rol, texto: cripto.descifrar(m.contenido) }));
+    },
+
+    /* ------------------------------------------------------------- ia_uso */
+    iaUsoRegistrar(u) {
+      q(`INSERT INTO ia_uso (t, dia, cuenta, planta, tipo, fuente, modelo, tokens_in, tokens_out, costo_micro)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(u.t, u.dia, nulo(u.cuenta), nulo(u.planta), u.tipo, u.fuente, nulo(u.modelo),
+          u.tokens_in || 0, u.tokens_out || 0, Math.round(u.costo_micro || 0));
+    },
+    /** Micro-dólares gastados desde `t` (sólo llamadas reales). */
+    iaGastoDesde(t) {
+      return q('SELECT COALESCE(SUM(costo_micro), 0) n FROM ia_uso WHERE t >= ?').get(t).n;
+    },
+    iaUsosCuenta(cuenta, tipo, dia) {
+      return q('SELECT COUNT(*) n FROM ia_uso WHERE cuenta = ? AND tipo = ? AND dia = ?').get(cuenta, tipo, dia).n;
+    },
+    iaUsosPlanta(planta, tipo, dia) {
+      return q('SELECT COUNT(*) n FROM ia_uso WHERE planta = ? AND tipo = ? AND dia = ?').get(planta, tipo, dia).n;
+    },
+    /** Resumen para tools/uso-ia.mjs. */
+    iaResumen(desde) {
+      return {
+        total: q(`SELECT COUNT(*) llamadas, COALESCE(SUM(costo_micro), 0) costo_micro,
+                  COALESCE(SUM(tokens_in), 0) tokens_in, COALESCE(SUM(tokens_out), 0) tokens_out
+                  FROM ia_uso WHERE t >= ?`).get(desde),
+        porTipo: q(`SELECT tipo, fuente, COUNT(*) llamadas, COALESCE(SUM(costo_micro), 0) costo_micro
+                    FROM ia_uso WHERE t >= ? GROUP BY tipo, fuente ORDER BY costo_micro DESC`).all(desde),
+        porDia: q(`SELECT dia, COUNT(*) llamadas, COALESCE(SUM(costo_micro), 0) costo_micro
+                   FROM ia_uso WHERE t >= ? GROUP BY dia ORDER BY dia`).all(desde),
+        cuentas: q(`SELECT cuenta, COUNT(*) llamadas, COALESCE(SUM(costo_micro), 0) costo_micro
+                    FROM ia_uso WHERE t >= ? GROUP BY cuenta ORDER BY costo_micro DESC LIMIT 10`).all(desde),
+      };
     },
 
     /* ------------------------------------------------------ suscripciones */
@@ -366,4 +539,66 @@ export function abrirBase(archivo = ':memory:') {
     },
   };
   return repo;
+}
+
+/* ------------------------------------------------------------ migraciones */
+function versionDe(db) {
+  const hayMeta = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meta'").get();
+  if (!hayMeta) return 0;
+  return Number(db.prepare("SELECT valor FROM meta WHERE clave = 'esquema'").get()?.valor || 0);
+}
+
+function migrar(db, cripto) {
+  const hayCuentas = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cuentas'").get();
+  if (!hayCuentas) {
+    /* Base nueva: el esquema actual de una. */
+    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} COMMIT;`);
+    db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', ?)").run(String(VERSION_ESQUEMA));
+    return;
+  }
+  const v = versionDe(db);
+  if (v > VERSION_ESQUEMA) throw new Error(`la base es de una versión más nueva (${v}) que este servidor (${VERSION_ESQUEMA})`);
+  if (v < 2) migrarV1aV2(db, cripto);
+  /* Idempotente: una base vieja o incompleta recibe las tablas que le falten. */
+  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2}`);
+}
+
+/**
+ * v1 -> v2: el email y el nombre pasan a guardarse cifrados, con índice
+ * ciego; se agregan plan, paleta y verificación del email, la ficha y el
+ * prompt de cada planta, y las tablas de tokens, chat y uso de IA.
+ *
+ * SQLite no cambia restricciones de una columna existente, así que la tabla
+ * de cuentas se reconstruye (la receta de 12 pasos de sqlite.org): claves
+ * foráneas apagadas, tabla nueva, copia, reemplazo, verificación.
+ */
+function migrarV1aV2(db, cripto) {
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(CUENTAS_V2.replace('IF NOT EXISTS cuentas', 'cuentas_v2'));
+    const insertar = db.prepare(`INSERT INTO cuentas_v2 (id, email_indice, email_cifrado, nombre_cifrado, clave_hash, tz,
+      coleccion, plan, creada) VALUES (?, ?, ?, ?, ?, ?, ?, 'gratis', ?)`);
+    for (const c of db.prepare('SELECT * FROM cuentas').all()) {
+      const email = normalizarEmail(c.email);
+      insertar.run(c.id, cripto.indice(email), cripto.cifrar(email), c.nombre ? cripto.cifrar(c.nombre) : null,
+        c.clave_hash, c.tz, c.coleccion || '[]', c.creada);
+    }
+    db.exec('DROP TABLE cuentas');
+    db.exec('ALTER TABLE cuentas_v2 RENAME TO cuentas');
+    const columnas = db.prepare('PRAGMA table_info(plantas)').all().map((c) => c.name);
+    for (const col of ['ficha', 'prompt', 'identificacion']) {
+      if (!columnas.includes(col)) db.exec(`ALTER TABLE plantas ADD COLUMN ${col} TEXT`);
+    }
+    db.exec(NUEVAS_V2);
+    db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '2')").run();
+    const rotas = db.prepare('PRAGMA foreign_key_check').all();
+    if (rotas.length) throw new Error(`la migración dejó ${rotas.length} referencias rotas`);
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
 }

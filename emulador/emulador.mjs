@@ -1,4 +1,4 @@
-/* emulador.mjs — un ROOTKIT en el navegador.
+/* emulador.mjs — un Rooti (el hardware ROOTKIT) en el navegador.
  *
  * No imita al firmware: LO USA. La máquina de estados del vínculo, el
  * código del QR, la pantalla del QR, la evaluación del ánimo y las caras
@@ -258,7 +258,10 @@ $('s-panel').addEventListener('change', (e) => {
 });
 
 /* --------------------------------------------------------------- bucle ----- */
-const MODELOS = { cresta: '#62c536', kawaii: '#ffa8d0', visor: '#3a526a', ciclope: '#ffa838', hongo: '#ba8ef2', glitch: '#2a2a36' };
+const MODELOS = {
+  cresta: '#62c536', kawaii: '#ffa8d0', visor: '#3a526a', ciclope: '#ffa838', hongo: '#ba8ef2',
+  'chico-malo': '#9d0208', 'chica-chill': '#0466c8', glitch: '#2a2a36',
+};
 const lienzo = $('pantalla');
 const ctx = lienzo.getContext('2d');
 let ultimoCuadro = 0;

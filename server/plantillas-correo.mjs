@@ -1,0 +1,135 @@
+/* plantillas-correo.mjs — los emails que manda ROOTLAB.
+ *
+ * Cada plantilla devuelve { asunto, texto, html }. Las dos versiones dicen
+ * lo mismo: hay clientes que sólo muestran texto, y los filtros de spam
+ * desconfían de un email que es sólo HTML.
+ *
+ * El HTML es de tablas y estilos en línea, que es lo único que Gmail,
+ * Outlook y Apple Mail dibujan igual. Los colores salen de la paleta de la
+ * cuenta (public/lib/paletas.mjs): el email se ve como la app de esa persona.
+ * Todo lo que viene del usuario (el nombre) se escapa.
+ */
+import { paletaPorId, PALETA_POR_DEFECTO, temaDesdePaleta } from '../public/lib/paletas.mjs';
+
+const escapar = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[c]));
+
+function marco({ paleta, titulo, parrafos, boton, pie }) {
+  const t = temaDesdePaleta(paletaPorId(paleta) || paletaPorId(PALETA_POR_DEFECTO));
+  const p = (x) => `<p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:${t['tinta-2']}">${x}</p>`;
+  return `<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<meta name="color-scheme" content="dark light"><title>${escapar(titulo)}</title></head>
+<body style="margin:0;padding:0;background:${t.fondo}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${t.fondo};padding:32px 16px">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:${t.panel};border:2px solid ${t.borde};border-radius:20px">
+<tr><td style="padding:28px 28px 8px;font-family:Nunito,Segoe UI,Helvetica,Arial,sans-serif">
+<div style="font-weight:900;font-size:20px;letter-spacing:.08em;color:${t.tinta}">ROOT<span style="color:${t.primario}">LAB</span></div>
+</td></tr>
+<tr><td style="padding:12px 28px 8px;font-family:Nunito,Segoe UI,Helvetica,Arial,sans-serif">
+<h1 style="margin:0 0 16px;font-size:24px;line-height:1.2;color:${t.tinta}">${escapar(titulo)}</h1>
+${parrafos.map(p).join('\n')}
+${boton ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 20px"><tr><td style="border-radius:14px;background:${t.primario}">
+<a href="${escapar(boton.url)}" style="display:inline-block;padding:14px 26px;font-weight:900;font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:${t['sobre-primario']};text-decoration:none;border-radius:14px">${escapar(boton.texto)}</a>
+</td></tr></table>
+<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:${t['tinta-3']}">Si el botón no anda, copiá este enlace:<br><span style="word-break:break-all;color:${t['tinta-2']}">${escapar(boton.url)}</span></p>` : ''}
+</td></tr>
+<tr><td style="padding:8px 28px 28px;font-family:Nunito,Segoe UI,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:${t['tinta-3']}">${pie}</td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+}
+
+const saludo = (nombre) => (nombre ? `Hola, ${nombre}.` : 'Hola.');
+
+export function restablecerClave({ nombre, url, minutos, paleta }) {
+  const asunto = 'Restablecé tu contraseña de ROOTLAB';
+  const texto = `${saludo(nombre)}
+
+Pediste restablecer la contraseña de tu cuenta de ROOTLAB. Entrá a este enlace para elegir una nueva:
+
+${url}
+
+El enlace sirve una sola vez y vence en ${minutos} minutos.
+
+Si no lo pediste vos, ignorá este email: tu contraseña sigue igual y nadie entró a tu cuenta.
+
+— ROOTLAB`;
+  const html = marco({
+    paleta,
+    titulo: 'Restablecé tu contraseña',
+    parrafos: [escapar(saludo(nombre)), 'Pediste restablecer la contraseña de tu cuenta de ROOTLAB. Tocá el botón para elegir una nueva.',
+      `El enlace sirve una sola vez y vence en ${minutos} minutos.`],
+    boton: { texto: 'Elegir contraseña nueva', url },
+    pie: 'Si no lo pediste vos, ignorá este email: tu contraseña sigue igual y nadie entró a tu cuenta.',
+  });
+  return { asunto, texto, html };
+}
+
+export function verificarEmail({ nombre, url, horas, paleta }) {
+  const asunto = 'Confirmá tu email de ROOTLAB';
+  const texto = `${saludo(nombre)}
+
+Bienvenida o bienvenido a ROOTLAB. Confirmá que este email es tuyo, así podemos ayudarte si alguna vez olvidás la contraseña:
+
+${url}
+
+El enlace vence en ${horas} horas.
+
+Si no creaste una cuenta en ROOTLAB, ignorá este email.
+
+— ROOTLAB`;
+  const html = marco({
+    paleta,
+    titulo: 'Confirmá tu email',
+    parrafos: [escapar(saludo(nombre)), 'Tu cuenta de ROOTLAB está lista. Confirmá que este email es tuyo, así podemos ayudarte si alguna vez olvidás la contraseña.'],
+    boton: { texto: 'Confirmar email', url },
+    pie: `El enlace vence en ${horas} horas. Si no creaste una cuenta en ROOTLAB, ignorá este email.`,
+  });
+  return { asunto, texto, html };
+}
+
+export function claveCambiada({ nombre, paleta, url }) {
+  const asunto = 'Tu contraseña de ROOTLAB cambió';
+  const texto = `${saludo(nombre)}
+
+La contraseña de tu cuenta de ROOTLAB se acaba de cambiar, y se cerró la sesión en los demás teléfonos.
+
+Si fuiste vos, no tenés que hacer nada.
+
+Si no fuiste vos, restablecela ya desde ${url} ("¿Olvidaste tu contraseña?").
+
+— ROOTLAB`;
+  const html = marco({
+    paleta,
+    titulo: 'Tu contraseña cambió',
+    parrafos: [escapar(saludo(nombre)), 'La contraseña de tu cuenta de ROOTLAB se acaba de cambiar, y se cerró la sesión en los demás teléfonos.',
+      'Si fuiste vos, no tenés que hacer nada.'],
+    boton: null,
+    pie: `Si no fuiste vos, restablecela ya desde <a href="${escapar(url)}" style="color:inherit">ROOTLAB</a> con “¿Olvidaste tu contraseña?”.`,
+  });
+  return { asunto, texto, html };
+}
+
+export function alertaGasto({ gastado, tope, periodo }) {
+  const pct = tope > 0 ? Math.round((gastado / tope) * 100) : 100;
+  const asunto = `ROOTLAB: la IA lleva ${pct}% del tope ${periodo}`;
+  const texto = `La IA de ROOTLAB lleva gastados US$ ${gastado.toFixed(2)} de un tope ${periodo} de US$ ${tope.toFixed(2)} (${pct}%).
+
+Al llegar al tope, el reconocimiento de plantas, el diagnóstico y el chat se pausan hasta el período siguiente.
+
+Para ver el detalle en el servidor: node tools/uso-ia.mjs
+Para cambiar el tope: ROOTLAB_IA_TOPE_MES_USD / ROOTLAB_IA_TOPE_DIA_USD en /etc/root-lab.env`;
+  const html = marco({
+    paleta: PALETA_POR_DEFECTO,
+    titulo: `La IA lleva ${pct}% del tope ${periodo}`,
+    parrafos: [`Gastado: <b>US$ ${gastado.toFixed(2)}</b> de US$ ${tope.toFixed(2)}.`,
+      'Al llegar al tope, el reconocimiento de plantas, el diagnóstico y el chat se pausan hasta el período siguiente.',
+      'Detalle en el servidor: <code>node tools/uso-ia.mjs</code>.'],
+    boton: null,
+    pie: 'Aviso automático de ROOTLAB para quien administra el servidor.',
+  });
+  return { asunto, texto, html };
+}
