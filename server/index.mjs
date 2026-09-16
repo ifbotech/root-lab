@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 import { abrirBase } from './db.mjs';
 import { crearApi } from './api.mjs';
-import { crearIA } from './ia.mjs';
+import { crearIA, probarClaveAnthropic } from './ia.mjs';
 import { cargarSecreto, crearCripto, enmascararEmail } from './cripto.mjs';
 import { crearClaves } from './claves.mjs';
 import { configCorreoDesdeEntorno, crearCorreo } from './correo.mjs';
@@ -77,7 +77,14 @@ function jsonDe(nombre, def) {
 const cripto = crearCripto(cargarSecreto({ archivo: join(DATOS, 'secreto.key') }));
 const claves = crearClaves(cripto);
 const db = abrirBase(join(DATOS, 'rootkit.db'), { cripto });
-const ia = crearIA();
+/* Una clave revocada o mal copiada haría fallar cada foto y cada mensaje:
+   mejor arrancar en modo simulado, que la app avisa, y decirlo fuerte en el
+   log. Sin red no se desactiva nada. */
+let ia = crearIA();
+if (ia.proveedor === 'claude' && await probarClaveAnthropic(process.env.ANTHROPIC_API_KEY) === 'invalida') {
+  console.error('IA: Anthropic rechaza ANTHROPIC_API_KEY (401). Se usa la IA simulada hasta que se cargue una clave válida.');
+  ia = crearIA({ clave: '', motivoSimulada: 'la clave de Anthropic no es válida' });
+}
 const correo = crearCorreo(configCorreoDesdeEntorno(process.env, DATOS));
 const ADMIN = process.env.ROOTLAB_ADMIN_EMAIL || '';
 const presupuesto = crearPresupuesto({
@@ -118,7 +125,7 @@ servidor.listen(PUERTO, HOST, () => {
   console.log(`  app        ${local}/`);
   console.log(`  emulador   ${local}/emulador/`);
   console.log(`  pública    ${URL_PUBLICA}/   (lo que va en el QR)`);
-  console.log(`  IA         ${ia.proveedor}${ia.modelo ? ` (${ia.modelo}, chat ${ia.modeloChat})` : ' — definí ANTHROPIC_API_KEY para usar Claude'}`);
+  console.log(`  IA         ${ia.proveedor}${ia.modelo ? ` (${ia.modelo}, chat ${ia.modeloChat})` : ` (${ia.motivo})`}`);
   const e = presupuesto.estado();
   console.log(`  tope IA    US$ ${e.tope_dia_usd}/día, US$ ${e.tope_mes_usd}/mes (gastado: ${e.gastado_dia_usd.toFixed(2)} hoy, ${e.gastado_mes_usd.toFixed(2)} este mes)`);
   console.log(`  correo     ${correo.transporte}${correo.transporte === 'archivo' ? ` (${join(DATOS, 'correos')})` : ''}, remitente ${correo.remitente}${ADMIN ? `, alertas a ${enmascararEmail(ADMIN)}` : ''}`);

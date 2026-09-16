@@ -201,3 +201,26 @@ describe('charlar con la planta', () => {
     assert.equal(esc.db.chatDe(planta.id).length, 0);
   });
 });
+
+describe('la clave de Anthropic', () => {
+  const respuesta = (status) => async () => ({ status, ok: status < 400, json: async () => ({}) });
+
+  test('se prueba al arrancar sin gastar: inválida, válida o sin red', async () => {
+    const { probarClaveAnthropic } = await import('../server/ia.mjs');
+    assert.equal(await probarClaveAnthropic('sk-mala', { fetch: respuesta(401) }), 'invalida');
+    assert.equal(await probarClaveAnthropic('sk-buena', { fetch: respuesta(200) }), 'ok');
+    assert.equal(await probarClaveAnthropic('sk-x', { fetch: async () => { throw new Error('ECONNRESET'); } }), 'sin-red');
+    assert.equal(await probarClaveAnthropic(''), 'invalida');
+  });
+
+  test('un error de la API no le muestra detalles técnicos a la persona', async () => {
+    const esc = escenario({ ia: crearIA({ clave: 'sk-revocada', fetch: respuesta(401) }) });
+    const { token, planta } = await conRooti(esc);
+    await esc.llamar('PATCH', `/api/plantas/${planta.id}`, { token, cuerpo: { especie: 'monstera' } });
+    const [c, r] = await esc.llamar('POST', `/api/plantas/${planta.id}/chat`, { token, cuerpo: { texto: 'hola' } });
+    assert.equal(c, 502);
+    assert.equal(r.error, 'La IA no está disponible ahora. Probá en un rato.');
+    const [, estado] = await esc.llamar('GET', `/api/plantas/${planta.id}/chat`, { token });
+    assert.equal(estado.cuota.restantes, 3, 'no gasta cuota');
+  });
+});

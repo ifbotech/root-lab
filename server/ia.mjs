@@ -105,6 +105,25 @@ export function especieDesdeModelo(r) {
   return propia ? { especie: propia, catalogo: false } : null;
 }
 
+/**
+ * ¿La clave de Anthropic sirve? Lista los modelos (no cuesta nada). Devuelve
+ * 'ok', 'invalida' (401/403: revocada o mal copiada) o 'sin-red' (no se pudo
+ * saber: no se desactiva nada por un corte momentáneo).
+ */
+export async function probarClaveAnthropic(clave, { fetch: pedir = globalThis.fetch, plazoMs = 8000 } = {}) {
+  if (!clave) return 'invalida';
+  try {
+    const r = await pedir('https://api.anthropic.com/v1/models?limit=1', {
+      headers: { 'x-api-key': clave, 'anthropic-version': '2023-06-01' },
+      signal: AbortSignal.timeout(plazoMs),
+    });
+    if (r.status === 401 || r.status === 403) return 'invalida';
+    return 'ok';
+  } catch {
+    return 'sin-red';
+  }
+}
+
 const usoDe = (u = {}) => ({
   entrada: u.input_tokens || 0,
   salida: u.output_tokens || 0,
@@ -113,6 +132,7 @@ const usoDe = (u = {}) => ({
 });
 
 export function crearIA({
+  motivoSimulada = '',
   clave = process.env.ANTHROPIC_API_KEY,
   modelo = process.env.ROOTLAB_IA_MODELO || 'claude-opus-5',
   modeloChat = process.env.ROOTLAB_IA_MODELO_CHAT || 'claude-sonnet-5',
@@ -137,9 +157,11 @@ export function crearIA({
       }),
     });
     if (!r.ok) {
+      /* El detalle técnico va al log; a la persona, algo que entienda. */
+      console.error(`IA: Anthropic respondió ${r.status} (${m})`);
       const e = new Error(r.status === 429 || r.status === 529
-        ? 'El servicio de IA está saturado. Probá en un rato.'
-        : `el servicio de IA respondió ${r.status}`);
+        ? 'La IA está saturada. Probá en un rato.'
+        : 'La IA no está disponible ahora. Probá en un rato.');
       e.codigo = 502;
       throw e;
     }
@@ -229,6 +251,7 @@ export function crearIA({
   }
 
   return {
+    motivo: real ? '' : (motivoSimulada || 'sin ANTHROPIC_API_KEY'),
     proveedor: real ? 'claude' : 'simulada',
     modelo: real ? modelo : null,
     modeloChat: real ? modeloChat : null,
