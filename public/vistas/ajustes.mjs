@@ -61,6 +61,19 @@ export function vistaAjustes(ctx) {
     },
   });
 
+  /* ----------------------------------------------------------- ubicación --- */
+  /* La ciudad, para el pronóstico (server/clima.mjs). Sólo eso sale del
+     servidor: nunca la ubicación del teléfono. */
+  const ubicacion = h('input', { type: 'text', id: 'ajustes-ubicacion', maxlength: '80', placeholder: 'Ciudad', value: cuenta?.ubicacion?.nombre || '', autocomplete: 'address-level2' });
+  const guardarUbicacion = async (ev) => {
+    ev.preventDefault();
+    try {
+      const c = await api('/api/cuenta', { metodo: 'PATCH', cuerpo: { ubicacion: ubicacion.value } });
+      avisar(c.ubicacion ? `Listo: ${c.ubicacion.nombre}, ${c.ubicacion.pais}.` : 'Sin ciudad: no se pide el pronóstico.');
+      await ctx.recargar();
+    } catch (e) { avisar(e.message, true); }
+  };
+
   /* -------------------------------------------------------------- paleta --- */
   const actual = cuenta?.paleta || PALETA_POR_DEFECTO;
   const paletas = h('div', { class: 'paletas', role: 'radiogroup', 'aria-label': 'Paleta de colores' },
@@ -201,6 +214,13 @@ export function vistaAjustes(ctx) {
         h('label', { for: sonido.id }, h('b', {}, 'La voz de tus plantas'),
           h('span', {}, `Cada Rooti habla con su timbre mientras escribe y ronronea cuando lo acariciás. De ${SILENCIO_DESDE}:00 a 0${SILENCIO_HASTA}:00 se callan solos.`)),
         h('span', { class: 'interruptor' }, sonido, h('i')))),
+
+    h('form', { class: 'panel form', onSubmit: guardarUbicacion },
+      h('h3', { class: 'panel-tit' }, 'Dónde están tus plantas'),
+      h('p', { class: 'nota', style: 'margin-bottom:12px' }, cuenta?.ubicacion
+        ? `${cuenta.ubicacion.nombre}${cuenta.ubicacion.pais ? `, ${cuenta.ubicacion.pais}` : ''}. Con el pronóstico de ahí, ROOTLAB te avisa antes de un día de calor seco para que riegues a tiempo. Vacío para quitarla.`
+        : 'Con la ciudad, ROOTLAB mira el pronóstico (Open-Meteo, sin cuenta) y te avisa antes de un día de calor seco. Sólo se manda el nombre de la ciudad, nunca tu ubicación.'),
+      h('div', { class: 'con-boton' }, ubicacion, h('button', { class: 'boton chico', type: 'submit' }, 'Guardar'))),
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Tu plan'),

@@ -34,6 +34,11 @@
  *                   salen los límites diarios y el tope de gasto
  *   suscripciones   notificaciones push de cada cuenta
  *   avisos          cuándo se mandó cada tipo de aviso por planta
+ *   clima           el último pronóstico pedido para la ciudad de cada
+ *                   cuenta (server/clima.mjs), para no pedirlo a cada rato
+ *   cuidadores      los enlaces de cuidador de cada planta (el hash del
+ *                   token, hasta cuándo valen)
+ *   riegos          riegos anotados a mano: hoy, los del cuidador
  *   meta            versión del esquema y marcas sueltas
  *
  * Cada lectura se guarda con la PLANTA vigente al medirla. Así el historial de
@@ -52,7 +57,7 @@ import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { crearCripto } from './cripto.mjs';
 
-export const VERSION_ESQUEMA = 3;
+export const VERSION_ESQUEMA = 4;
 
 export const normalizarEmail = (e) => String(e || '').trim().toLowerCase();
 
@@ -137,7 +142,8 @@ CREATE TABLE IF NOT EXISTS cuentas (
   paleta           TEXT,
   plan             TEXT NOT NULL DEFAULT 'gratis',
   email_verificado INTEGER,
-  creada           INTEGER NOT NULL
+  creada           INTEGER NOT NULL,
+  ubicacion        TEXT
 );
 `;
 
@@ -202,6 +208,34 @@ CREATE INDEX IF NOT EXISTS ia_uso_cuenta ON ia_uso(cuenta, tipo, dia);
 CREATE INDEX IF NOT EXISTS ia_uso_planta ON ia_uso(planta, tipo, dia);
 `;
 
+const NUEVAS_V4 = `
+CREATE TABLE IF NOT EXISTS clima (
+  cuenta    TEXT PRIMARY KEY REFERENCES cuentas(id) ON DELETE CASCADE,
+  obtenido  INTEGER NOT NULL,
+  datos     TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cuidadores (
+  token_hash  TEXT PRIMARY KEY,
+  planta      TEXT NOT NULL,
+  cuenta      TEXT NOT NULL REFERENCES cuentas(id) ON DELETE CASCADE,
+  nombre      TEXT NOT NULL DEFAULT '',
+  creado      INTEGER NOT NULL,
+  vence       INTEGER NOT NULL,
+  usos        INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS cuidadores_planta ON cuidadores(planta);
+
+CREATE TABLE IF NOT EXISTS riegos (
+  id      INTEGER PRIMARY KEY,
+  planta  TEXT NOT NULL,
+  t       INTEGER NOT NULL,
+  origen  TEXT NOT NULL,
+  quien   TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS riegos_planta_t ON riegos(planta, t);
+`;
+
 const json = (s, def = null) => {
   if (s === null || s === undefined) return def;
   try { return JSON.parse(s); } catch { return def; }
@@ -259,6 +293,9 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
     plan: f.plan,
     email_verificado: f.email_verificado,
     creada: f.creada,
+    /* La ciudad para el pronóstico (server/clima.mjs), cifrada como el resto
+       de lo personal: { nombre, pais, region, lat, lon }. */
+    ubicacion: f.ubicacion ? json(cripto.descifrar(f.ubicacion)) : null,
   } : null);
 
   const repo = {
@@ -320,11 +357,17 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
       const a = repo.cuenta(id);
       if (!a) return;
       const nombre = c.nombre ?? a.nombre;
+      const ubicacion = c.ubicacion !== undefined ? c.ubicacion : a.ubicacion;
       q(`UPDATE cuentas SET nombre_cifrado = ?, tz = ?, clave_hash = ?, coleccion = ?, paleta = ?, plan = ?,
-           email_verificado = ? WHERE id = ?`)
+           email_verificado = ?, ubicacion = ? WHERE id = ?`)
         .run(nombre ? cripto.cifrar(nombre) : null, c.tz ?? a.tz, c.clave_hash ?? a.clave_hash,
           JSON.stringify(c.coleccion ?? a.coleccion), c.paleta !== undefined ? c.paleta : a.paleta,
-          c.plan ?? a.plan, c.email_verificado !== undefined ? c.email_verificado : a.email_verificado, id);
+          c.plan ?? a.plan, c.email_verificado !== undefined ? c.email_verificado : a.email_verificado,
+          ubicacion ? cripto.cifrar(JSON.stringify(ubicacion)) : null, id);
+    },
+    /** Las cuentas que dijeron dónde están sus plantas (para el pronóstico). */
+    cuentasConUbicacion() {
+      return q('SELECT * FROM cuentas WHERE ubicacion IS NOT NULL').all().map(filaCuenta);
     },
     /** Borra la cuenta y todo lo suyo: plantas, lecturas, chat, sesiones, avisos. */
     cuentaBorrar(id) {
@@ -334,9 +377,11 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
           q('UPDATE dispositivos SET planta = NULL WHERE id = ? AND planta = ?').run(p.dispositivo, p.id);
           q('DELETE FROM lecturas WHERE planta = ?').run(p.id);
           q('DELETE FROM avisos WHERE planta = ?').run(p.id);
+          q('DELETE FROM riegos WHERE planta = ?').run(p.id);
         }
-        /* cascada: sesiones, tokens, plantas, chat, suscripciones; el uso de
-           IA queda sin dueño, para que las cuentas del gasto cierren. */
+        /* cascada: sesiones, tokens, plantas, chat, suscripciones, clima,
+           cuidadores; el uso de IA queda sin dueño, para que las cuentas del
+           gasto cierren. */
         q('DELETE FROM cuentas WHERE id = ?').run(id);
       });
     },
@@ -445,6 +490,7 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
         q('UPDATE plantas SET desvinculada = ? WHERE id = ? AND desvinculada IS NULL').run(t, id);
         if (p) q('UPDATE dispositivos SET planta = NULL WHERE id = ? AND planta = ?').run(p.dispositivo, id);
         q('DELETE FROM avisos WHERE planta = ?').run(id);
+        q('DELETE FROM cuidadores WHERE planta = ?').run(id);
       });
     },
     plantasDesvinculadasDe(cuenta) {
@@ -539,6 +585,44 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
     avisosOlvidar(planta, prefijo) {
       q('DELETE FROM avisos WHERE planta = ? AND clave LIKE ?').run(planta, `${prefijo}%`);
     },
+
+    /* -------------------------------------------------------------- clima */
+    climaLeer(cuenta) {
+      const f = q('SELECT obtenido, datos FROM clima WHERE cuenta = ?').get(cuenta);
+      return f ? { obtenido: f.obtenido, datos: json(f.datos) } : null;
+    },
+    climaGuardar(cuenta, obtenido, datos) {
+      q(`INSERT INTO clima (cuenta, obtenido, datos) VALUES (?, ?, ?)
+         ON CONFLICT(cuenta) DO UPDATE SET obtenido = excluded.obtenido, datos = excluded.datos`)
+        .run(cuenta, obtenido, JSON.stringify(datos));
+    },
+    climaBorrar(cuenta) { q('DELETE FROM clima WHERE cuenta = ?').run(cuenta); },
+
+    /* --------------------------------------------------------- cuidadores */
+    cuidadorCrear(c) {
+      q('INSERT INTO cuidadores (token_hash, planta, cuenta, nombre, creado, vence) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(c.token_hash, c.planta, c.cuenta, c.nombre || '', c.creado, c.vence);
+    },
+    /** Un enlace vigente, o null. */
+    cuidadorPorHash(tokenHash, t) {
+      return q('SELECT * FROM cuidadores WHERE token_hash = ? AND vence > ?').get(tokenHash, t) || null;
+    },
+    cuidadoresDe(planta, t) {
+      return q('SELECT * FROM cuidadores WHERE planta = ? AND vence > ? ORDER BY creado').all(planta, t);
+    },
+    cuidadoresBorrar(planta) { q('DELETE FROM cuidadores WHERE planta = ?').run(planta); },
+    cuidadorUso(tokenHash) { q('UPDATE cuidadores SET usos = usos + 1 WHERE token_hash = ?').run(tokenHash); },
+
+    /* ------------------------------------------------------------- riegos */
+    riegoRegistrar(r) {
+      q('INSERT INTO riegos (planta, t, origen, quien) VALUES (?, ?, ?, ?)').run(r.planta, r.t, r.origen, r.quien || '');
+    },
+    ultimoRiego(planta) {
+      return q('SELECT t, origen, quien FROM riegos WHERE planta = ? ORDER BY t DESC LIMIT 1').get(planta) || null;
+    },
+    riegosDe(planta, desde) {
+      return q('SELECT t, origen, quien FROM riegos WHERE planta = ? AND t >= ? ORDER BY t DESC LIMIT 20').all(planta, desde);
+    },
   };
   return repo;
 }
@@ -554,7 +638,7 @@ function migrar(db, cripto) {
   const hayCuentas = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cuentas'").get();
   if (!hayCuentas) {
     /* Base nueva: el esquema actual de una. */
-    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} COMMIT;`);
+    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} ${NUEVAS_V4} COMMIT;`);
     db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', ?)").run(String(VERSION_ESQUEMA));
     return;
   }
@@ -562,8 +646,17 @@ function migrar(db, cripto) {
   if (v > VERSION_ESQUEMA) throw new Error(`la base es de una versión más nueva (${v}) que este servidor (${VERSION_ESQUEMA})`);
   if (v < 2) migrarV1aV2(db, cripto);
   /* Idempotente: una base vieja o incompleta recibe las tablas que le falten. */
-  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2}`);
+  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2} ${NUEVAS_V4}`);
   if (v < 3) migrarV2aV3(db);
+  if (v < 4) migrarV3aV4(db);
+}
+
+/* v3 -> v4: la ciudad de cada cuenta (para el pronóstico), y las tablas de
+ * clima, cuidadores y riegos (ya creadas arriba, son IF NOT EXISTS). */
+function migrarV3aV4(db) {
+  const columnas = db.prepare('PRAGMA table_info(cuentas)').all().map((c) => c.name);
+  if (!columnas.includes('ubicacion')) db.exec('ALTER TABLE cuentas ADD COLUMN ubicacion TEXT');
+  db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '4')").run();
 }
 
 /* v2 -> v3: cada lectura sabe si vino de un riego que se escurrió. */

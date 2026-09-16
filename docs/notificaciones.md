@@ -10,6 +10,8 @@ reglas de `server/avisos.mjs` son, antes que nada, de restricción.
 |---|---|---|
 | **Ánimo** (sed, ahogo, frío, calor, sol de más, poca luz, aire seco) | el Rooti reporta ese ánimo con severidad `WATCH` o `URGENT` | a las 8 h; a las 3 h si es urgente |
 | **El riego se escurrió** | el Rooti vio la tierra subir de golpe y bajar enseguida (el agua pasó por los costados) | cada 24 h; de día, aunque el ánimo esté bien |
+| **Se viene calor** | con la ciudad en Ajustes: el pronóstico de 48 h empeora (factor ≥ 1,15) y, a la velocidad a la que se seca la tierra, la sed llega en menos de 36 h. Dice los tres números. Ver [clima.md](clima.md) | cada 24 h; de día; nunca si ya tiene sed |
+| **El cuidador regó** | alguien tocó "ya regué" en el enlace del cuidador ([cuidador.md](cuidador.md)) | cada vez, con el nombre de quien regó |
 | **Batería baja** | a batería y por debajo de 3,45 V | cada 24 h |
 | **No reporta** | más de 6 h sin noticias | cada 24 h |
 
@@ -44,4 +46,6 @@ avisos.
 Las suscripciones que el servicio de push da por vencidas (404/410) se borran
 solas.
 
-Un temporizador revisa cada 10 minutos las macetas que dejaron de reportar.
+Un temporizador revisa cada 10 minutos las macetas que dejaron de reportar y,
+para las cuentas con ciudad, el pronóstico (como mucho una consulta a
+Open-Meteo cada 6 h por cuenta).

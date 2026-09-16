@@ -21,6 +21,14 @@
  *   correo.mjs       emails (recuperar la contraseña, verificar el email)
  *   presupuesto.mjs  tope de gasto y cuotas de la IA
  *   ficha.mjs        la ficha de cuidados y el prompt del chat
+ *   clima.mjs        el pronóstico (Open-Meteo) y el riego que se anticipa
+ *
+ * EL CUIDADOR
+ *
+ * Quien se va de viaje crea un enlace /sitter/<token> que vale 3, 7 o 15
+ * días. Con él, sin cuenta, se ve la cara de la planta, qué necesita y cómo
+ * se cuida, y se puede anotar "ya regué": queda como riego de la planta y le
+ * llega un push al dueño. El token se guarda hasheado, como las sesiones.
  */
 import { randomBytes } from 'node:crypto';
 import {
@@ -31,6 +39,10 @@ import {
 } from './codigo.mjs';
 import { abrirCofre, PROBABILIDADES, probabilidadDe } from './cofre.mjs';
 import { avisosPendientes } from './avisos.mjs';
+import {
+  crearClima, tasaSecado, mediaReciente, factorClima, prevision as previsionDe, resumenPronostico,
+  avisoPrevision, CLIMA_TTL_MS, VENTANA_TASA_MS,
+} from './clima.mjs';
 import { crearCripto } from './cripto.mjs';
 import { crearClaves } from './claves.mjs';
 import { crearCorreo } from './correo.mjs';
@@ -58,6 +70,9 @@ export const CLAVE_MIN = 8;
 export const RESTABLECER_VENCE_MS = 30 * MIN;
 export const VERIFICAR_VENCE_MS = 48 * H;
 export const CHAT_MAX = 500;
+export const CUIDADOR_DIAS = [3, 7, 15];
+/* Un riego anotado a mano cuenta como reciente durante este tiempo. */
+export const RIEGO_RECIENTE_MS = 48 * H;
 
 class ErrorApi extends Error {
   constructor(codigo, mensaje) { super(mensaje); this.codigo = codigo; }
@@ -98,6 +113,7 @@ export function crearApi({
   tofu = true,
   urlPublica = () => '',
   version = '0.1.0',
+  clima = crearClima(),
 } = {}) {
   const limites = new Map();
 
@@ -174,6 +190,12 @@ export function crearApi({
     return resto;
   };
 
+  /** El último riego anotado a mano, si es reciente. */
+  function riegoRecienteDe(plantaId, t) {
+    const r = db.ultimoRiego(plantaId);
+    return r && t - r.t < RIEGO_RECIENTE_MS ? { t: r.t, origen: r.origen, quien: r.quien } : null;
+  }
+
   /** La forma que consumen las vistas. */
   function nodoDe(p, t = reloj()) {
     const d = db.dispositivo(p.dispositivo);
@@ -220,8 +242,30 @@ export function crearApi({
       pantalla: p.pantalla || 'toque',
       brillo: p.brillo ?? 80,
       creada: p.creada,
+      riego: riegoRecienteDe(p.id, t),
     };
   }
+
+  /* Lo que ve el cuidador: la planta sin ids ni nada de la cuenta. */
+  function plantaParaCuidador(n) {
+    const e = n.especie_info;
+    return {
+      id: 'cuidada',
+      nombre: n.nombre, modelo: n.modelo, revelado: n.revelado,
+      mood: n.mood, severity: n.severity, reason: n.reason, link: n.link,
+      tel: { soil_pct: n.tel.soil_pct, temp_dc: n.tel.temp_dc, rh_pct: n.tel.rh_pct, lux: n.tel.lux, age_s: n.tel.age_s, escurre: n.tel.escurre },
+      especie: n.especie,
+      especie_info: e ? {
+        id: e.id, nombre: e.nombre, cientifico: e.cientifico, soil_min: e.soil_min, soil_max: e.soil_max,
+        temp_min_dc: e.temp_min_dc, temp_max_dc: e.temp_max_dc, rh_min: e.rh_min, lux_min: e.lux_min, lux_max: e.lux_max,
+      } : null,
+      ficha: n.ficha ? { cuidados: { riego: n.ficha.cuidados.riego, luz: n.ficha.cuidados.luz, temperatura: n.ficha.cuidados.temperatura, humedad: n.ficha.cuidados.humedad } } : null,
+      bond: { dias_sanos: n.bond?.dias_sanos ?? 0 },
+      riego: n.riego,
+    };
+  }
+  const cuidadorPublico = (c) => ({ creado: c.creado, vence: c.vence, nombre: c.nombre, usos: c.usos });
+  const ubicacionPublica = (c) => (c?.ubicacion ? { nombre: c.ubicacion.nombre, pais: c.ubicacion.pais, region: c.ubicacion.region || '' } : null);
 
   function coleccionDe(cuenta) {
     const tengo = cuenta.coleccion || [];
@@ -249,6 +293,7 @@ export function crearApi({
     avisos: db.suscripciones(c.id).length,
     plantas: db.plantasDe(c.id).length,
     creada: c.creada,
+    ubicacion: ubicacionPublica(c),
   });
 
   async function abrirSesion(cuenta, headers) {
@@ -311,6 +356,19 @@ export function crearApi({
   }
 
   /* ----------------------------------------------------------- avisos --- */
+  /** Manda un aviso a todos los teléfonos de una cuenta. */
+  async function mandarA(subs, a) {
+    let n = 0;
+    for (const s of subs) {
+      const r = await push.enviar(s, {
+        titulo: a.titulo, cuerpo: a.cuerpo, icono: a.icono, url: a.url, tag: a.tag, urgente: a.urgente,
+      });
+      if (r === 'vencida') db.suscripcionBorrar(s.endpoint);
+      if (r === 'ok') n += 1;
+    }
+    return n;
+  }
+
   async function enviarAvisos(planta, d) {
     if (!push) return 0;
     if (d.sev === 'OK') db.avisosOlvidar(planta.id, 'animo:');   /* terminó el episodio */
@@ -324,25 +382,82 @@ export function crearApi({
     });
     let n = 0;
     for (const a of lista) {
-      for (const s of subs) {
-        const r = await push.enviar(s, {
-          titulo: a.titulo, cuerpo: a.cuerpo, icono: a.icono, url: a.url, tag: a.tag, urgente: a.urgente,
-        });
-        if (r === 'vencida') db.suscripcionBorrar(s.endpoint);
-        if (r === 'ok') n += 1;
-      }
+      n += await mandarA(subs, a);
       db.avisoRegistrar(planta.id, a.clave, t);
     }
     return n;
   }
 
-  /** Revisa las macetas que dejaron de reportar. Lo llama un temporizador. */
+  /* ------------------------------------------------------------ clima --- */
+  /** El pronóstico para la ciudad de la cuenta, de la caché o de Open-Meteo. */
+  async function climaDe(cuenta, t) {
+    if (!cuenta?.ubicacion || !clima.activo) return null;
+    const guardado = db.climaLeer(cuenta.id);
+    if (guardado && t - guardado.obtenido < CLIMA_TTL_MS) return guardado.datos;
+    try {
+      const p = await clima.pronostico(cuenta.ubicacion.lat, cuenta.ubicacion.lon, t);
+      if (p) {
+        db.climaGuardar(cuenta.id, t, p);
+        return p;
+      }
+    } catch (e) {
+      console.warn(`clima: ${e.message}`);
+    }
+    return guardado?.datos || null;
+  }
+
+  /** Cuándo va a tener sed esta planta con el clima que viene (clima.mjs). */
+  function previsionDePlanta(p, pronostico, t) {
+    const e = p.especie;
+    const d = db.dispositivo(p.dispositivo);
+    const u = d?.ultima;
+    if (!e || !u || !Number.isFinite(u.suelo)) return { disponible: false, motivo: 'lectura' };
+    const lecturas = db.lecturasDePlanta(p.id, t - VENTANA_TASA_MS);
+    const tasa = tasaSecado(lecturas, { ahora: t });
+    const resumen = resumenPronostico(pronostico);
+    if (!tasa) return { disponible: false, motivo: 'historial', clima: resumen };
+    const { factor, dT, dRH } = factorClima(resumen, mediaReciente(lecturas, { ahora: t }));
+    const pv = previsionDe({ suelo: u.suelo, soil_min: e.soil_min, tasa, factor, ahora: t });
+    if (!pv) return { disponible: false, motivo: 'historial', clima: resumen };
+    return { disponible: true, ...pv, dT, dRH, suelo: u.suelo, soil_min: e.soil_min, tasa_horas: tasa.horas, clima: resumen };
+  }
+
+  /** Los avisos que se adelantan al clima, para todas las cuentas con ciudad. */
+  async function previsiones() {
+    if (!push || !clima.activo) return 0;
+    const t = reloj();
+    let n = 0;
+    for (const cuenta of db.cuentasConUbicacion()) {
+      const subs = db.suscripciones(cuenta.id);
+      if (!subs.length) continue;
+      const pron = await climaDe(cuenta, t);
+      if (!pron) continue;
+      for (const p of db.plantasDe(cuenta.id)) {
+        if (!p.revelado || !p.especie) continue;
+        const pv = previsionDePlanta(p, pron, t);
+        if (!pv.disponible) continue;
+        const d = db.dispositivo(p.dispositivo);
+        const a = avisoPrevision({
+          planta: p, mood: d?.animo, suelo: pv.suelo, especie: p.especie, prevision: pv, resumen: pv.clima,
+          ahora: t, enviados: db.avisosEnviados(p.id), tz: cuenta.tz,
+        });
+        if (!a) continue;
+        n += await mandarA(subs, a);
+        db.avisoRegistrar(p.id, a.clave, t);
+      }
+    }
+    return n;
+  }
+
+  /** Revisa las macetas que dejaron de reportar y el clima que viene. Lo
+      llama un temporizador. */
   async function revisar() {
     let n = 0;
     for (const p of db.plantasActivas()) {
       const d = db.dispositivo(p.dispositivo);
       if (d) n += await enviarAvisos(p, d);
     }
+    n += await previsiones();
     return n;
   }
 
@@ -614,6 +729,22 @@ export function crearApi({
           }
           cambios.paleta = pal.id;
         }
+        /* La ciudad donde están las plantas, para el pronóstico: se busca
+           en Open-Meteo y se guarda con sus coordenadas; vacío la quita. */
+        if (cuerpo?.ubicacion !== undefined) {
+          const nombre = texto(cuerpo.ubicacion, 80);
+          if (!nombre) {
+            cambios.ubicacion = null;
+          } else {
+            if (!clima.activo) falla(503, 'El pronóstico no está configurado en este servidor.');
+            limitar(`ubicacion:${c.id}`, 20, H);
+            let u = null;
+            try { u = await clima.geocodificar(nombre); } catch { falla(502, 'No pude buscar esa ciudad ahora. Probá en un rato.'); }
+            if (!u) falla(404, 'No encontré esa ciudad. Probá con el nombre de la ciudad más cercana.');
+            cambios.ubicacion = u;
+          }
+          db.climaBorrar(c.id);
+        }
         db.cuentaActualizar(c.id, cambios);
       }
       return [200, cuentaPublica(db.cuenta(c.id))];
@@ -789,6 +920,66 @@ export function crearApi({
         t: l.t, soil_pct: l.suelo, temp_dc: l.temp, rh_pct: l.hr, lux: l.lux, mood: l.animo, ...(l.escurre ? { escurre: true } : {}),
       }));
       return [200, { id: p.id, horas, total: todas.length, puntos }];
+    }
+
+    if (metodo === 'GET' && (m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/prevision$/))) {
+      const cuenta = cuentaDe(headers);
+      const p = plantaMia(cuenta, m[1]);
+      if (!cuenta.ubicacion) return [200, { disponible: false, motivo: 'ubicacion' }];
+      const pron = await climaDe(cuenta, t);
+      if (!pron) return [200, { disponible: false, motivo: 'clima', ubicacion: ubicacionPublica(cuenta) }];
+      return [200, { ...previsionDePlanta(p, pron, t), ubicacion: ubicacionPublica(cuenta) }];
+    }
+
+    /* --- el cuidador ------------------------------------------------------- */
+    if ((m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/cuidador$/))) {
+      const cuenta = cuentaDe(headers);
+      const p = plantaMia(cuenta, m[1]);
+      if (metodo === 'GET') {
+        return [200, { enlaces: db.cuidadoresDe(p.id, t).map(cuidadorPublico), riegos: db.riegosDe(p.id, t - 15 * DIA) }];
+      }
+      if (metodo === 'POST') {
+        if (!p.revelado) falla(409, 'Abrí el cofre primero: el cuidador tiene que ver su cara.');
+        const dias = entero(cuerpo?.dias, 7);
+        if (!CUIDADOR_DIAS.includes(dias)) falla(400, 'El enlace dura 3, 7 o 15 días.');
+        limitar(`cuidador:${cuenta.id}`, 20, H);
+        const token = tokenNuevo();
+        const nombre = texto(cuerpo?.nombre, 30);
+        const vence = t + dias * DIA;
+        db.cuidadorCrear({ token_hash: hash(token), planta: p.id, cuenta: cuenta.id, nombre, creado: t, vence });
+        return [201, { url: `${urlPublica().replace(/\/+$/, '')}/sitter/${token}`, vence, dias, nombre }];
+      }
+      if (metodo === 'DELETE') {
+        db.cuidadoresBorrar(p.id);
+        return [204, null];
+      }
+    }
+    if ((m = ruta.match(/^\/api\/sitter\/([A-Za-z0-9_-]{16,128})(\/riego)?$/))) {
+      limitar(`sitter:${ip}`, 120, 10 * MIN);
+      const c = db.cuidadorPorHash(hash(m[1]), t);
+      const p = c ? db.planta(c.planta) : null;
+      if (!c || !p) falla(404, 'Este enlace venció o no existe. Pedile uno nuevo a quien te lo mandó.');
+      const dueno = db.cuenta(c.cuenta);
+      if (metodo === 'GET' && !m[2]) {
+        return [200, {
+          planta: plantaParaCuidador(nodoDe(p, t)), dueno: dueno?.nombre || '', cuidador: c.nombre,
+          vence: c.vence, riegos: db.riegosDe(p.id, t - 15 * DIA), ahora: t,
+        }];
+      }
+      if (metodo === 'POST' && m[2]) {
+        limitar(`sitter-riego:${c.token_hash}`, 10, H);
+        const quien = c.nombre || texto(cuerpo?.quien, 30) || 'Tu cuidador';
+        db.riegoRegistrar({ planta: p.id, t, origen: 'cuidador', quien });
+        db.cuidadorUso(c.token_hash);
+        if (push) {
+          await mandarA(db.suscripciones(c.cuenta), {
+            titulo: `${quien} regó a ${p.nombre || 'tu planta'}`,
+            cuerpo: 'Quedó anotado. Si el sensor no ve el agua en un par de horas, te aviso.',
+            icono: `caras/${p.persona || 'incognito'}-HAPPY.png`, url: `#planta/${p.id}`, tag: `${p.id}:cuidador`, urgente: false,
+          });
+        }
+        return [201, { ok: true, t }];
+      }
     }
 
     /* --- chat con la planta ------------------------------------------------ */

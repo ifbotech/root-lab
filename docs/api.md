@@ -41,7 +41,7 @@ su cuenta: pedir la planta de otra cuenta da `404`, igual que si no existiera.
 | `POST /api/cuenta/entrar` *(sin sesión)* | `{ email, clave }` → `{ token, cuenta }` · `401 Email o contraseña incorrectos.` |
 | `POST /api/cuenta/salir` | cierra esta sesión → `204` |
 | `GET /api/cuenta` | `cuenta` |
-| `PATCH /api/cuenta` | `{ nombre?, tz?, paleta? }` → `cuenta` · `403` si la paleta es de un Rooti que no tenés |
+| `PATCH /api/cuenta` | `{ nombre?, tz?, paleta?, ubicacion? }` → `cuenta` · `403` si la paleta es de un Rooti que no tenés · `ubicacion`: una ciudad, que se busca y se guarda cifrada para el pronóstico (`''` la quita; `404` si no existe; ver [clima.md](clima.md)) |
 | `POST /api/cuenta/clave` | `{ actual, nueva }` → `{ ok }`; cierra las sesiones de los otros teléfonos y avisa por email |
 | `DELETE /api/cuenta` | `{ clave }` → `204`; borra cuenta, plantas, lecturas, charlas y avisos, y libera los Rooties |
 | `POST /api/cuenta/olvide` *(sin sesión)* | `{ email }` → `202 { ok }` **siempre**; si hay cuenta, manda el enlace `#clave/<token>` (30 min, un uso) |
@@ -93,6 +93,12 @@ no hace falta regalar intentos.
 | `DELETE /api/plantas/:id` | desvincula: la maceta vuelve al QR con código nuevo. La planta y sus lecturas quedan guardadas en la cuenta |
 | `POST /api/plantas/:id/cofre` | abre el cofre: `{ id, nombre, rareza, lema, fondo, nuevo, probabilidad, de_fabrica, planta, paleta, pinta }`. `pinta`: el Rooti tiene paleta propia y la cuenta pasó a usarla |
 | `GET /api/plantas/:id/historial?horas=48` | `{ total, puntos: [{ t, soil_pct, temp_dc, rh_pct, lux, mood, escurre? }] }`: `horas` hasta 8784 (un año), promediado en hasta 240 puntos; `total` es la cantidad de lecturas guardadas en esa ventana |
+| `GET /api/plantas/:id/prevision` | cuándo va a tener sed con el clima que viene: `{ disponible, motivo? , horas_hasta_sed, cuando, tasa_pct_h, factor, clima, ubicacion }`. Ver [clima.md](clima.md) |
+| `POST /api/plantas/:id/cuidador` | `{ dias: 3 \| 7 \| 15, nombre? }` → `201 { url, vence, dias, nombre }`: el enlace `/sitter/<token>` para quien cuida la planta · `409` con el cofre cerrado. Ver [cuidador.md](cuidador.md) |
+| `GET /api/plantas/:id/cuidador` | `{ enlaces: [{ creado, vence, nombre, usos }], riegos }` |
+| `DELETE /api/plantas/:id/cuidador` | revoca todos los enlaces → `204` |
+| `GET /api/sitter/:token` *(sin sesión)* | lo que ve el cuidador: `{ planta, dueno, cuidador, vence, riegos, ahora }` · `404` vencido o revocado |
+| `POST /api/sitter/:token/riego` *(sin sesión)* | `{ quien? }` → `201 { ok, t }`: anota el riego y le avisa al dueño |
 
 `especie` acepta un id del catálogo o un objeto completo
 (`{ id, nombre, cientifico, soil_min, soil_max, temp_min_dc, temp_max_dc, rh_min, lux_min, lux_max }`),
@@ -119,6 +125,10 @@ Una planta en `nodes`:
 
 `link`: `VIVO` (< 45 min), `TIBIO` (< 6 h), `CAIDO`, `NUNCA`. Con `CAIDO` el
 ánimo se muestra como `OFFLINE`.
+
+`riego`: `{ t, origen, quien }` o `null`: el último riego anotado a mano (hoy,
+desde el enlace del cuidador) si es de las últimas 48 h. La app esconde la
+tarea de regar dos horas después de uno.
 
 `tel.escurre`: el Rooti detectó que el último riego se escurrió por los
 costados sin empapar (viene en cada lectura como `escurre: true` o el bit 16

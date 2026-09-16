@@ -32,6 +32,7 @@ import { configCorreoDesdeEntorno, crearCorreo } from './correo.mjs';
 import { crearPresupuesto, LIMITES_POR_DEFECTO, PRECIOS_POR_DEFECTO } from './presupuesto.mjs';
 import { alertaGasto } from './plantillas-correo.mjs';
 import { crearPush } from './push.mjs';
+import { crearClima } from './clima.mjs';
 import { crearServidorHttp, normalizarBase } from './http.mjs';
 
 const RAIZ = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -111,8 +112,10 @@ try {
 } catch (e) {
   console.warn(`notificaciones desactivadas: ${e.message}`);
 }
+/* El pronóstico: Open-Meteo, sin clave. Sólo sale la ciudad de la cuenta. */
+const clima = crearClima({ activo: process.env.ROOTLAB_CLIMA !== '0' });
 const api = crearApi({
-  db, ia, push, correo, claves, presupuesto,
+  db, ia, push, correo, claves, presupuesto, clima,
   tofu: process.env.ROOTLAB_TOFU !== '0',
   urlPublica: () => URL_PUBLICA,
   version: VERSION,
@@ -130,6 +133,7 @@ servidor.listen(PUERTO, HOST, () => {
   console.log(`  tope IA    US$ ${e.tope_dia_usd}/día, US$ ${e.tope_mes_usd}/mes (gastado: ${e.gastado_dia_usd.toFixed(2)} hoy, ${e.gastado_mes_usd.toFixed(2)} este mes)`);
   console.log(`  correo     ${correo.transporte}${correo.transporte === 'archivo' ? ` (${join(DATOS, 'correos')})` : ''}, remitente ${correo.remitente}${ADMIN ? `, alertas a ${enmascararEmail(ADMIN)}` : ''}`);
   console.log(`  avisos     ${push ? 'web push listo' : 'desactivados'}`);
+  console.log(`  clima      ${clima.activo ? 'Open-Meteo (sólo la ciudad de cada cuenta)' : 'apagado'}`);
   console.log(`  base       ${join(DATOS, 'rootkit.db')} (esquema ${db.version()}, datos personales cifrados)\n`);
 });
 

@@ -73,6 +73,7 @@ describe('servidor en /rootkit', () => {
     const desk = await pedir(`${s.url}/rootkit/desk/abc123`);
     assert.equal(desk.status, 200, 'el modo escritorio es la misma app');
     assert.match(await desk.text(), /<base href="\/rootkit\/">/);
+    assert.equal((await pedir(`${s.url}/rootkit/sitter/abcdefghijklmnop`)).status, 200, 'el enlace del cuidador también');
   });
 
   test('la API responde con la base y sin ella', async () => {

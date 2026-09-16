@@ -9,6 +9,8 @@
  *                 de ese Rooti. Si ya es tuyo, va directo a su planta.
  *   /desk/<id>    el modo escritorio: la cara de esa planta a pantalla
  *                 completa (también #desk/<id>).
+ *   /sitter/<t>   lo que ve el cuidador: sin cuenta, la cara de la planta,
+ *                 qué necesita y el botón "ya regué".
  *   /#hoy ...     la app de todos los días.
  *
  * El estado del alta se guarda en el teléfono en cada paso: salir a los
@@ -34,6 +36,7 @@ import { vistaAjustes } from './vistas/ajustes.mjs';
 import { vistaEntrar, vistaRestablecer, vistaVerificar } from './vistas/cuenta.mjs';
 import { vistaChat } from './vistas/chat.mjs';
 import { vistaDesk } from './vistas/desk.mjs';
+import { vistaSitter } from './vistas/sitter.mjs';
 import { aplicarPaleta } from './lib/tema.mjs';
 import { PALETA_POR_DEFECTO } from './lib/paletas.mjs';
 import { desactivarAvisos } from './lib/dispositivo.mjs';
@@ -72,8 +75,8 @@ const normalizar = (c) => String(c || '').toUpperCase().replace(/[-\s]/g, '')
 function ruta() {
   const m = rutaSinBase().match(/^\/v\/([^/]+)\/?$/i);
   if (m) return { codigo: normalizar(decodeURIComponent(m[1])) };
-  const d = rutaSinBase().match(/^\/desk\/([^/]+)\/?$/i);
-  if (d) return { vista: 'desk', id: decodeURIComponent(d[1]) };
+  const d = rutaSinBase().match(/^\/(desk|sitter)\/([^/]+)\/?$/i);
+  if (d) return { vista: d[1].toLowerCase(), id: decodeURIComponent(d[2]) };
   const [vista, id] = location.hash.replace(/^#/, '').split('/');
   return { vista: vista || 'hoy', id: id || null };
 }
@@ -268,9 +271,9 @@ const PESTANA = {
   hoy: 'hoy', plantas: 'plantas', planta: 'plantas', diagnostico: 'plantas', especie: 'plantas', chat: 'plantas',
   desk: 'plantas', coleccion: 'coleccion', ajustes: 'ajustes',
 };
-const SIN_TABS = new Set(['alta', 'agregar', 'especie', 'entrar', 'clave', 'verificar', 'desk']);
+const SIN_TABS = new Set(['alta', 'agregar', 'especie', 'entrar', 'clave', 'verificar', 'desk', 'sitter']);
 /* Lo único que se ve sin sesión, además del alta. */
-const PUBLICAS = new Set(['agregar', 'entrar', 'clave', 'verificar']);
+const PUBLICAS = new Set(['agregar', 'entrar', 'clave', 'verificar', 'sitter']);
 
 function pintar() {
   const r = ruta();
@@ -295,6 +298,7 @@ function pintar() {
       case 'verificar': vista = vistaVerificar(ctx); break;
       case 'chat': vista = vistaChat(ctx); break;
       case 'desk': vista = vistaDesk(ctx); break;
+      case 'sitter': vista = vistaSitter(ctx); break;
       case 'plantas': vista = vistaPlantas(ctx); break;
       case 'planta': vista = vistaDetalle(ctx); break;
       case 'diagnostico': vista = vistaDiagnostico(ctx); break;

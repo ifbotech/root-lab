@@ -24,7 +24,7 @@ export const FOTO = 'x'.repeat(4000);
 /* Argon2id liviano en los tests: el formato y la lógica son los mismos. */
 const ARGON_TEST = { memoria: 1024, pasadas: 1, hilos: 1, largo: 32 };
 
-export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, argon = ARGON_TEST, url = 'https://rootlab.test' } = {}) {
+export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, argon = ARGON_TEST, url = 'https://rootlab.test', clima } = {}) {
   const reloj = { t: T0 };
   const db = abrirBase();
   const push = crearPushDePrueba();
@@ -40,6 +40,7 @@ export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, arg
     reloj: () => reloj.t,
     azar: () => 0,
     urlPublica: () => url,
+    ...(clima ? { clima } : {}),
   });
   const llamar = (metodo, ruta, { cuerpo = null, token = null, query = {}, ip = '1.2.3.4' } = {}) =>
     api.manejar({

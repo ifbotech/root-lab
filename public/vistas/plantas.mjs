@@ -17,6 +17,7 @@ import {
 import { caraDeNodo } from './hoy.mjs';
 import { token } from '../lib/tema.mjs';
 import { acariciarCara } from '../lib/caricias.mjs';
+import { panelBotanica } from './botanica.mjs';
 
 const CUIDADO_ES = {
   riego: 'Riego', luz: 'Luz', temperatura: 'Temperatura', humedad: 'Humedad', sustrato: 'Sustrato',
@@ -24,6 +25,8 @@ const CUIDADO_ES = {
 };
 
 const SEV_CLASE = { URGENT: 'urgente', WATCH: 'atencion', OK: 'bien' };
+const CUIDADOR_DIAS = [3, 7, 15];
+const fecha = (ms) => new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'long' }).format(new Date(ms));
 
 function medidores(n, esp) {
   const t = n.tel || {};
@@ -163,6 +166,67 @@ function grafico(puntos, horas, esp) {
   return svg;
 }
 
+/* ---------------------------------------------------------- cuidador --- */
+/* El enlace recién creado se recuerda un rato: la vista se repinta sola cada
+   tanto y hay que darle tiempo a la persona de copiarlo. */
+const enlacesRecientes = new Map();
+const ENLACE_RECUERDO_MS = 15 * 60 * 1000;
+
+/* El enlace para quien cuida la planta mientras no estás (vistas/sitter.mjs). */
+function panelCuidador(ctx, n) {
+  const { api, avisar } = ctx;
+  const nombre = h('input', { type: 'text', id: `cuidador-nombre-${n.id}`, maxlength: '30', placeholder: 'Cómo se llama (opcional)', autocomplete: 'off' });
+  const zonaEnlace = h('div');
+  const lista = h('div', { class: 'enlaces' });
+
+  const mostrar = (r) => {
+    enlacesRecientes.set(n.id, { r, t: Date.now() });
+    const campo = h('input', { type: 'text', readonly: true, value: r.url, id: `cuidador-url-${n.id}`, 'aria-label': 'Enlace del cuidador' });
+    const copiar = async () => {
+      try { await navigator.clipboard.writeText(r.url); avisar('Copiado. Mandáselo por donde quieras.'); } catch { campo.select(); }
+    };
+    const compartir = () => navigator.share({ title: `Cuidá a ${n.nombre || 'mi planta'}`, text: `Mientras no estoy, acá ves cómo está ${n.nombre || 'mi planta'} y qué necesita.`, url: r.url }).catch(() => {});
+    render(zonaEnlace, h('div', { class: 'enlace-nuevo' },
+      campo,
+      h('div', { class: 'fila-botones' },
+        h('button', { class: 'boton chico', type: 'button', onClick: copiar }, 'Copiar'),
+        typeof navigator.share === 'function' ? h('button', { class: 'boton chico azul', type: 'button', onClick: compartir }, icono('compartir', 16), 'Compartir') : null),
+      h('p', { class: 'nota' }, `Vale hasta el ${fecha(r.vence)}. Quien lo abra ve sólo esta planta.`)));
+  };
+  const cargar = async () => {
+    try {
+      const r = await api(`/api/plantas/${n.id}/cuidador`);
+      render(lista,
+        r.enlaces.length
+          ? h('div', { class: 'fila-ajuste' },
+              h('div', {}, h('b', {}, r.enlaces.length === 1 ? '1 enlace activo' : `${r.enlaces.length} enlaces activos`),
+                h('span', {}, `El último vale hasta el ${fecha(Math.max(...r.enlaces.map((e) => e.vence)))}.`)),
+              h('button', {
+                class: 'boton chico peligro', type: 'button',
+                onClick: async () => { await api(`/api/plantas/${n.id}/cuidador`, { metodo: 'DELETE' }); enlacesRecientes.delete(n.id); render(zonaEnlace); avisar('Los enlaces dejaron de valer.'); cargar(); },
+              }, 'Revocar'))
+          : null,
+        r.riegos.length ? h('p', { class: 'nota' }, `Último riego anotado: ${r.riegos[0].quien || 'alguien'}, el ${fecha(r.riegos[0].t)}.`) : null);
+    } catch { /* sin red: el panel queda igual */ }
+  };
+  cargar();
+  const reciente = enlacesRecientes.get(n.id);
+  if (reciente && Date.now() - reciente.t < ENLACE_RECUERDO_MS) mostrar(reciente.r);
+
+  return h('section', { class: 'panel' },
+    h('h3', { class: 'panel-tit' }, 'Cuidador'),
+    h('p', { class: 'nota', style: 'margin-bottom:10px' }, `¿Te vas unos días? Compartí un enlace: quien cuide a ${n.nombre || 'tu planta'} ve su cara, qué necesita y cómo se riega, sin instalar nada, y puede anotar "ya regué".`),
+    h('div', { class: 'campo' }, nombre),
+    h('div', { class: 'fila-botones' }, CUIDADOR_DIAS.map((d) => h('button', {
+      class: 'boton chico', type: 'button',
+      onClick: async () => {
+        try { mostrar(await api(`/api/plantas/${n.id}/cuidador`, { metodo: 'POST', cuerpo: { dias: d, nombre: nombre.value } })); cargar(); } catch (e) { avisar(e.message, true); }
+      },
+    }, `${d} días`))),
+    zonaEnlace,
+    lista);
+}
+
 /* ----------------------------------------------------------- detalle --- */
 export function vistaDetalle(ctx) {
   const { estado, especies, coleccion, plantaId, volver, alDiagnosticar, api, avisar, alCambiarEspecie, recargar, irA } = ctx;
@@ -256,7 +320,8 @@ export function vistaDetalle(ctx) {
     h('p', { class: 'heroe-sub' },
       esp?.nombre || 'sin identificar', ' · ',
       h('span', { class: `enlace-${(n.link || '').toLowerCase()}` }, LINK_ES[n.link] || '—'), ' · ',
-      formatEdad(n.tel?.age_s)));
+      formatEdad(n.tel?.age_s)),
+    n.riego ? h('p', { class: 'heroe-sub' }, icono('gota', 14), ` ${n.riego.quien || 'Alguien'} regó ${formatEdad(Math.floor((Date.now() - n.riego.t) / 1000))}`) : null);
   if (n.revelado) acariciarCara(marco.querySelector('canvas'), { escenario: heroe, direccion: 'pan-y' });
 
   render(cont,
@@ -293,11 +358,15 @@ export function vistaDetalle(ctx) {
       h('div', { class: 'vinculo-cab' }, h('h3', { class: 'panel-tit', style: 'margin:0' }, 'Últimas horas'), selector),
       zonaGrafico),
 
+    n.revelado ? panelBotanica(ctx, n, esp) : null,
+
     h('section', { class: 'panel' },
       h('button', { class: 'boton azul ancho', type: 'button', onClick: () => alDiagnosticar(n.id) },
         icono('lupa', 20), 'Diagnosticar con una foto'),
       h('p', { class: 'nota', style: 'margin-top:10px' },
         'Sirve cuando los números están bien y la planta igual se ve mal: hongos, plagas o falta de nutrientes no mueven ningún sensor.')),
+
+    n.revelado ? panelCuidador(ctx, n) : null,
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Vínculo'),

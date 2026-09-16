@@ -199,7 +199,9 @@ export function tareasDelDia(nodos, especies, hechas = {}, ahora = Date.now()) {
 
   for (const n of nodos || []) {
     for (const t of tareasDe(n, porId.get(n.especie))) {
-      const cuando = hechas[t.id];
+      /* Un riego anotado desde el enlace del cuidador ("ya regué") vale
+         como marcar la tarea de regar: se esconde el mismo rato. */
+      const cuando = hechas[t.id] ?? (t.tipo === 'regar' && n.riego?.t ? n.riego.t : undefined);
       if (cuando && ahora - cuando < GRACIA_MS) {
         continue;   /* recién hecha: se esconde mientras el sensor confirma */
       }

@@ -55,7 +55,7 @@ sólo cambia `db.mjs`.
 
 | Tabla | Clave | Qué guarda |
 |---|---|---|
-| `cuentas` | id | email **cifrado** + índice ciego (único), nombre **cifrado**, hash Argon2id, zona horaria, colección de Rooties, paleta, plan, email verificado |
+| `cuentas` | id | email **cifrado** + índice ciego (único), nombre **cifrado**, hash Argon2id, zona horaria, colección de Rooties, paleta, plan, email verificado, ciudad **cifrada** (para el pronóstico) |
 | `sesiones` | SHA-256 del token | cuenta, creada, último uso, navegador |
 | `tokens_cuenta` | SHA-256 del token | enlaces de un uso: restablecer la contraseña, verificar el email; vencimiento |
 | `dispositivos` | id del aparato | hash del token, último estado, código actual y su época, última lectura |
@@ -65,7 +65,10 @@ sólo cambia `db.mjs`.
 | `ia_uso` | id | cada llamada a la IA: tipo, modelo, tokens, costo en micro-dólares, día local |
 | `suscripciones` | endpoint | cuenta y suscripción Web Push (hasta 10 teléfonos por cuenta) |
 | `avisos` | planta + tipo | cuándo se mandó cada tipo de aviso |
-| `meta` | clave | versión del esquema (2), marcas de alertas de gasto |
+| `clima` | cuenta | el último pronóstico pedido a Open-Meteo para la ciudad de la cuenta (6 h) |
+| `cuidadores` | SHA-256 del token | planta, cuenta, nombre, hasta cuándo vale, usos: el enlace `/sitter/<token>` |
+| `riegos` | id | planta, hora, origen, quién: los riegos anotados a mano |
+| `meta` | clave | versión del esquema (4), marcas de alertas de gasto |
 
 **Migraciones.** `db.mjs` sabe llevar una base v1 (email en claro, scrypt) a
 v2: reconstruye `cuentas` cifrando cada email con la receta de 12 pasos de
@@ -109,6 +112,7 @@ de un dominio o debajo de una ruta.
 |---|---|
 | `/v/<CÓDIGO>` | el alta de ese Rooti (o su planta, si ya es tuyo) |
 | `/desk/<id>`, `/#desk/<id>` | el modo escritorio: la cara sola, a pantalla completa |
+| `/sitter/<token>` | lo que ve el cuidador, sin sesión: la cara, qué necesita, "ya regué" |
 | `/#hoy` | caras, tareas, contadores, nivel |
 | `/#plantas`, `/#planta/<id>` | lista y detalle (con la ficha de cuidados) |
 | `/#chat/<id>` | charla con la planta |
@@ -127,7 +131,10 @@ cara, la caricia, la voz al escribir y el modo escritorio son sólo de la app:
 la maceta no los tiene. Ver [sensorial.md](sensorial.md).
 
 **Nada de terceros.** Fuentes, íconos y módulos se sirven desde la app, bajo
-una política de contenido estricta. Ver [seguridad.md](seguridad.md).
+una política de contenido estricta. Ver [seguridad.md](seguridad.md). Lo único
+que el **servidor** consulta afuera, además de la IA y el correo, es
+Open-Meteo, con el nombre de la ciudad de la cuenta y nada más
+([clima.md](clima.md)).
 
 ## Cuentas
 

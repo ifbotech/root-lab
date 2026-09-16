@@ -10,7 +10,7 @@
  */
 
 /* Subir la versión invalida el caché entero. */
-const CACHE = 'rootlab-v10';
+const CACHE = 'rootlab-v11';
 
 /* La app puede estar montada en una subruta (/rootkit/): todo se resuelve
    contra el alcance del service worker, nunca contra la raíz del dominio. */
@@ -29,6 +29,7 @@ const ARMAZON = [
   'fuentes/nunito-latin-ext.woff2',
   'lib/api.mjs',
   'lib/base.mjs',
+  'lib/botanica.mjs',
   'lib/caras.mjs',
   'lib/caricias.mjs',
   'lib/desk.mjs',
@@ -45,6 +46,7 @@ const ARMAZON = [
   'lib/voz.mjs',
   'vistas/ajustes.mjs',
   'vistas/alta.mjs',
+  'vistas/botanica.mjs',
   'vistas/chat.mjs',
   'vistas/cofre.mjs',
   'vistas/coleccion.mjs',
@@ -53,6 +55,7 @@ const ARMAZON = [
   'vistas/escaner.mjs',
   'vistas/hoy.mjs',
   'vistas/plantas.mjs',
+  'vistas/sitter.mjs',
   'caras/rootkit_caras.wasm',
   'caras/incognito.png',
   'iconos/icono-192.png',
@@ -82,9 +85,9 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== location.origin || rel === null || rel.startsWith('api/') || e.request.method !== 'GET') {
     return;
   }
-  /* Las rutas v/<código> y desk/<id> son la misma app. */
+  /* Las rutas v/<código>, desk/<id> y sitter/<token> son la misma app. */
   const indice = enAlcance('index.html');
-  const pedido = /^(v|desk)\/[^/]+\/?$/i.test(rel) ? new Request(indice) : e.request;
+  const pedido = /^(v|desk|sitter)\/[^/]+\/?$/i.test(rel) ? new Request(indice) : e.request;
 
   /* Primero la red (así una versión nueva llega enseguida) y, si no hay,
      el caché. */

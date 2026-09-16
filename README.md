@@ -19,6 +19,12 @@ después de abrir su cofre, unos ojos que reaccionan a cómo está tu planta.
   se deja **acariciar** (ojos en `^ ^`, vibración, corazones), habla con **su
   voz** mientras escribe y se queda a pantalla completa en el **modo
   escritorio**, sin que la pantalla se apague.
+- **Regar antes**: con la ciudad, ROOTLAB cruza la velocidad a la que se
+  seca la tierra con el pronóstico (Open-Meteo) y avisa un día antes del
+  calor. Y para quien quiere ir a fondo, **VPD** y **DLI** en la pestaña
+  Botánica.
+- **Cuidador**: un enlace de 3, 7 o 15 días para quien riega mientras no
+  estás: ve la cara, qué necesita y toca "ya regué"; te llega un push.
 - **Datos personales cifrados**, IA con **tope de gasto** y cuotas diarias.
 
 El firmware, el hardware y las carcasas están en
@@ -78,8 +84,9 @@ cifrado en reposo y migración de la base, Argon2id, recuperar la contraseña y
 verificar el email, emails y plantillas, cuotas y tope de gasto de la IA,
 chat con la API de Anthropic simulada, ficha y prompt, contraste WCAG de las
 paletas, cabeceras de seguridad y ausencia de recursos de terceros, HTTP en
-subruta, avisos, diagnóstico, tareas, caras, y lo que el teléfono le agrega a
-la cara (luz, voz, caricia, modo escritorio).
+subruta, avisos, diagnóstico, tareas, caras, lo que el teléfono le agrega a
+la cara (luz, voz, caricia, modo escritorio), el pronóstico y la previsión
+de riego, VPD y DLI, y el enlace del cuidador.
 
 Contra un servidor desplegado: `node tools/verificar-despliegue.mjs <url> --flujo`.
 
@@ -99,6 +106,7 @@ server/
   presupuesto.mjs        tope de gasto y cuotas de la IA
   ficha.mjs              ficha de cuidados, prompt del chat y datos en vivo
   avisos.mjs             qué notificación mandar y cuándo callarse
+  clima.mjs              el pronóstico (Open-Meteo) y el riego que se anticipa
   cofre.mjs              qué Rooti sale del cofre
   catalogo.mjs           especies curadas y Rooties (generados desde el firmware)
   codigo.mjs             código de vinculación, igual que el firmware
@@ -107,8 +115,8 @@ server/
 public/                  la app (PWA sin build)
   app.js                 rutas, sesión, alta
   tema.js                la paleta guardada antes de la primera pintada
-  vistas/                alta, cuenta, cofre, hoy, plantas, chat, escáner, Rooties, ajustes, modo escritorio
-  lib/                   paletas y tema, tareas, diagnóstico, gamificación, caras, luz, caricias, voz, API
+  vistas/                alta, cuenta, cofre, hoy, plantas, botánica, chat, escáner, Rooties, ajustes, modo escritorio, cuidador
+  lib/                   paletas y tema, tareas, diagnóstico, gamificación, caras, luz, caricias, voz, botánica, API
   caras/                 el firmware en WebAssembly y las imágenes de las caras
   fuentes/               Nunito (OFL), servida desde la app
 emulador/                el Rooti virtual
@@ -131,6 +139,8 @@ docs/
 | [paletas.md](docs/paletas.md) | Paletas dinámicas y cómo agregar la de un Rooti nuevo |
 | [notificaciones.md](docs/notificaciones.md) | Cuándo se avisa y cuándo no |
 | [sensorial.md](docs/sensorial.md) | La cara en el teléfono: luz, caricias, voz y modo escritorio |
+| [clima.md](docs/clima.md) | Regar antes con el pronóstico; VPD y DLI |
+| [cuidador.md](docs/cuidador.md) | El enlace para quien riega mientras no estás |
 | [despliegue.md](docs/despliegue.md) | Local, en el VPS (ifbotech.com/rootkit), el sitio principal endurecido, dominio propio |
 
 El checklist y el roadmap del producto entero están en

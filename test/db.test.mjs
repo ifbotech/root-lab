@@ -181,11 +181,43 @@ test('una base v2 recibe la columna de escurrimiento sin perder lecturas', () =>
   cruda.exec("ALTER TABLE lecturas DROP COLUMN escurre; UPDATE meta SET valor = '2' WHERE clave = 'esquema'");
   cruda.close();
   db = abrirBase(archivo, { cripto });
-  assert.equal(db.version(), 3);
+  assert.equal(db.version(), VERSION_ESQUEMA);
   db.lecturaInsertar({ dispositivo: 'D', planta: 'p1', t: 2, suelo: 18, animo: 'THIRSTY', sev: 'URGENT', escurre: true });
   const l = db.lecturasDePlanta('p1', 0);
   assert.equal(l.length, 2);
   assert.deepEqual(l.map((x) => x.escurre), [false, true]);
+  db.cerrar();
+}));
+
+test('una base v3 recibe la ciudad, el clima, los cuidadores y los riegos', () => conDir((dir) => {
+  const archivo = join(dir, 'rootkit.db');
+  const cripto = crearCripto(randomBytes(32));
+  let db = abrirBase(archivo, { cripto });
+  db.cuentaCrear({ id: 'c1', email: 'e@ejemplo.com', clave_hash: 'x', tz: 'UTC', creada: 1 });
+  db.cerrar();
+  const cruda = new DatabaseSync(archivo);
+  cruda.exec(`ALTER TABLE cuentas DROP COLUMN ubicacion; DROP TABLE clima; DROP TABLE cuidadores; DROP TABLE riegos;
+    UPDATE meta SET valor = '3' WHERE clave = 'esquema'`);
+  cruda.close();
+  db = abrirBase(archivo, { cripto });
+  assert.equal(db.version(), 4);
+  assert.equal(db.cuenta('c1').ubicacion, null);
+  db.cuentaActualizar('c1', { ubicacion: { nombre: 'Rosario', pais: 'Argentina', lat: -32.95, lon: -60.64 } });
+  assert.equal(db.cuenta('c1').ubicacion.nombre, 'Rosario');
+  assert.deepEqual(db.cuentasConUbicacion().map((c) => c.id), ['c1']);
+  /* La ciudad va cifrada, como el email. */
+  const fila = new DatabaseSync(archivo).prepare('SELECT ubicacion FROM cuentas').get();
+  assert.match(fila.ubicacion, /^v1\./);
+  assert.doesNotMatch(fila.ubicacion, /Rosario/);
+  db.climaGuardar('c1', 10, { horas: [{ t: 1, temp_dc: 250, hr: 50 }] });
+  assert.equal(db.climaLeer('c1').datos.horas.length, 1);
+  db.cuidadorCrear({ token_hash: 'h', planta: 'p1', cuenta: 'c1', nombre: 'Ana', creado: 5, vence: 100 });
+  assert.equal(db.cuidadorPorHash('h', 50).nombre, 'Ana');
+  assert.equal(db.cuidadorPorHash('h', 100), null, 'vencido');
+  db.riegoRegistrar({ planta: 'p1', t: 7, origen: 'cuidador', quien: 'Ana' });
+  assert.equal(db.ultimoRiego('p1').quien, 'Ana');
+  db.cuentaActualizar('c1', { ubicacion: null });
+  assert.equal(db.cuenta('c1').ubicacion, null);
   db.cerrar();
 }));
 
