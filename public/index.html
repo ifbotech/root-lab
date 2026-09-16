@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<!-- El servidor reemplaza esta base por la de la instalación (ROOTLAB_BASE):
+     todas las rutas de abajo son relativas a ella. -->
+<base href="/">
 <!-- viewport-fit=cover + safe-area en el CSS: a pantalla completa en un
      iPhone, sin esto la barra de abajo queda debajo del indicador de inicio. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -9,24 +12,24 @@
 <meta name="description" content="Tu ROOTKIT: la cara de tu planta, lo que necesita y cuándo.">
 <title>ROOTKIT</title>
 
-<link rel="manifest" id="manifest" href="/manifest.webmanifest">
+<link rel="manifest" id="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap">
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="style.css">
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ROOTKIT">
-<link rel="apple-touch-icon" href="/iconos/apple-touch-icon.png">
-<link rel="icon" href="/iconos/icono-192.png" sizes="192x192">
-<link rel="preload" href="/caras/rootkit_caras.wasm" as="fetch" type="application/wasm" crossorigin>
+<link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
+<link rel="icon" href="iconos/icono-192.png" sizes="192x192">
+<link rel="preload" href="caras/rootkit_caras.wasm" as="fetch" type="application/wasm" crossorigin>
 </head>
 <body>
 
 <header class="barra" id="barra">
-  <a class="marca" href="/" aria-label="ROOTKIT, inicio">ROOT<span>KIT</span></a>
+  <a class="marca" href="./" aria-label="ROOTKIT, inicio">ROOT<span>KIT</span></a>
   <div class="barra-der" id="barra-der"></div>
 </header>
 
@@ -53,6 +56,6 @@
 
 <p id="aviso" class="aviso" role="status" aria-live="polite" hidden></p>
 
-<script type="module" src="/app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

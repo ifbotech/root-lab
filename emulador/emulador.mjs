@@ -11,7 +11,8 @@
  * un teléfono de verdad: el QR que dibuja apunta a la URL pública del
  * servidor.
  */
-import { cargarCaras, escribirEntrada, leerTexto, ANIMOS } from '/lib/caras.mjs';
+import { cargarCaras, escribirEntrada, leerTexto, ANIMOS } from '../lib/caras.mjs';
+import { enBase } from '../lib/base.mjs';
 
 const EV = { TICK: 0, WIFI_GUARDADO: 1, WIFI_OK: 2, WIFI_FALLO: 3, NUBE_OK: 4, NUBE_FALLO: 5, BOTON_LARGO: 6 };
 const ESTADOS = ['SIN_WIFI', 'CONECTANDO', 'SIN_VINCULO', 'ESPERA_COFRE', 'DESPERTANDO', 'ACTIVO'];
@@ -44,13 +45,13 @@ function identidad() {
   return yo;
 }
 
-const m = await cargarCaras('/caras/rootkit_caras.wasm');
+const m = await cargarCaras(enBase('caras/rootkit_caras.wasm'));
 if (!m) {
   $('estado-linea').textContent = 'No pude cargar el módulo de caras. Corré `npm run firmware` en root-lab.';
   throw new Error('sin wasm');
 }
 const x = m.x;
-const config = await fetch('/api/config').then((r) => r.json()).catch(() => ({ url_publica: location.origin }));
+const config = await fetch(enBase('api/config')).then((r) => r.json()).catch(() => ({ url_publica: location.origin + enBase('').replace(/\/$/, '') }));
 
 let yo = identidad();
 let nvs = leer('emu:nvs', { epoca: 0, wifi: false, vinculado: false, revelado: false });
@@ -198,7 +199,7 @@ async function sincronizar() {
     lecturas: lote.map(({ reloj: rl, ...resto }) => ({ hace: reloj() - rl, ...resto })),
   };
   try {
-    const r = await fetch('/api/d/sync', {
+    const r = await fetch(enBase('api/d/sync'), {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify(cuerpo),
@@ -247,7 +248,7 @@ $('s-persona').addEventListener('change', (e) => {
   yo.persona = e.target.value;
   escribir('emu:yo', yo);
 });
-$('b-abrir').addEventListener('click', () => window.open(`/v/${codigo}`, '_blank', 'noopener'));
+$('b-abrir').addEventListener('click', () => window.open(enBase(`v/${codigo}`), '_blank', 'noopener'));
 $('s-panel').addEventListener('change', (e) => {
   const chico = e.target.value === '128';
   const c = $('pantalla');
@@ -296,7 +297,7 @@ function cuadro(t) {
     escribirEntrada(config.url_publica || location.origin);
     const url = leerTexto(x.qr_preparar(epoca));
     $('d-url').textContent = url || '(no entra en el QR)';
-    $('d-url').href = `/v/${codigo}`;
+    $('d-url').href = enBase(`v/${codigo}`);
     $('d-codigo').textContent = `${codigo.slice(0, 4)}-${codigo.slice(4)}`;
     $('d-ssid').textContent = `ROOTKIT-${codigo.slice(0, 4)}`;
     $('d-epoca').textContent = String(epoca);

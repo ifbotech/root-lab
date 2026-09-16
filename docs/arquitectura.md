@@ -62,6 +62,11 @@ pantalla completa y se actualiza sola. El service worker cachea el armazón y
 **nunca** los datos: una lectura vieja mostrada como actual hace regar una
 planta mojada.
 
+Todas las rutas son relativas a la base donde está montada la app (en el
+VPS, `/rootkit`). El servidor escribe `<base href>` en cada página y el
+cliente arma lo demás con `lib/base.mjs`, así el mismo código anda en la raíz
+de un dominio o debajo de una ruta.
+
 | Ruta | Vista |
 |---|---|
 | `/v/<CÓDIGO>` | el alta de ese ROOTKIT (o su planta, si ya es tuyo) |

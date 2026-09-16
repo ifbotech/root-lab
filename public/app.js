@@ -17,6 +17,7 @@ import { api, asegurarCuenta, ErrorApi } from './lib/api.mjs';
 import { tareasDelDia, contarEstados } from './lib/tareas.mjs';
 import { actualizarRacha } from './lib/gamificacion.mjs';
 import { cargarCaras } from './lib/caras.mjs';
+import { enBase, rutaSinBase } from './lib/base.mjs';
 import { vistaAlta, PASOS, saltear } from './vistas/alta.mjs';
 import { vistaHoy } from './vistas/hoy.mjs';
 import { vistaPlantas, vistaDetalle } from './vistas/plantas.mjs';
@@ -55,15 +56,15 @@ const normalizar = (c) => String(c || '').toUpperCase().replace(/[-\s]/g, '')
   .replace(/O/g, '0').replace(/[IL]/g, '1').replace(/U/g, 'V');
 
 function ruta() {
-  const m = location.pathname.match(/^\/v\/([^/]+)\/?$/i);
+  const m = rutaSinBase().match(/^\/v\/([^/]+)\/?$/i);
   if (m) return { codigo: normalizar(decodeURIComponent(m[1])) };
   const [vista, id] = location.hash.replace(/^#/, '').split('/');
   return { vista: vista || 'hoy', id: id || null };
 }
 
 function irA(vista, id = null) {
-  const destino = `/#${id ? `${vista}/${id}` : vista}`;
-  if (location.pathname !== '/') {
+  const destino = enBase(`#${id ? `${vista}/${id}` : vista}`);
+  if (rutaSinBase() !== '/') {
     history.pushState(null, '', destino);
     pintar();
   } else {
@@ -117,9 +118,9 @@ function siguientePaso() {
 async function terminarAlta(plantaId) {
   app.alta = null;
   escribir(LS.alta, null);
-  $('#manifest').href = '/manifest.webmanifest';
+  $('#manifest').href = enBase('manifest.webmanifest');
   await recargar();
-  history.replaceState(null, '', plantaId ? `/#planta/${plantaId}` : '/#hoy');
+  history.replaceState(null, '', enBase(plantaId ? `#planta/${plantaId}` : '#hoy'));
   pintar();
 }
 
@@ -127,11 +128,11 @@ async function terminarAlta(plantaId) {
    no tiene sentido volver a pedir el wifi. */
 async function entrarConCodigo(codigo) {
   if (!/^[0-9A-Z]{8}$/.test(codigo)) {
-    history.replaceState(null, '', '/#agregar');
+    history.replaceState(null, '', enBase('#agregar'));
     avisar('Ese código no es válido.', true);
     return;
   }
-  $('#manifest').href = `/manifest.webmanifest?codigo=${codigo}`;
+  $('#manifest').href = enBase(`manifest.webmanifest?codigo=${codigo}`);
   if (!app.alta || app.alta.codigo !== codigo) guardarAlta({ codigo, paso: 'hola', plantaId: null, persona: null, nombre: null });
 
   try {
@@ -189,7 +190,7 @@ function contexto() {
       else irA('planta', t.plantaId);
     },
     alCodigo: (c) => {
-      history.pushState(null, '', `/v/${c}`);
+      history.pushState(null, '', enBase(`v/${c}`));
       entrarConCodigo(c).then(pintar);
     },
     volver: () => (history.length > 1 ? history.back() : irA('hoy')),
@@ -279,7 +280,7 @@ async function inicio() {
 
   cargarCaras();
   if (window.isSecureContext && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register(enBase('sw.js'), { scope: enBase('') }).catch(() => {});
   }
 
   try {
@@ -294,7 +295,7 @@ async function inicio() {
     await entrarConCodigo(r.codigo);
   } else if (app.alta?.codigo && !location.hash && PASOS.indexOf(app.alta.paso) < PASOS.indexOf('listo')) {
     /* Un alta a medio terminar tiene prioridad sobre el tablero vacío. */
-    history.replaceState(null, '', `/v/${app.alta.codigo}`);
+    history.replaceState(null, '', enBase(`v/${app.alta.codigo}`));
     await entrarConCodigo(app.alta.codigo);
   }
   if (!app.estado) await recargar();

@@ -37,6 +37,13 @@ se recorre el flujo entero sin hardware:
 Sin `ANTHROPIC_API_KEY` la identificación por foto es **simulada** (la app lo
 avisa). Para usar Claude, copiá `.env.example` a `.env` y poné la clave.
 
+## En línea
+
+La versión de prueba vive en **https://ifbotech.com/rootkit/** (emulador en
+https://ifbotech.com/rootkit/emulador/), en el VPS del sitio, detrás de su
+Caddy. Cómo se instala, se actualiza y se verifica:
+[docs/despliegue.md](docs/despliegue.md).
+
 ## Probarlo en el teléfono
 
 El QR del emulador apunta a la IP de la compu en la red (`http://192.168.x.x:8080`),
@@ -47,14 +54,15 @@ exigen HTTPS**: para eso hace falta un túnel. Ver
 ## Pruebas
 
 ```bash
-npm test          # 117 pruebas: API, flujo completo, avisos, IA, caras, tareas
+npm test          # 129 pruebas: API, flujo completo, HTTP en subruta, avisos, IA, caras, tareas
 ```
 
 ## Estructura
 
 ```
 server/
-  index.mjs        servidor HTTP: app, emulador, API
+  index.mjs        arranque y configuración
+  http.mjs         transporte: estáticos, subruta (/rootkit), API
   api.mjs          toda la lógica, sin HTTP (así se prueba)
   avisos.mjs       qué notificación mandar y cuándo callarse
   ia.mjs           identificación y diagnóstico por foto (Claude o simulada)
@@ -69,7 +77,8 @@ public/            la app (PWA sin build)
   lib/             lógica pura: tareas, diagnóstico, gamificación, caras
   caras/           el firmware en WebAssembly y las imágenes de las caras
 emulador/          el ROOTKIT virtual
-tools/             sincronizar con el firmware, íconos
+deploy/            instalación en un VPS: script, servicio systemd, Caddy
+tools/             sincronizar con el firmware, verificar un despliegue, íconos
 test/
 docs/
 ```
@@ -83,7 +92,7 @@ docs/
 | [api.md](docs/api.md) | La API de la app y la del aparato |
 | [notificaciones.md](docs/notificaciones.md) | Cuándo se avisa y cuándo no |
 | [ia.md](docs/ia.md) | Identificación y diagnóstico por foto |
-| [despliegue.md](docs/despliegue.md) | Local, en el teléfono con túnel, y en producción |
+| [despliegue.md](docs/despliegue.md) | Local, en el VPS (ifbotech.com/rootkit), y con dominio propio |
 
 El checklist y el roadmap del producto entero están en
 [root-kit/docs/roadmap.md](https://github.com/ifbotech/root-kit/blob/main/docs/roadmap.md).

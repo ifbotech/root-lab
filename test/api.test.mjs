@@ -165,7 +165,7 @@ describe('el primer encendido hasta la cara', () => {
     assert.equal(esc.push.enviados.length, 1, 'un aviso de sed');
     assert.match(esc.push.enviados[0].titulo, /Rulo tiene sed/);
     assert.match(esc.push.enviados[0].cuerpo, /12 %/);
-    assert.equal(esc.push.enviados[0].icono, '/caras/kawaii-THIRSTY.png');
+    assert.equal(esc.push.enviados[0].icono, 'caras/kawaii-THIRSTY.png', 'relativo a la app, para que ande en una subruta');
 
     /* La misma sed en la próxima lectura no vuelve a avisar. */
     maceta.medir({ suelo: 11, temp: 231, hr: 58, lux: 5200, animo: 'THIRSTY', sev: 'URGENT' });

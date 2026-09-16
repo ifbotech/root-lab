@@ -402,6 +402,16 @@ export function crearApi({
       }];
     }
 
+    if (metodo === 'GET' && ruta === '/api/salud') {
+      return [200, {
+        ok: true,
+        version,
+        activo_s: Math.round(process.uptime()),
+        dispositivos: Object.keys(D().dispositivos).length,
+        plantas: Object.keys(D().plantas).length,
+      }];
+    }
+
     if (metodo === 'GET' && ruta === '/api/especies') return [200, ESPECIES];
 
     /* --- cuenta ------------------------------------------------------- */
@@ -654,8 +664,8 @@ export function crearApi({
         const r = await push.enviar(s, {
           titulo: p ? `${p.nombre || 'Tu planta'} te saluda` : 'ROOTKIT',
           cuerpo: 'Así te vamos a avisar cuando tu planta necesite algo.',
-          icono: p ? `/caras/${p.persona}-HAPPY.png` : '/iconos/icono-192.png',
-          url: '/', tag: 'prueba',
+          icono: p ? `caras/${p.persona}-HAPPY.png` : 'iconos/icono-192.png',
+          url: './', tag: 'prueba',
         });
         if (r === 'vencida') lista.splice(lista.indexOf(s), 1);
         if (r === 'ok') n += 1;

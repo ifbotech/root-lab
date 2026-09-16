@@ -12,6 +12,8 @@
  * transferencia de Ajustes.
  */
 
+import { enBase } from './base.mjs';
+
 const CLAVE = 'rootkit:token';
 
 const leer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -30,7 +32,7 @@ export class ErrorApi extends Error {
 export async function api(ruta, { metodo = 'GET', cuerpo, token = tokenGuardado() } = {}) {
   let r;
   try {
-    r = await fetch(ruta, {
+    r = await fetch(enBase(ruta), {
       method: metodo,
       headers: {
         ...(cuerpo !== undefined ? { 'content-type': 'application/json' } : {}),

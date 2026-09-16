@@ -1,0 +1,39 @@
+# root-lab como servicio de systemd.
+#
+#   sudo cp deploy/root-lab.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now root-lab
+#   journalctl -u root-lab -f
+#
+# Corre con su propio usuario sin privilegios, sólo puede escribir en su
+# carpeta de datos y escucha únicamente en 127.0.0.1: al mundo sale por el
+# Caddy del servidor, con HTTPS.
+
+[Unit]
+Description=root-lab: la app y la nube de ROOTKIT
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rootlab
+Group=rootlab
+WorkingDirectory=/opt/root-lab
+EnvironmentFile=/etc/root-lab.env
+ExecStart=/usr/bin/node server/index.mjs
+Restart=always
+RestartSec=3
+
+# Endurecimiento: nada fuera de su carpeta de datos, sin escalar privilegios.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/root-lab
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

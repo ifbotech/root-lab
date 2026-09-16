@@ -73,7 +73,7 @@ function pasoInstalar(ctx) {
   const pie = h('div', { class: 'alta-pie' });
 
   const pintar = () => {
-    const icon = h('img', { src: '/iconos/icono-192.png', alt: '', width: 96, height: 96, style: 'border-radius:26px;box-shadow:0 6px 0 rgba(0,0,0,.35)' });
+    const icon = h('img', { src: 'iconos/icono-192.png', alt: '', width: 96, height: 96, style: 'border-radius:26px;box-shadow:0 6px 0 rgba(0,0,0,.35)' });
     if (esIOS()) {
       render(cuerpo, icon,
         h('h1', { class: 'alta-titulo' }, 'Ponela en tu inicio'),
@@ -118,7 +118,7 @@ function pasoAvisos(ctx) {
   return [
     h('div', { class: 'alta-cuerpo' },
       h('div', { class: 'maqueta-notif', 'aria-hidden': 'true' },
-        h('img', { src: '/caras/incognito.png', alt: '' }),
+        h('img', { src: 'caras/incognito.png', alt: '' }),
         h('div', {}, h('b', {}, 'Tu planta tiene sed'), h('span', {}, 'La tierra está al 18 %. Regala hoy.'))),
       h('h1', { class: 'alta-titulo' }, 'Que te avise cuando te necesite'),
       h('p', { class: 'alta-texto' },

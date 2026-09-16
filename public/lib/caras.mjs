@@ -14,6 +14,8 @@
  * muestra la imagen fija de public/caras/<modelo>-<ANIMO>.png.
  */
 
+import { enBase } from './base.mjs';
+
 export const ANIMOS = [
   'UNKNOWN', 'OFFLINE', 'SLEEPING', 'HAPPY', 'THIRSTY', 'DROWNING',
   'COLD', 'HOT', 'SCORCHED', 'DARK', 'PARCHED_AIR',
@@ -30,7 +32,7 @@ function texto(p) {
 }
 
 /** Carga el módulo una sola vez. Resuelve a null si no se puede. */
-export function cargarCaras(url = '/caras/rootkit_caras.wasm') {
+export function cargarCaras(url = enBase('caras/rootkit_caras.wasm')) {
   if (!promesa) {
     promesa = (async () => {
       try {
@@ -147,7 +149,7 @@ export function cara({
   c.setAttribute('role', 'img');
   c.setAttribute('aria-label', etiqueta || (persona ? `La cara de ${persona}` : 'Una cara dormida'));
   if (persona && modo === 'cara') {
-    c.style.backgroundImage = `url(/caras/${persona}-${animo}.png)`;
+    c.style.backgroundImage = `url(${enBase(`caras/${persona}-${animo}.png`)})`;
     c.style.backgroundSize = 'cover';
   }
 

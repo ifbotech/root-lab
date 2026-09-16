@@ -1,0 +1,22 @@
+# Fragmento de Caddy para servir root-lab en https://ifbotech.com/rootkit/
+#
+# Va DENTRO del bloque del sitio que ya existe, antes de lo que manda todo lo
+# demás a la app principal. `handle` es excluyente: lo que entra acá no llega
+# al resto.
+#
+# El matcher no distingue mayúsculas porque el QR del firmware va entero en
+# mayúsculas (HTTPS://IFBOTECH.COM/ROOTKIT/V/...) para entrar en el modo
+# alfanumérico del QR. La base NO se quita: root-lab la recibe y la resuelve
+# (server/http.mjs).
+
+ifbotech.com {
+	@rootkit path_regexp ^/(?i)rootkit(/.*)?$
+	handle @rootkit {
+		reverse_proxy 127.0.0.1:8090
+	}
+
+	# ... lo que ya estaba: la app principal
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}
