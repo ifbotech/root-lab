@@ -108,6 +108,7 @@ de un dominio o debajo de una ruta.
 | Ruta | Vista |
 |---|---|
 | `/v/<CÓDIGO>` | el alta de ese Rooti (o su planta, si ya es tuyo) |
+| `/desk/<id>`, `/#desk/<id>` | el modo escritorio: la cara sola, a pantalla completa |
 | `/#hoy` | caras, tareas, contadores, nivel |
 | `/#plantas`, `/#planta/<id>` | lista y detalle (con la ficha de cuidados) |
 | `/#chat/<id>` | charla con la planta |
@@ -120,6 +121,10 @@ de un dominio o debajo de una ruta.
 **Paletas.** La interfaz no tiene colores escritos: todo son variables de CSS
 que arma `lib/paletas.mjs` a partir de la paleta de la cuenta, con contraste
 garantizado. Ver [paletas.md](paletas.md).
+
+**Lo que el teléfono le agrega a la cara.** La luz de la planta sobre la
+cara, la caricia, la voz al escribir y el modo escritorio son sólo de la app:
+la maceta no los tiene. Ver [sensorial.md](sensorial.md).
 
 **Nada de terceros.** Fuentes, íconos y módulos se sirven desde la app, bajo
 una política de contenido estricta. Ver [seguridad.md](seguridad.md).

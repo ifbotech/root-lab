@@ -15,6 +15,10 @@ después de abrir su cofre, unos ojos que reaccionan a cómo está tu planta.
 - **Tablero** con tareas del día, gráficos, diagnóstico por foto y
   **notificaciones** cuando la planta necesita algo.
 - **Paletas dinámicas**: la app se pinta con los colores de tu Rooti.
+- **El Rooti en el teléfono**: la cara se ve con la luz que hay en la pieza,
+  se deja **acariciar** (ojos en `^ ^`, vibración, corazones), habla con **su
+  voz** mientras escribe y se queda a pantalla completa en el **modo
+  escritorio**, sin que la pantalla se apague.
 - **Datos personales cifrados**, IA con **tope de gasto** y cuotas diarias.
 
 El firmware, el hardware y las carcasas están en
@@ -66,7 +70,7 @@ exigen HTTPS. Ver [docs/despliegue.md](docs/despliegue.md).
 ## Pruebas
 
 ```bash
-npm test          # 228 pruebas
+npm test          # 247 pruebas
 ```
 
 Flujo completo con un Rooti virtual, cuentas y aislamiento entre cuentas,
@@ -74,7 +78,8 @@ cifrado en reposo y migración de la base, Argon2id, recuperar la contraseña y
 verificar el email, emails y plantillas, cuotas y tope de gasto de la IA,
 chat con la API de Anthropic simulada, ficha y prompt, contraste WCAG de las
 paletas, cabeceras de seguridad y ausencia de recursos de terceros, HTTP en
-subruta, avisos, diagnóstico, tareas y caras.
+subruta, avisos, diagnóstico, tareas, caras, y lo que el teléfono le agrega a
+la cara (luz, voz, caricia, modo escritorio).
 
 Contra un servidor desplegado: `node tools/verificar-despliegue.mjs <url> --flujo`.
 
@@ -102,8 +107,8 @@ server/
 public/                  la app (PWA sin build)
   app.js                 rutas, sesión, alta
   tema.js                la paleta guardada antes de la primera pintada
-  vistas/                alta, cuenta, cofre, hoy, plantas, chat, escáner, Rooties, ajustes
-  lib/                   paletas y tema, tareas, diagnóstico, gamificación, caras, API
+  vistas/                alta, cuenta, cofre, hoy, plantas, chat, escáner, Rooties, ajustes, modo escritorio
+  lib/                   paletas y tema, tareas, diagnóstico, gamificación, caras, luz, caricias, voz, API
   caras/                 el firmware en WebAssembly y las imágenes de las caras
   fuentes/               Nunito (OFL), servida desde la app
 emulador/                el Rooti virtual
@@ -125,6 +130,7 @@ docs/
 | [correo.md](docs/correo.md) | Nodemailer + Brevo, SPF/DKIM/DMARC, plantillas |
 | [paletas.md](docs/paletas.md) | Paletas dinámicas y cómo agregar la de un Rooti nuevo |
 | [notificaciones.md](docs/notificaciones.md) | Cuándo se avisa y cuándo no |
+| [sensorial.md](docs/sensorial.md) | La cara en el teléfono: luz, caricias, voz y modo escritorio |
 | [despliegue.md](docs/despliegue.md) | Local, en el VPS (ifbotech.com/rootkit), el sitio principal endurecido, dominio propio |
 
 El checklist y el roadmap del producto entero están en

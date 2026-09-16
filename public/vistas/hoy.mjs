@@ -29,6 +29,8 @@ export function caraDeNodo(n, lado, extra = {}) {
       fps: extra.fps || 20,
       etiqueta: `${n.nombre || 'Tu Rooti'}: ${n.reason || ''}`,
       clave: n.id,
+      /* La cara se ve con la luz que hay donde está la planta (lib/luz.mjs). */
+      lux: n.tel?.lux ?? null,
     }));
 }
 

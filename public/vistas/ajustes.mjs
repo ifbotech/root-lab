@@ -5,6 +5,12 @@
  * pantalla sólo tiene lo que se toca de vez en cuando: el nombre, la paleta,
  * la contraseña, cerrar la sesión y borrar todo.
  *
+ * EL SONIDO
+ *
+ * Las plantas hablan con la voz de su Rooti mientras escriben, y ronronean
+ * al acariciarlas (lib/voz.mjs). El interruptor de acá es el mute global de
+ * este teléfono; de noche se callan solas aunque esté prendido.
+ *
  * LA PALETA
  *
  * ROOTLAB se pinta con la paleta de tu Rooti al abrir su cofre. Acá se puede
@@ -14,6 +20,7 @@
 import { h, render, icono } from '../lib/ui.mjs';
 import { motivoSinAvisos, activarAvisos, avisosActivos } from '../lib/dispositivo.mjs';
 import { paletasDisponibles, PALETA_POR_DEFECTO } from '../lib/paletas.mjs';
+import { estaSilenciado, silenciar, SILENCIO_DESDE, SILENCIO_HASTA } from '../lib/voz.mjs';
 
 export function vistaAjustes(ctx) {
   const { api, avisar, config, cuenta } = ctx;
@@ -44,6 +51,15 @@ export function vistaAjustes(ctx) {
     };
   };
   refrescarAvisos();
+
+  /* -------------------------------------------------------------- sonido --- */
+  const sonido = h('input', {
+    type: 'checkbox', id: 'ajustes-sonido', checked: !estaSilenciado(),
+    onChange: (ev) => {
+      silenciar(!ev.target.checked);
+      avisar(ev.target.checked ? 'Tus plantas hablan con su voz.' : 'Sonido apagado. El texto sale igual.');
+    },
+  });
 
   /* -------------------------------------------------------------- paleta --- */
   const actual = cuenta?.paleta || PALETA_POR_DEFECTO;
@@ -178,6 +194,13 @@ export function vistaAjustes(ctx) {
       h('div', { class: 'fila-ajuste' },
         h('div', {}, h('b', {}, 'Avisos de tus plantas'), estadoAvisos),
         botonAvisos)),
+
+    h('section', { class: 'panel' },
+      h('h3', { class: 'panel-tit' }, 'Sonido'),
+      h('div', { class: 'fila-ajuste' },
+        h('label', { for: sonido.id }, h('b', {}, 'La voz de tus plantas'),
+          h('span', {}, `Cada Rooti habla con su timbre mientras escribe y ronronea cuando lo acariciás. De ${SILENCIO_DESDE}:00 a 0${SILENCIO_HASTA}:00 se callan solos.`)),
+        h('span', { class: 'interruptor' }, sonido, h('i')))),
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Tu plan'),

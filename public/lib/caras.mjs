@@ -20,9 +20,23 @@
  * arranca, y una cara nueva con la misma `clave` (el id de la planta) que
  * una que ya se mostró arranca desde el ánimo que esa tenía, así la
  * transición sobrevive a que la vista se vuelva a pintar.
+ *
+ * LO QUE SÓLO PASA EN EL TELÉFONO
+ *
+ * Dos cosas se le agregan a la cara del firmware, después de dibujada, y
+ * nunca llegan a la maceta:
+ *
+ *   - LA LUZ. Con `lux` (lo que midió el BH1750) la cara se ve con esa luz:
+ *     en penumbra se apaga y se entibia, a pleno sol gana contraste y le
+ *     cruza un brillo. Cuánto, lo decide lib/luz.mjs; se pinta acá con
+ *     modos de mezcla del canvas.
+ *   - LA CARICIA. `acariciar(true)` la pone contenta con los ojos en ^ ^ y
+ *     ronroneando (rk_face_draw_mimo, del mismo módulo), subiendo en un
+ *     tercio de segundo; `acariciar(false)` la devuelve a su ánimo.
  */
 
 import { enBase } from './base.mjs';
+import { iluminacion, faseEspecular } from './luz.mjs';
 
 export const ANIMOS = [
   'UNKNOWN', 'OFFLINE', 'SLEEPING', 'HAPPY', 'THIRSTY', 'DROWNING',
@@ -76,9 +90,83 @@ export function escribirEntrada(s) {
 
 export const leerTexto = (p) => texto(p);
 
+/* ------------------------------------------------------------------ luz --- */
+/* Un lienzo auxiliar compartido: putImageData ignora los modos de mezcla,
+   así que la cara se pone ahí y de ahí se dibuja con los efectos. */
+let aux = null;
+
+function conLuz(e, img, luz, ahora) {
+  const { ctx, px } = e;
+  if (!aux) aux = document.createElement('canvas');
+  if (aux.width !== px || aux.height !== px) { aux.width = px; aux.height = px; }
+  aux.getContext('2d').putImageData(img, 0, 0);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.drawImage(aux, 0, 0);
+
+  if (luz.desaturacion > 0) {
+    /* Con 'saturation' el resultado toma la saturación de lo que se pinta:
+       un gris, con alfa, le quita color de a poco. */
+    ctx.globalCompositeOperation = 'saturation';
+    ctx.fillStyle = `rgba(128,128,128,${luz.desaturacion.toFixed(3)})`;
+    ctx.fillRect(0, 0, px, px);
+  }
+  if (luz.calidez > 0) {
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.fillStyle = `rgba(255,150,70,${(0.55 * luz.calidez).toFixed(3)})`;
+    ctx.fillRect(0, 0, px, px);
+  }
+  if (luz.vineta > 0) {
+    const g = ctx.createRadialGradient(px / 2, px / 2, px * 0.28, px / 2, px / 2, px * 0.78);
+    g.addColorStop(0, 'rgba(60,30,10,0)');
+    g.addColorStop(1, `rgba(60,30,10,${(0.85 * luz.vineta).toFixed(3)})`);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, px, px);
+  }
+  if (luz.contraste > 1) {
+    /* La imagen sobre sí misma en 'overlay' es más contraste, sin filtros
+       (ctx.filter no está en todos los navegadores). */
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.globalAlpha = Math.min(1, (luz.contraste - 1) * 3);
+    ctx.drawImage(aux, 0, 0);
+    ctx.globalAlpha = 1;
+  }
+  if (luz.especular > 0) {
+    /* Un brillo que cruza en diagonal (45°), como el reflejo del sol en un
+       vidrio, animado con el tiempo. */
+    const f = faseEspecular(ahora);
+    const g = ctx.createLinearGradient(0, 0, px, px);
+    const a = (0.32 * luz.especular).toFixed(3);
+    const p0 = Math.max(0, Math.min(1, f - 0.12));
+    const p1 = Math.max(0, Math.min(1, f));
+    const p2 = Math.max(0, Math.min(1, f + 0.12));
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(p0, 'rgba(255,255,255,0)');
+    g.addColorStop(p1, `rgba(255,255,255,${a})`);
+    g.addColorStop(p2, 'rgba(255,255,255,0)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, px, px);
+  }
+  ctx.restore();
+}
+
 /* ---------------------------------------------------------------- bucle --- */
 const activas = new Set();
 let corriendo = false;
+
+/* Cuánto mimo hay ahora: sube o baja con la curva de la transición. */
+function mimoActual(e, ahora) {
+  if (!modulo.transicionMs || !modulo.x.cara_anim_pct) return e.mimo ? 100 : 0;
+  const pasado = Math.floor(ahora - e.mimoT0);
+  const pct = pasado >= modulo.transicionMs ? 100 : modulo.x.cara_anim_pct(Math.max(0, pasado));
+  return e.mimo ? e.mimoDesde + Math.round((100 - e.mimoDesde) * pct / 100)
+    : e.mimoDesde - Math.round(e.mimoDesde * pct / 100);
+}
 
 function pintar(e, ahora) {
   const x = modulo.x;
@@ -96,18 +184,32 @@ function pintar(e, ahora) {
   } else {
     const animo = Math.max(0, ANIMOS.indexOf(e.animo));
     const pasado = e.desde !== undefined ? performance.now() - e.transicion : Infinity;
-    if (pasado < modulo.transicionMs && x.cara_mezcla) {
+    const mimo = e.mimoT0 !== undefined ? mimoActual(e, performance.now()) : 0;
+    e.mimoPct = mimo;
+    if (mimo > 0 && x.cara_mimo) {
+      x.cara_mimo(idx, animo, e.etapa || 0, mimo, ms);
+      e.desde = undefined;
+    } else if (pasado < modulo.transicionMs && x.cara_mezcla) {
       x.cara_mezcla(idx, Math.max(0, ANIMOS.indexOf(e.desde)), animo, x.cara_anim_pct(Math.floor(pasado)), e.etapa || 0, 0, ms);
     } else {
       e.desde = undefined;
       x.cara(idx, animo, e.etapa || 0, ms);
     }
+    if (mimo === 0 && !e.mimo) e.mimoT0 = undefined;
   }
   const datos = new Uint8ClampedArray(x.memory.buffer, x.rgba(), e.px * e.px * 4);
-  e.ctx.putImageData(new ImageData(new Uint8ClampedArray(datos), e.px, e.px), 0, 0);
+  const img = new ImageData(new Uint8ClampedArray(datos), e.px, e.px);
+  const luz = e.modo === 'cara' && e.persona ? iluminacion(e.lux) : null;
+  if (luz && !luz.neutra) conLuz(e, img, luz, ahora);
+  else e.ctx.putImageData(img, 0, 0);
   e.pintada = true;
   e.c.style.backgroundImage = '';
 }
+
+/* Cuándo una cara necesita cuadros seguidos: en la transición, con mimo, y
+   con el brillo del sol cruzándola. */
+const animada = (e) => e.desde !== undefined || e.mimoT0 !== undefined
+  || (e.lux !== null && e.lux !== undefined && !iluminacion(e.lux).neutra && iluminacion(e.lux).especular > 0);
 
 function bucle(t) {
   for (const e of activas) {
@@ -119,7 +221,7 @@ function bucle(t) {
     if (e.oculta) continue;
     /* Durante la transición se dibuja a 30 cuadros, sea cual sea el ritmo
        de reposo de esa cara: es un tercio de segundo y tiene que ser suave. */
-    if (t - e.ultimo < 1000 / (e.desde !== undefined ? 30 : e.fps)) continue;
+    if (t - e.ultimo < 1000 / (animada(e) ? 30 : e.fps)) continue;
     e.ultimo = t;
     if (modulo) pintar(e, performance.timeOrigin + t);
   }
@@ -155,13 +257,14 @@ const RECUERDO_MS = 120000;
  *   lado      tamaño en pixeles CSS
  *   clave     identidad de la cara entre repintadas (el id de la planta):
  *             con ella, un cambio de ánimo se anima aunque el lienzo sea nuevo
+ *   lux       la luz que midió el Rooti, o null: la cara se ve con esa luz
  *
  * Devuelve el <canvas>, con un método `actualizar({...})` para cambiar
- * ánimo, modo o persona sin recrearlo.
+ * ánimo, modo, persona o luz sin recrearlo, y `acariciar(si)` para el mimo.
  */
 export function cara({
   persona = '', animo = 'HAPPY', etapa = 0, modo = 'cara', lado = 120,
-  clase = '', fps = 24, alTerminar = null, etiqueta = '', clave = '',
+  clase = '', fps = 24, alTerminar = null, etiqueta = '', clave = '', lux = null,
 } = {}) {
   const c = document.createElement('canvas');
   const densidad = Math.min(2, window.devicePixelRatio || 1);
@@ -179,8 +282,9 @@ export function cara({
   }
 
   const e = {
-    c, ctx: c.getContext('2d'), px, persona, animo, etapa, modo, fps, alTerminar, clave,
+    c, ctx: c.getContext('2d'), px, persona, animo, etapa, modo, fps, alTerminar, clave, lux,
     inicio: Date.now(), ultimo: -1e9, creada: performance.now(), visto: false, oculta: false,
+    mimo: false, mimoPct: 0, mimoDesde: 0,
   };
   if (clave && persona && modo === 'cara') {
     const previo = ultimoAnimo.get(clave);
@@ -200,6 +304,15 @@ export function cara({
     }
     Object.assign(e, cambios);
     if (e.clave && e.persona) ultimoAnimo.set(e.clave, { animo: e.animo, t: performance.now() });
+    e.ultimo = -1e9;
+  };
+  /* El mimo sube o baja desde donde esté: soltar a mitad de subida baja
+     desde ahí, sin saltos. */
+  c.acariciar = (si) => {
+    if (Boolean(si) === e.mimo && e.mimoT0 !== undefined) return;
+    e.mimoDesde = e.mimoPct;
+    e.mimo = Boolean(si);
+    e.mimoT0 = performance.now();
     e.ultimo = -1e9;
   };
   activas.add(e);

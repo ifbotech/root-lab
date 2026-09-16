@@ -16,6 +16,7 @@ import {
 } from '../lib/model.mjs';
 import { caraDeNodo } from './hoy.mjs';
 import { token } from '../lib/tema.mjs';
+import { acariciarCara } from '../lib/caricias.mjs';
 
 const CUIDADO_ES = {
   riego: 'Riego', luz: 'Luz', temperatura: 'Temperatura', humedad: 'Humedad', sustrato: 'Sustrato',
@@ -246,20 +247,25 @@ export function vistaDetalle(ctx) {
     } catch (e) { avisar(e.message, true); }
   };
 
+  /* La cara grande se deja acariciar (lib/caricias.mjs). */
+  const marco = caraDeNodo(n, 176, { fondo: modelo?.fondo, fps: 24 });
+  const heroe = h('section', { class: `heroe sev-${SEV_CLASE[n.severity] || 'bien'}`, style: modelo ? `--piel:${modelo.fondo}` : '' },
+    marco,
+    h('h2', {}, n.nombre || 'Sin nombre'),
+    n.revelado ? h('p', { class: 'dice' }, n.reason || '') : null,
+    h('p', { class: 'heroe-sub' },
+      esp?.nombre || 'sin identificar', ' · ',
+      h('span', { class: `enlace-${(n.link || '').toLowerCase()}` }, LINK_ES[n.link] || '—'), ' · ',
+      formatEdad(n.tel?.age_s)));
+  if (n.revelado) acariciarCara(marco.querySelector('canvas'), { escenario: heroe, direccion: 'pan-y' });
+
   render(cont,
     h('header', { class: 'vista-cab' },
       h('button', { class: 'boton chico', type: 'button', onClick: volver }, '‹'),
       h('h2', {}, ''),
       h('button', { class: 'boton chico', type: 'button', onClick: renombrar }, 'Renombrar')),
 
-    h('section', { class: `heroe sev-${SEV_CLASE[n.severity] || 'bien'}`, style: modelo ? `--piel:${modelo.fondo}` : '' },
-      caraDeNodo(n, 176, { fondo: modelo?.fondo, fps: 24 }),
-      h('h2', {}, n.nombre || 'Sin nombre'),
-      n.revelado ? h('p', { class: 'dice' }, n.reason || '') : null,
-      h('p', { class: 'heroe-sub' },
-        esp?.nombre || 'sin identificar', ' · ',
-        h('span', { class: `enlace-${(n.link || '').toLowerCase()}` }, LINK_ES[n.link] || '—'), ' · ',
-        formatEdad(n.tel?.age_s))),
+    heroe,
 
     !n.revelado
       ? h('section', { class: 'panel' },
@@ -274,6 +280,14 @@ export function vistaDetalle(ctx) {
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Ahora'),
       medidores(n, esp)),
+
+    n.revelado
+      ? h('section', { class: 'panel' },
+          h('button', { class: 'boton ancho', type: 'button', onClick: () => irA('desk', n.id) },
+            icono('pantalla', 20), 'Modo escritorio'),
+          h('p', { class: 'nota', style: 'margin-top:10px' },
+            'La cara sola, a pantalla completa y sin que se apague: para un teléfono apoyado en el escritorio. Se deja acariciar.'))
+      : null,
 
     h('section', { class: 'panel' },
       h('div', { class: 'vinculo-cab' }, h('h3', { class: 'panel-tit', style: 'margin:0' }, 'Últimas horas'), selector),

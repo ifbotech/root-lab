@@ -7,6 +7,8 @@
  *
  *   /v/<CÓDIGO>   lo que abre el QR de la maceta. Arranca (o retoma) el alta
  *                 de ese Rooti. Si ya es tuyo, va directo a su planta.
+ *   /desk/<id>    el modo escritorio: la cara de esa planta a pantalla
+ *                 completa (también #desk/<id>).
  *   /#hoy ...     la app de todos los días.
  *
  * El estado del alta se guarda en el teléfono en cada paso: salir a los
@@ -31,6 +33,7 @@ import { vistaColeccion } from './vistas/coleccion.mjs';
 import { vistaAjustes } from './vistas/ajustes.mjs';
 import { vistaEntrar, vistaRestablecer, vistaVerificar } from './vistas/cuenta.mjs';
 import { vistaChat } from './vistas/chat.mjs';
+import { vistaDesk } from './vistas/desk.mjs';
 import { aplicarPaleta } from './lib/tema.mjs';
 import { PALETA_POR_DEFECTO } from './lib/paletas.mjs';
 import { desactivarAvisos } from './lib/dispositivo.mjs';
@@ -69,6 +72,8 @@ const normalizar = (c) => String(c || '').toUpperCase().replace(/[-\s]/g, '')
 function ruta() {
   const m = rutaSinBase().match(/^\/v\/([^/]+)\/?$/i);
   if (m) return { codigo: normalizar(decodeURIComponent(m[1])) };
+  const d = rutaSinBase().match(/^\/desk\/([^/]+)\/?$/i);
+  if (d) return { vista: 'desk', id: decodeURIComponent(d[1]) };
   const [vista, id] = location.hash.replace(/^#/, '').split('/');
   return { vista: vista || 'hoy', id: id || null };
 }
@@ -252,6 +257,7 @@ function contexto() {
     salir,
     cerrarSesionLocal,
     alChat: (id) => irA('chat', id),
+    repintar: () => pintar(),
     alVerificar: () => { if (app.cuenta) recargar(); },
     /* Pinta la app con una paleta, con el círculo que crece desde `origen`. */
     pintarApp: (paleta, origen = null) => aplicarPaleta(paleta, { animar: true, origen }),
@@ -260,9 +266,9 @@ function contexto() {
 
 const PESTANA = {
   hoy: 'hoy', plantas: 'plantas', planta: 'plantas', diagnostico: 'plantas', especie: 'plantas', chat: 'plantas',
-  coleccion: 'coleccion', ajustes: 'ajustes',
+  desk: 'plantas', coleccion: 'coleccion', ajustes: 'ajustes',
 };
-const SIN_TABS = new Set(['alta', 'agregar', 'especie', 'entrar', 'clave', 'verificar']);
+const SIN_TABS = new Set(['alta', 'agregar', 'especie', 'entrar', 'clave', 'verificar', 'desk']);
 /* Lo único que se ve sin sesión, además del alta. */
 const PUBLICAS = new Set(['agregar', 'entrar', 'clave', 'verificar']);
 
@@ -288,6 +294,7 @@ function pintar() {
       case 'clave': vista = vistaRestablecer(ctx); break;
       case 'verificar': vista = vistaVerificar(ctx); break;
       case 'chat': vista = vistaChat(ctx); break;
+      case 'desk': vista = vistaDesk(ctx); break;
       case 'plantas': vista = vistaPlantas(ctx); break;
       case 'planta': vista = vistaDetalle(ctx); break;
       case 'diagnostico': vista = vistaDiagnostico(ctx); break;
@@ -300,6 +307,7 @@ function pintar() {
   }
 
   document.body.classList.toggle('sin-tabs', sinTabs);
+  document.body.classList.toggle('desk', Boolean(app.cuenta) && !r.codigo && r.vista === 'desk');
   render($('#vista'), vista);
 
   const activa = PESTANA[r.vista] || (r.codigo ? '' : 'hoy');
@@ -327,8 +335,9 @@ function pintar() {
    reiniciar un gráfico cada quince segundos. */
 async function refrescar() {
   const r = ruta();
-  /* La charla y el diagnóstico no se repintan solos: se perdería lo escrito. */
-  if (document.hidden || r.codigo || SIN_TABS.has(r.vista) || r.vista === 'diagnostico' || r.vista === 'chat') return;
+  /* La charla y el diagnóstico no se repintan solos: se perdería lo escrito.
+     El modo escritorio sí: es la cara en vivo. */
+  if (document.hidden || r.codigo || (SIN_TABS.has(r.vista) && r.vista !== 'desk') || r.vista === 'diagnostico' || r.vista === 'chat') return;
   const antes = app.firma;
   const sinRedAntes = app.sinRed;
   await recargar();

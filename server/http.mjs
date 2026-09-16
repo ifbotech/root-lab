@@ -203,7 +203,8 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
         res.end(JSON.stringify(respuesta));
         return;
       }
-      if (ruta === '/' || ruta === '/index.html' || /^\/v\/[^/]+\/?$/i.test(ruta)) {
+      /* /v/<código> (el QR) y /desk/<id> (el modo escritorio) son la app. */
+      if (ruta === '/' || ruta === '/index.html' || /^\/(v|desk)\/[^/]+\/?$/i.test(ruta)) {
         return await pagina(res, join(PUBLICO, 'index.html'));
       }
       if (ruta === '/manifest.webmanifest') return await manifest(res, url);

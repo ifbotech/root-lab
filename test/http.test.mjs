@@ -70,6 +70,9 @@ describe('servidor en /rootkit', () => {
     assert.equal(r.status, 200);
     assert.match(await r.text(), /<base href="\/rootkit\/">/);
     assert.equal((await pedir(`${s.url}/rootkit/v/k7q2m9xa`)).status, 200);
+    const desk = await pedir(`${s.url}/rootkit/desk/abc123`);
+    assert.equal(desk.status, 200, 'el modo escritorio es la misma app');
+    assert.match(await desk.text(), /<base href="\/rootkit\/">/);
   });
 
   test('la API responde con la base y sin ella', async () => {
@@ -161,6 +164,7 @@ describe('servidor en la raíz', () => {
     const html = await (await pedir(`${s.url}/`)).text();
     assert.match(html, /<base href="\/">/);
     assert.equal((await pedir(`${s.url}/v/K7Q2M9XA`)).status, 200);
+    assert.equal((await pedir(`${s.url}/desk/abc123`)).status, 200);
     assert.equal((await pedir(`${s.url}/api/config`)).status, 200);
   });
 });

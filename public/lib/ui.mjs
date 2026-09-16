@@ -100,6 +100,9 @@ const TRAZOS = {
   chat: 'M4 5 h16 v11 H10 l-5 4 v-4 H4 Z M8 9.5 h8 M8 12.5 h5',
   candado: 'M6 11 h12 v10 H6 Z M8.5 11 V8 a3.5 3.5 0 0 1 7 0 v3 M12 15 v2',
   paleta: 'M12 3 a9 9 0 1 0 0 18 c1.5 0 2-1 2-2 s-1-2 0-3 h3 a4 4 0 0 0 4-4 C21 7 17 3 12 3 Z M7.5 12 h.01 M9 7.5 h.01 M15 7.5 h.01',
+  corazon: 'M12 20 C12 20 3.5 14 3.5 8.5 a4.2 4.2 0 0 1 8.5-.8 a4.2 4.2 0 0 1 8.5 .8 C20.5 14 12 20 12 20 Z',
+  pantalla: 'M3 5 h18 v12 H3 Z M9 21 h6 M12 17 v4',
+  altavoz: 'M4 10 v4 h3 l5 4 V6 L7 10 Z M15.5 9 a4 4 0 0 1 0 6 M18 6.5 a8 8 0 0 1 0 11',
 };
 
 /** Un icono SVG. `lado` en pixeles. */

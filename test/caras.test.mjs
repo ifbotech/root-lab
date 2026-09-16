@@ -51,6 +51,22 @@ describe('el módulo de caras', async () => {
     assert.ok(x.despertar_ms() > 1000);
   });
 
+  test('la caricia: ^ ^ sobre cualquier ánimo, y en 0 la cara de siempre', () => {
+    x.lienzo(64, 64);
+    x.cara(1, 4, 0, 1200);
+    const sed = hashCuadro(64);
+    x.cara_mimo(1, 4, 0, 0, 1200);
+    assert.equal(hashCuadro(64), sed, 'sin mimo es la cara del ánimo');
+    x.cara_mimo(1, 4, 0, 100, 1200);
+    const mimo = hashCuadro(64);
+    assert.notEqual(mimo, sed);
+    x.cara(1, 3, 0, 1200);
+    assert.notEqual(mimo, hashCuadro(64), 'tampoco es la de contento');
+    x.cara_mimo(1, 4, 0, 50, 1200);
+    const medio = hashCuadro(64);
+    assert.ok(medio !== sed && medio !== mimo, 'a medias, entre las dos');
+  });
+
   test('deriva el mismo código que el servidor', () => {
     const secreto = Buffer.from('3a917c05ee4218b69d602fc3710e845b', 'hex');
     new Uint8Array(x.memory.buffer, x.secreto(), 16).set(secreto);
