@@ -115,7 +115,8 @@ node tools/verificar-despliegue.mjs https://ifbotech.com/rootkit --flujo  # reco
 
 El `--flujo` crea dos cuentas de prueba, vincula un aparato inventado,
 comprueba que la segunda cuenta no ve la planta de la primera y al final
-borra las dos: no queda nada en la base.
+borra las dos cuentas con sus plantas. Queda sólo el registro del aparato
+inventado (sin dueño), igual que una maceta que nunca se vinculó.
 
 ### Operar
 

@@ -9,7 +9,8 @@
  * Con --flujo además recorre el camino completo con un aparato de prueba:
  * cuenta, sincronización, vínculo, cofre, nombre, especie, lecturas y estado.
  * Abre una segunda cuenta para comprobar que no ve la planta de la primera,
- * y al final borra las dos cuentas: no queda nada en la base.
+ * y al final borra las dos cuentas con sus plantas (queda el aparato
+ * inventado, sin dueño).
  */
 import { randomBytes } from 'node:crypto';
 import { codigoVinculo, tokenApi } from '../server/codigo.mjs';

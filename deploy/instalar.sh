@@ -132,7 +132,7 @@ paso "Salud"
 PUERTO_REAL="$(grep -E '^PORT=' "$ENV_FILE" | cut -d= -f2)"
 BASE_REAL="$(grep -E '^ROOTLAB_BASE=' "$ENV_FILE" | cut -d= -f2)"
 for i in $(seq 1 30); do
-  if curl -fsS "http://127.0.0.1:${PUERTO_REAL}${BASE_REAL}/api/salud"; then
+  if curl -fsS "http://127.0.0.1:${PUERTO_REAL}${BASE_REAL}/api/salud" 2>/dev/null; then
     echo
     echo "root-lab funcionando en 127.0.0.1:${PUERTO_REAL}${BASE_REAL}/"
     exit 0
