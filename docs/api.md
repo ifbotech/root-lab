@@ -92,7 +92,7 @@ no hace falta regalar intentos.
 | `PATCH /api/plantas/:id` | `{ nombre?, especie?, pantalla?, brillo? }`. Con la especie nace la ficha de cuidados; con nombre y especie, el prompt del chat |
 | `DELETE /api/plantas/:id` | desvincula: la maceta vuelve al QR con código nuevo. La planta y sus lecturas quedan guardadas en la cuenta |
 | `POST /api/plantas/:id/cofre` | abre el cofre: `{ id, nombre, rareza, lema, fondo, nuevo, probabilidad, de_fabrica, planta, paleta, pinta }`. `pinta`: el Rooti tiene paleta propia y la cuenta pasó a usarla |
-| `GET /api/plantas/:id/historial?horas=48` | `{ total, puntos: [{ t, soil_pct, temp_dc, rh_pct, lux, mood }] }`: `horas` hasta 8784 (un año), promediado en hasta 240 puntos; `total` es la cantidad de lecturas guardadas en esa ventana |
+| `GET /api/plantas/:id/historial?horas=48` | `{ total, puntos: [{ t, soil_pct, temp_dc, rh_pct, lux, mood, escurre? }] }`: `horas` hasta 8784 (un año), promediado en hasta 240 puntos; `total` es la cantidad de lecturas guardadas en esa ventana |
 
 `especie` acepta un id del catálogo o un objeto completo
 (`{ id, nombre, cientifico, soil_min, soil_max, temp_min_dc, temp_max_dc, rh_min, lux_min, lux_max }`),
@@ -108,7 +108,8 @@ Una planta en `nodes`:
   "chat": true,
   "link": "VIVO", "mood": "THIRSTY", "severity": "URGENT", "reason": "tengo sed",
   "tel": { "soil_pct": 12, "temp_dc": 231, "rh_pct": 58, "lux": 5200,
-           "suelo_dc": null, "batt_mv": 3900, "usb": false, "age_s": 30 },
+           "suelo_dc": null, "batt_mv": 3900, "usb": false, "age_s": 30,
+           "escurre": false },
   "nodo": { "id": "A1B2...", "batt_pct": 76, "usb": false, "rssi": -60,
             "fw": "0.5.0", "placa": "c3-supermini", "en_linea": true },
   "bond": { "dias_vividos": 40, "dias_sanos": 34, "racha": 8, "mejor_racha": 19 },
@@ -118,6 +119,11 @@ Una planta en `nodes`:
 
 `link`: `VIVO` (< 45 min), `TIBIO` (< 6 h), `CAIDO`, `NUNCA`. Con `CAIDO` el
 ánimo se muestra como `OFFLINE`.
+
+`tel.escurre`: el Rooti detectó que el último riego se escurrió por los
+costados sin empapar (viene en cada lectura como `escurre: true` o el bit 16
+de `fallas`, ver `root-kit/docs/nube.md`). La app lo convierte en la tarea
+"el agua se escurrió" y en un aviso, y el chat lo sabe.
 
 ### IA: fotos y chat
 

@@ -66,7 +66,7 @@ exigen HTTPS. Ver [docs/despliegue.md](docs/despliegue.md).
 ## Pruebas
 
 ```bash
-npm test          # 224 pruebas
+npm test          # 228 pruebas
 ```
 
 Flujo completo con un Rooti virtual, cuentas y aislamiento entre cuentas,

@@ -9,6 +9,7 @@ reglas de `server/avisos.mjs` son, antes que nada, de restricción.
 | Aviso | Cuándo | Se repite |
 |---|---|---|
 | **Ánimo** (sed, ahogo, frío, calor, sol de más, poca luz, aire seco) | el Rooti reporta ese ánimo con severidad `WATCH` o `URGENT` | a las 8 h; a las 3 h si es urgente |
+| **El riego se escurrió** | el Rooti vio la tierra subir de golpe y bajar enseguida (el agua pasó por los costados) | cada 24 h; de día, aunque el ánimo esté bien |
 | **Batería baja** | a batería y por debajo de 3,45 V | cada 24 h |
 | **No reporta** | más de 6 h sin noticias | cada 24 h |
 
