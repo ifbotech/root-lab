@@ -10,7 +10,7 @@
  */
 
 /* Subir la versión invalida el caché entero. */
-const CACHE = 'rootlab-v8';
+const CACHE = 'rootlab-v9';
 
 /* La app puede estar montada en una subruta (/rootkit/): todo se resuelve
    contra el alcance del service worker, nunca contra la raíz del dominio. */

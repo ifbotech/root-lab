@@ -50,6 +50,10 @@ export function aplicarPaleta(id, { animar = false, origen = null } = {}) {
       document.documentElement.style.setProperty('--pintar-y', `${Math.round(r.top + r.height / 2)}px`);
     }
     const t = document.startViewTransition(() => pintar(paleta));
+    /* El navegador puede abortar la animación (la página se ocultó, cambió
+       el tamaño...): los colores igual se aplican, sólo no hay círculo. */
+    t.ready.catch(() => {});
+    t.updateCallbackDone.catch(() => { if (actual !== paleta.id) pintar(paleta); });
     return t.finished.then(() => true, () => true);
   }
   pintar(paleta);

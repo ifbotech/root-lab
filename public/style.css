@@ -723,6 +723,7 @@ input[type=range] { width: 100%; accent-color: var(--secundario); }
   font-size: 14px; font-weight: 700;
 }
 .banda .boton { margin-left: auto; }
+.banda svg { flex: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

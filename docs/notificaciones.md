@@ -8,7 +8,7 @@ reglas de `server/avisos.mjs` son, antes que nada, de restricción.
 
 | Aviso | Cuándo | Se repite |
 |---|---|---|
-| **Ánimo** (sed, ahogo, frío, calor, sol de más, poca luz, aire seco) | la maceta reporta ese ánimo con severidad `WATCH` o `URGENT` | a las 8 h; a las 3 h si es urgente |
+| **Ánimo** (sed, ahogo, frío, calor, sol de más, poca luz, aire seco) | el Rooti reporta ese ánimo con severidad `WATCH` o `URGENT` | a las 8 h; a las 3 h si es urgente |
 | **Batería baja** | a batería y por debajo de 3,45 V | cada 24 h |
 | **No reporta** | más de 6 h sin noticias | cada 24 h |
 
@@ -19,7 +19,7 @@ reglas de `server/avisos.mjs` son, antes que nada, de restricción.
    episodio avisa enseguida.
 2. **De noche no se molesta.** De 23 a 8, en la zona horaria de la cuenta,
    sólo pasa lo urgente.
-3. **Antes del cofre, nada.** La maceta todavía no tiene personaje ni especie.
+3. **Antes del cofre, nada.** El Rooti todavía no reveló quién es ni conoce la especie.
 4. **Si no reporta, sólo eso.** Lo demás sería información vieja.
 5. **Cada aviso dice qué hacer, con el número.** "La tierra está al 18 % y le
    gusta arriba de 25 %. Regala hoy."

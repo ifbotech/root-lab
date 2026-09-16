@@ -1,10 +1,10 @@
 # El alta, paso a paso
 
-Del QR de la maceta a la primera cara. La implementación está en
+Del QR del Rooti a la primera cara. La implementación está en
 `public/vistas/alta.mjs`; el lado del aparato, en
 `root-kit/firmware/core/enlace.c`.
 
-| # | Paso | La maceta | La app |
+| # | Paso | El Rooti | La app |
 |---:|---|---|---|
 | 1 | **hola** | QR + red `ROOTKIT-XXXX` | ojos dormidos, el código, "Empezar" |
 | 2 | **instalar** | QR | instrucciones por sistema; se saltea si ya está instalada |
@@ -12,10 +12,10 @@ Del QR de la maceta a la primera cara. La implementación está en
 | 4 | **avisos** | QR | maqueta de notificación y permiso |
 | 5 | **wifi** | QR → se conecta | pasos del portal; espera hasta que la nube la vea |
 | 6 | **vincular** | **ojos dormidos, grises** | "¡Es tuyo!" |
-| 7 | **cofre** | **abre los ojos** | tres toques, luz, el personaje |
-| 8 | **nombre** | la cara | sugerencias según el personaje |
-| 9 | **foto** | la cara | identificación y rangos de la especie |
-| 10 | **listo** | la cara, con umbrales | "Ver a Rulo" |
+| 7 | **cofre** | **abre los ojos** | tres toques, luz, el Rooti; si tiene paleta propia, **la app se pinta con sus colores** |
+| 8 | **nombre** | la cara | sugerencias según el Rooti |
+| 9 | **foto** | la cara | reconocimiento (pide el Rooti y cuenta para la cuota), rangos y cuidados; o elegir de la lista |
+| 10 | **listo** | la cara, con umbrales | "Ver a Rulo": ficha de cuidados y "Hablar con Rulo" |
 
 ## Por qué en este orden
 
@@ -41,8 +41,14 @@ wifi.
 conoce.
 
 **La foto al final.** Es lo que más puede fallar (luz, foco, una planta rara)
-y lo único que se puede postergar: sin especie, la maceta está contenta de
-conocerte y la app deja la tarea "Sacarle una foto a Rulo".
+y lo único que se puede postergar: sin especie, el Rooti está contento de
+conocerte y la app deja la tarea "Sacarle una foto a Rulo". Con la especie
+confirmada nacen la ficha de cuidados y la charla ([ia.md](ia.md)). Si la
+cuota de reconocimientos del día se terminó o la IA está en pausa, la app va
+directo a la lista: otra foto no serviría.
+
+**Pintar la app en el cofre, no antes.** El color es parte de la revelación:
+la app no sabe de qué colores va a ser hasta que sabe quién te tocó.
 
 ## Dónde se guarda el progreso
 
@@ -64,7 +70,7 @@ salta al primer paso que falte (cofre, nombre o foto), o directo a la planta.
 
 | Qué pasa | Qué hace |
 |---|---|
-| El ROOTKIT ya es de otra cuenta | explica cómo desvincularlo o reiniciarlo (botón 10 s) |
+| El Rooti ya es de otra cuenta | explica cómo desvincularlo o reiniciarlo (botón 10 s) |
 | El email ya tiene cuenta | pasa a "Ya tengo cuenta" con el email escrito |
 | La sesión se cerró a mitad del alta | vuelve al paso de la cuenta; al entrar sigue donde estaba |
 | La clave del wifi estaba mal | a los tres intentos la maceta vuelve a levantar el portal; la app sigue esperando |
