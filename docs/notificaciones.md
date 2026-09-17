@@ -33,7 +33,7 @@ la app lo actualiza con las tareas de hoy al abrirse. Ver
 [sin-red.md](sin-red.md).
 
 El ícono de cada notificación es la cara del personaje en ese ánimo
-(`public/caras/<modelo>-<ANIMO>.png`), y el `tag` hace que un aviso nuevo de
+(`public/caras/<rooti>-<rareza>-<ANIMO>.png`: la cara con la piel que salió del cofre), y el `tag` hace que un aviso nuevo de
 la misma planta reemplace al anterior en vez de apilarse.
 
 ## Cómo llega

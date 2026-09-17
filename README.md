@@ -1,20 +1,30 @@
 # ROOTLAB (root-lab)
 
 La app y la nube de **ROOTKIT**, la maceta con sensores y pantalla. Cada
-ROOTKIT tiene un personaje, su **Rooti**: al principio muestra un QR, y
-después de abrir su cofre, unos ojos que reaccionan a cómo está tu planta.
+ROOTKIT es uno de cinco **Rooties** botánicos —Brote, Musgo, Pinchito, Bulbo
+y Champi—: al principio muestra un QR, y después de abrir su cofre, unos ojos
+que reaccionan a cómo está tu planta.
 
 **ROOTLAB** es todo lo que el aparato no hace:
 
 - **Cuentas** con email y contraseña: cada persona ve sólo sus plantas, desde
   cualquier teléfono. Recuperar la contraseña y confirmar el email por correo.
-- **Vincular** un Rooti por su QR y **abrir el cofre** para descubrir quién es.
+- **Vincular** un Rooti por su QR (la app lo reconoce: "¡Conectaste a tu
+  Brote!") y **abrir el cofre**, que sortea su **piel**: común (70 %), rara
+  (25 %) o épica (5 %). La maceta se pinta con esa paleta y la app también.
 - **Reconocer la planta** con una foto y armar su **ficha de cuidados**.
 - **Charlar con la planta**: contesta con su nombre, la personalidad de su
   Rooti y lo que miden sus sensores en ese momento.
 - **Tablero** con tareas del día, gráficos, diagnóstico por foto y
   **notificaciones** cuando la planta necesita algo.
-- **Paletas dinámicas**: la app se pinta con los colores de tu Rooti.
+- **Paletas dinámicas**: la app se pinta con los colores de la piel de tu
+  Rooti; quince pieles pastel, de libro de cuentos.
+- **El Rooti entero**: en el teléfono se ve el personaje completo, con la
+  cara del firmware en la ventana de su pantalla. Es una **mascota**: dos
+  barras (salud, que dan los sensores, y felicidad, que dan los mimos),
+  caricias que ronronean, polvo que se limpia con una esponja, snacks de
+  gotas de rocío que se ganan con la planta cómoda, y de noche se sienta con
+  su gorrito.
 - **El Rooti en el teléfono**: la cara se ve con la luz que hay en la pieza,
   se deja **acariciar** (ojos en `^ ^`, vibración, corazones), habla con **su
   voz** mientras escribe y se queda a pantalla completa en el **modo
@@ -62,16 +72,33 @@ npm start
 El **emulador** es un Rooti en el navegador que corre el firmware real
 compilado a WebAssembly y habla con este servidor igual que la placa:
 
-1. Abrí el emulador. En *Fábrica* elegí **Chico Malo** o **Chica Chill** para
-   ver cómo la app se pinta con su paleta (o dejá que el cofre tire).
+1. Abrí el emulador. En *Fábrica* elegí qué Rooti es la figura (Brote por
+   defecto).
 2. **Pasarle el wifi** simula el portal cautivo.
 3. **Abrir la app** (o escaneá el QR con el teléfono en la misma red).
-4. En la app: empezar → crear cuenta → avisos → vincular → **cofre**.
-5. Mirá el emulador cuando se abre el cofre: abre los ojos.
+4. En la app: empezar → crear cuenta → avisos → vincular ("¡Conectaste a tu
+   Brote!") → **cofre**.
+5. Mirá el emulador cuando se abre el cofre: abre los ojos con la piel que
+   salió, y la carcasa toma su color.
 6. Nombre, foto de una planta, y **Hablar con** tu planta.
 7. Mové los deslizadores del emulador: la cara cambia, la app muestra tareas,
    la planta lo cuenta en la charla y, con los avisos activados, llega la
    notificación.
+
+La tarjeta **Probar lo nuevo** del emulador acorta lo que en la vida real
+lleva días:
+
+| Botón | Para probar |
+|---|---|
+| Ver piel | las tres pieles en la pantalla y en el cuerpo, sin abrir otro cofre (sólo en el emulador) |
+| Riego que se escurre | el detector de riego del firmware: el aviso y la tarea "el agua se escurrió" |
+| 48 h de historial | gráficos, VPD/DLI, previsión de riego, álbum y pasaporte con datos, y gotas de rocío |
+| Penumbra / Interior / Sol pleno | la cara con la luz de la pieza |
+| Noche simulada | los Rooties sentados con gorrito y Zzz (pone la hora de prueba en 23 h; la app muestra una píldora para sacarla) |
+| 3 días sin mimos | el polvo, la esponja y la felicidad que baja |
+| +3 gotas de rocío | el snack |
+| Ir a | la ficha con los mimos, el modo escritorio, el álbum, el pasaporte, el invernadero y la colección |
+| Otro Rooti | abre `emulador/?n=2` (y así): otro aparato con su propia identidad, para el invernadero |
 
 Sin configuración, todo funciona en local: la IA es **simulada** (la app lo
 avisa), los emails quedan como `.eml` en `data/correos` (los enlaces andan) y
@@ -85,7 +112,7 @@ exigen HTTPS. Ver [docs/despliegue.md](docs/despliegue.md).
 ## Pruebas
 
 ```bash
-npm test          # 301 pruebas
+npm test          # 367 pruebas
 ```
 
 Flujo completo con un Rooti virtual, cuentas y aislamiento entre cuentas,
@@ -95,7 +122,9 @@ chat con la API de Anthropic simulada, ficha y prompt, contraste WCAG de las
 paletas, cabeceras de seguridad y ausencia de recursos de terceros, HTTP en
 subruta, avisos, diagnóstico, tareas, caras, lo que el teléfono le agrega a
 la cara (luz, voz, caricia, modo escritorio), el pronóstico y la previsión
-de riego, VPD y DLI, y el enlace del cuidador.
+de riego, VPD y DLI, el enlace del cuidador, las pieles y el cofre (70/25/5),
+la mascota, y que las siluetas de los cuerpos se puedan imprimir sin
+soportes (voladizos de 45° como máximo, base plana, centro de masa bajo).
 
 Contra un servidor desplegado: `node tools/verificar-despliegue.mjs <url> --flujo`.
 
@@ -116,7 +145,7 @@ server/
   ficha.mjs              ficha de cuidados, prompt del chat y datos en vivo
   avisos.mjs             qué notificación mandar y cuándo callarse
   clima.mjs              el pronóstico (Open-Meteo) y el riego que se anticipa
-  cofre.mjs              qué Rooti sale del cofre
+  cofre.mjs              qué Rooti es cada aparato y qué piel sale del cofre
   catalogo.mjs           especies curadas y Rooties (generados desde el firmware)
   codigo.mjs             código de vinculación, igual que el firmware
   push.mjs               Web Push con claves VAPID
@@ -124,10 +153,11 @@ server/
 public/                  la app (PWA sin build)
   app.js                 rutas, sesión, alta
   tema.js                la paleta guardada antes de la primera pintada
-  vistas/                alta, cuenta, cofre, hoy, plantas, botánica, chat, escáner, Rooties, ajustes,
-                         modo escritorio, cuidador, invernadero, álbum, pasaporte
-  lib/                   paletas y tema, tareas, diagnóstico, gamificación, caras, luz, caricias, voz,
-                         botánica, miradas, gif, pasaporte, almacén y cola (sin red), API
+  vistas/                alta, cuenta, cofre, hoy, plantas, mascota, botánica, chat, escáner, Rooties,
+                         ajustes, modo escritorio, cuidador, invernadero, álbum, pasaporte
+  lib/                   rooties (generado), cuerpo, mascota, reloj, paletas y tema, tareas, diagnóstico,
+                         gamificación, caras, luz, caricias, voz, botánica, miradas, gif, pasaporte,
+                         almacén y cola (sin red), API
   caras/                 el firmware en WebAssembly y las imágenes de las caras
   fuentes/               Nunito (OFL), servida desde la app
 emulador/                el Rooti virtual
@@ -147,7 +177,9 @@ docs/
 | [seguridad.md](docs/seguridad.md) | Cifrado, contraseñas, clave maestra, cabeceras, servidor |
 | [ia.md](docs/ia.md) | Reconocer, diagnosticar, charlar; tope de gasto y cuotas |
 | [correo.md](docs/correo.md) | Nodemailer + Brevo, SPF/DKIM/DMARC, plantillas |
-| [paletas.md](docs/paletas.md) | Paletas dinámicas y cómo agregar la de un Rooti nuevo |
+| [rooties.md](docs/rooties.md) | Los cinco Rooties, sus pieles, el cofre y el cuerpo que se imprime sin soportes |
+| [mascota.md](docs/mascota.md) | Salud y felicidad: caricias, polvo, gotas de rocío y la noche |
+| [paletas.md](docs/paletas.md) | Las paletas de las pieles, las cosméticas y el motor de contraste |
 | [notificaciones.md](docs/notificaciones.md) | Cuándo se avisa y cuándo no |
 | [sensorial.md](docs/sensorial.md) | La cara en el teléfono: luz, caricias, voz y modo escritorio |
 | [clima.md](docs/clima.md) | Regar antes con el pronóstico; VPD y DLI |

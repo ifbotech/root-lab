@@ -58,15 +58,24 @@ La planta no está mejor porque la acaricien: la cara vuelve a decir la verdad.
 
 En la charla, la respuesta de la planta aparece **letra por letra** y cada
 letra suena: un blip sintetizado con Web Audio, sin archivos de sonido. Cada
-Rooti tiene su voz, y son datos (`VOCES`, por modelo) que la artista puede
+Rooti tiene su voz, y son datos (`VOCES`, por Rooti) que la artista puede
 afinar:
 
 | Rooti | Onda | Rango | Carácter |
 |---|---|---|---|
-| Chico Malo | diente de sierra | 130–220 Hz | rápido (22 ms por letra), ataque seco, pausas cortas |
-| Chica Chill | senoidal | 260–380 Hz | lento (46 ms), ataque suave (35 ms), sólo las vocales suenan, pausas largas |
-| Kawaii | triangular | 500–800 Hz | arpegios que suben y bajan por la pentatónica de do (C5 D5 E5 G5) |
-| los demás | según el modelo | 180–900 Hz | ver `VOCES`; `VOZ_BASE` para un modelo nuevo |
+| Brote | triangular | 380–620 Hz | curiosa: 30 ms por letra, todas suenan |
+| Musgo | senoidal | 260–380 Hz | zen: lento (46 ms), ataque suave (35 ms), sólo las vocales suenan, pausas largas |
+| Pinchito | cuadrada | 420–700 Hz | hiperactiva: la más rápida (20 ms), ataque seco, pausas cortas |
+| Bulbo | triangular | 500–800 Hz | soñadora: arpegios que suben y bajan por la pentatónica de do (C5 D5 E5 G5) |
+| Champi | diente de sierra | 130–220 Hz | glotona: grave y rápida (22 ms), con la boca llena |
+
+`VOZ_BASE` sirve para un Rooti nuevo sin voz propia.
+
+**Los sonidos de la mascota** ([mascota.md](mascota.md)) son del mismo
+sintetizador: el **ronroneo** de la caricia (un triangular de 62 Hz con un
+temblor de 25 Hz), las **burbujas** de la esponja (tres gotitas senoidales
+que suben: 880, 1175 y 1480 Hz) y el **bocado** del snack (un "ñam" en dos
+notas, 220 y 330 Hz).
 
 Una letra siempre suena igual (la nota sale de un hash de la letra, las
 vocales van a la mitad alta del rango), la coma respira y el punto descansa.

@@ -1,8 +1,11 @@
 # El invernadero: todos los Rooties en un estante, mirándose
 
 Desde **Hoy → Ver el invernadero** (con dos o más Rooties). Es la escena de
-la casa: las plantas una al lado de la otra, cada Rooti con la cara que está
-poniendo ahora, sobre un estante. Sirve para saber de un vistazo quién
+la casa: las plantas una al lado de la otra, cada Rooti **entero**
+(`lib/cuerpo.mjs`, con su piel) y la cara que está poniendo ahora en la
+ventana de su pantalla, sobre un estante. De 22 a 8 se sientan con su
+gorrito, salvo el que necesita algo: esa cara no se duerme. El que está en
+urgente late con un resplandor rojo. Sirve para saber de un vistazo quién
 necesita algo sin leer nada.
 
 ## Las miradas (`lib/miradas.mjs`)

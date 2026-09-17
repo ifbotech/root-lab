@@ -164,12 +164,14 @@ node tools/verificar-despliegue.mjs https://ifbotech.com/rootkit --flujo --ia # 
 ```
 
 Sin `--flujo`: salud y esquema, cabeceras de seguridad y HSTS, que no haya
-recursos de terceros, QR, manifest, caras (Chico Malo y Chica Chill
-incluidos), fuente, emulador.
+recursos de terceros, QR, manifest, caras de las pieles y la dormida, los
+módulos del cuerpo y la mascota, fuente, emulador.
 
 El `--flujo` crea dos cuentas de prueba en `@rootlab.invalid` (un dominio al
 que el servidor nunca manda emails), vincula un aparato inventado, abre el
-cofre (sale Chica Chill y pinta la cuenta), comprueba que la IA pide un Rooti,
+cofre (la app reconoce al Musgo del aparato, sale una piel y pinta la cuenta;
+el sync le manda la rareza al aparato), acaricia a la mascota, comprueba que
+sólo el emulador puede adelantar su tiempo, que la IA pide un Rooti,
 que olvidé mi contraseña no revela cuentas, que las paletas bloqueadas están
 bloqueadas y que la segunda cuenta no ve la planta ni la charla de la primera.
 Al final borra las dos cuentas. Queda sólo el aparato inventado, sin dueño.

@@ -55,11 +55,11 @@ sólo cambia `db.mjs`.
 
 | Tabla | Clave | Qué guarda |
 |---|---|---|
-| `cuentas` | id | email **cifrado** + índice ciego (único), nombre **cifrado**, hash Argon2id, zona horaria, colección de Rooties, paleta, plan, email verificado, ciudad **cifrada** (para el pronóstico) |
+| `cuentas` | id | email **cifrado** + índice ciego (único), nombre **cifrado**, hash Argon2id, zona horaria, colección de pieles (`brote-epico`...), paleta, plan, email verificado, ciudad **cifrada** (para el pronóstico) |
 | `sesiones` | SHA-256 del token | cuenta, creada, último uso, navegador |
 | `tokens_cuenta` | SHA-256 del token | enlaces de un uso: restablecer la contraseña, verificar el email; vencimiento |
 | `dispositivos` | id del aparato | hash del token, último estado, código actual y su época, última lectura |
-| `plantas` | id | cuenta, aparato, época del vínculo, Rooti, cofre, nombre, especie, días sanos, pantalla, `desvinculada`, **ficha** de cuidados, **prompt** del chat, último reconocimiento |
+| `plantas` | id | cuenta, aparato, época del vínculo, Rooti (`persona`), cofre, **rareza** de la piel, **mascota** (felicidad, polvo, gotas de rocío), nombre, especie, días sanos, pantalla, `desvinculada`, **ficha** de cuidados, **prompt** del chat, último reconocimiento |
 | `lecturas` | id | planta, aparato, hora, suelo, temperaturas, humedad, luz, batería, ánimo y severidad |
 | `chat` | id | planta, cuenta, hora, quién habla, mensaje **cifrado** |
 | `ia_uso` | id | cada llamada a la IA: tipo, modelo, tokens, costo en micro-dólares, día local |
@@ -69,13 +69,18 @@ sólo cambia `db.mjs`.
 | `cuidadores` | SHA-256 del token | planta, cuenta, nombre, hasta cuándo vale, usos: el enlace `/sitter/<token>` |
 | `riegos` | id | planta, hora, origen, quién: los riegos anotados a mano |
 | `fotos` | id | planta, cuenta, hora, tipo, **los bytes** (hasta 450 KB, 60 por planta), nota, origen: el álbum |
-| `meta` | clave | versión del esquema (5), marcas de alertas de gasto |
+| `meta` | clave | versión del esquema (6), marcas de alertas de gasto |
 
 **Migraciones.** `db.mjs` sabe llevar una base v1 (email en claro, scrypt) a
 v2: reconstruye `cuentas` cifrando cada email con la receta de 12 pasos de
 SQLite, agrega las columnas y tablas nuevas y verifica las claves foráneas,
 todo en una transacción. Las contraseñas scrypt se rehacen con Argon2id la
-próxima vez que la persona entra.
+próxima vez que la persona entra. De v5 a v6 llegan los cinco Rooties
+botánicos: se agregan `rareza` y `mascota` a `plantas`, los Rooties de la
+primera tanda pasan al más parecido de los nuevos con una rareza equivalente
+(`LEGADO` en `server/cofre.mjs`: el secreto pasa a Bulbo épico) en plantas,
+aparatos y colecciones, y las paletas de Chico Malo y Chica Chill pasan a la
+piel común del Pinchito y del Musgo.
 
 **Cada cuenta ve sólo lo suyo.** Toda consulta de la app parte de la cuenta
 de la sesión: `plantasDe(cuenta)`, y una planta pedida por id se compara con
@@ -124,7 +129,7 @@ de un dominio o debajo de una ruta.
 | `/#plantas`, `/#planta/<id>` | lista y detalle (con la ficha de cuidados) |
 | `/#chat/<id>` | charla con la planta |
 | `/#diagnostico/<id>`, `/#especie/<id>` | cámara |
-| `/#coleccion` | los Rooties |
+| `/#coleccion` | las quince pieles de los cinco Rooties, y los logros |
 | `/#ajustes`, `/#agregar` | |
 | `/#entrar` | crear cuenta o entrar; es lo que se ve sin sesión |
 | `/#clave/<token>`, `/#verificar/<token>` | los enlaces de los emails |

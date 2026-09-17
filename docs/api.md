@@ -22,10 +22,27 @@ Lo que hace el servidor con cada pedido:
 4. Guarda las lecturas nuevas. Lo que no avanza en el reloj del aparato ya se
    había guardado y se ignora; igual cuenta como aceptado para que el aparato
    lo borre.
-5. Avanza los días sanos de la planta con el día local de la cuenta.
+5. Avanza los días sanos de la planta con el día local de la cuenta, y cada
+   tramo con la planta cómoda (`HAPPY` y `OK`) suma tiempo para las gotas de
+   rocío de la mascota ([mascota.md](mascota.md)).
 6. Manda las notificaciones que correspondan.
-7. Responde vínculo, cofre, personaje, nombre, especie, días sanos, brillo y
-   modo de pantalla.
+7. Responde vínculo, cofre, qué Rooti es (`persona`, desde que se vincula:
+   lo dice la figura), la piel que salió del cofre (`rareza`: `comun`, `raro`
+   o `epico`, sólo con el cofre abierto), nombre, especie, días sanos, brillo
+   y modo de pantalla.
+
+### `POST /api/d/demo`
+
+Sólo para el emulador (`placa: "emulador"`; una placa real recibe `403`),
+con el mismo token que el sync: `{ id, accion }` → `{ ok, mascota }`.
+
+| `accion` | Qué hace |
+|---|---|
+| `tres-dias` | corre hacia atrás el reloj de la mascota 3 días y 1 hora: aparece el polvo y baja la felicidad |
+| `gotas` | suma 3 gotas de rocío (hasta 9) |
+
+No toca lecturas, días sanos ni nada que desbloquee algo. `409` con el cofre
+cerrado, `400` con otra acción.
 
 ## De la app
 
@@ -41,7 +58,7 @@ su cuenta: pedir la planta de otra cuenta da `404`, igual que si no existiera.
 | `POST /api/cuenta/entrar` *(sin sesión)* | `{ email, clave }` → `{ token, cuenta }` · `401 Email o contraseña incorrectos.` |
 | `POST /api/cuenta/salir` | cierra esta sesión → `204` |
 | `GET /api/cuenta` | `cuenta` |
-| `PATCH /api/cuenta` | `{ nombre?, tz?, paleta?, ubicacion? }` → `cuenta` · `403` si la paleta es de un Rooti que no tenés o una cosmética que todavía no se ganó ([paletas.md](paletas.md)) · `ubicacion`: una ciudad, que se busca y se guarda cifrada para el pronóstico (`''` la quita; `404` si no existe; ver [clima.md](clima.md)) |
+| `PATCH /api/cuenta` | `{ nombre?, tz?, paleta?, ubicacion? }` → `cuenta` · `403` si la paleta es de una piel que no te salió o una cosmética que todavía no se ganó ([paletas.md](paletas.md)) · `ubicacion`: una ciudad, que se busca y se guarda cifrada para el pronóstico (`''` la quita; `404` si no existe; ver [clima.md](clima.md)) |
 | `POST /api/cuenta/clave` | `{ actual, nueva }` → `{ ok }`; cierra las sesiones de los otros teléfonos y avisa por email |
 | `DELETE /api/cuenta` | `{ clave }` → `204`; borra cuenta, plantas, lecturas, charlas y avisos, y libera los Rooties |
 | `POST /api/cuenta/olvide` *(sin sesión)* | `{ email }` → `202 { ok }` **siempre**; si hay cuenta, manda el enlace `#clave/<token>` (30 min, un uso) |
@@ -76,7 +93,7 @@ donde `ia` son las cuotas diarias de su plan (`{ chat, identificar, diagnosticar
 
 | | |
 |---|---|
-| `GET /api/vinculo/:codigo` *(sesión opcional)* | `{ codigo, legible, ssid, visto, en_linea, libre, mio, planta, estado }` |
+| `GET /api/vinculo/:codigo` *(sesión opcional)* | `{ codigo, legible, ssid, visto, en_linea, libre, mio, planta, estado, persona }`; `persona` es `{ id, nombre, lema }` del Rooti de la figura en cuanto el aparato se conectó |
 | `POST /api/vinculo` | `{ codigo }` → `201` planta · `409` si el Rooti no se conectó o es de otra cuenta |
 
 El código se normaliza como lo tipea una persona (minúsculas, guiones, O→0,
@@ -91,7 +108,9 @@ no hace falta regalar intentos.
 | `GET /api/plantas/:id` | la planta |
 | `PATCH /api/plantas/:id` | `{ nombre?, especie?, pantalla?, brillo? }`. Con la especie nace la ficha de cuidados; con nombre y especie, el prompt del chat |
 | `DELETE /api/plantas/:id` | desvincula: la maceta vuelve al QR con código nuevo. La planta y sus lecturas quedan guardadas en la cuenta |
-| `POST /api/plantas/:id/cofre` | abre el cofre: `{ id, nombre, rareza, lema, fondo, nuevo, probabilidad, de_fabrica, planta, paleta, pinta }`. `pinta`: el Rooti tiene paleta propia y la cuenta pasó a usarla |
+| `POST /api/cofre/abrir` | `{ planta }`: abre el cofre, que sortea la **piel** del Rooti que ya se sabe cuál es (común 70 %, rara 25 %, épica 5 %), una sola vez por vínculo → `{ id, nombre, lema, rareza, piel: { id, nombre, fondo, ojos, piel, rubor, adornos }, fondo, nuevo, probabilidad, de_fabrica, planta, paleta, pinta }`. `nuevo`: la piel no estaba en la colección; `pinta`: la cuenta pasó a usar la paleta de la piel (sólo la primera vez que se abre). Ver [rooties.md](rooties.md) |
+| `POST /api/plantas/:id/cofre` | lo mismo, con la planta en la ruta |
+| `POST /api/plantas/:id/mascota` | `{ accion: "caricia" \| "limpiar" \| "snack" }` → `{ accion, suma, motivo, mascota }`. La caricia suma 5 una vez cada 4 h (antes, `suma: 0` y `motivo: "espera"`); limpiar suma 10 si hay polvo; el snack suma 15 y gasta una gota · `409` sin polvo, sin gotas o con el cofre cerrado · `400` otra acción. Ver [mascota.md](mascota.md) |
 | `GET /api/plantas/:id/historial?horas=48` | `{ total, puntos: [{ t, soil_pct, temp_dc, rh_pct, lux, mood, escurre? }] }`: `horas` hasta 8784 (un año), promediado en hasta 240 puntos; `total` es la cantidad de lecturas guardadas en esa ventana |
 | `GET /api/plantas/:id/prevision` | cuándo va a tener sed con el clima que viene: `{ disponible, motivo? , horas_hasta_sed, cuando, tasa_pct_h, factor, clima, ubicacion }`. Ver [clima.md](clima.md) |
 | `POST /api/plantas/:id/cuidador` | `{ dias: 3 \| 7 \| 15, nombre? }` → `201 { url, vence, dias, nombre }`: el enlace `/sitter/<token>` para quien cuida la planta · `409` con el cofre cerrado. Ver [cuidador.md](cuidador.md) |
@@ -112,7 +131,7 @@ Una planta en `nodes`:
 
 ```json
 {
-  "id": "p3f2a...", "nombre": "Rulo", "modelo": "kawaii", "revelado": true,
+  "id": "p3f2a...", "nombre": "Rulo", "modelo": "brote", "rareza": "raro", "revelado": true,
   "especie": "monstera", "especie_info": { "...": "..." },
   "ficha": { "cuidados": { "riego": "...", "luz": "...", "sustrato": "..." }, "dificultad": "intermedia", "fuente": "ia" },
   "chat": true,
@@ -123,9 +142,18 @@ Una planta en `nodes`:
   "nodo": { "id": "A1B2...", "batt_pct": 76, "usb": false, "rssi": -60,
             "fw": "0.5.0", "placa": "c3-supermini", "en_linea": true },
   "bond": { "dias_vividos": 40, "dias_sanos": 34, "racha": 8, "mejor_racha": 19 },
-  "pantalla": "toque", "brillo": 80
+  "pantalla": "toque", "brillo": 80,
+  "mascota": { "felicidad": 72, "polvo": 0, "gotas": 2, "caricia_en_ms": 0,
+               "optimo_pct": 40, "ultima_interaccion": 1789000000000 },
+  "salud": 100
 }
 ```
+
+`modelo` es el Rooti de la figura, conocido desde el vínculo; `rareza` es
+`null` hasta abrir el cofre. `mascota` es `null` antes del cofre. `salud`
+(0 a 100, o `null` sin datos) sale de la severidad y de qué tan centrada
+está la tierra en el rango de la especie: la barra biológica, que no se
+sube con mimos.
 
 `link`: `VIVO` (< 45 min), `TIBIO` (< 6 h), `CAIDO`, `NUNCA`. Con `CAIDO` el
 ánimo se muestra como `OFFLINE`.
@@ -157,7 +185,7 @@ y el prompt: [ia.md](ia.md).
 
 | | |
 |---|---|
-| `GET /api/coleccion` | `{ tengo, total, probabilidades, catalogo }` (el secreto no aparece hasta que sale; cada Rooti trae `paleta` si tiene una) |
+| `GET /api/coleccion` | `{ tengo, total, probabilidades, catalogo }`. La colección es de **pieles**: `tengo` son ids como `brote-epico`, `total` es 15, `probabilidades` es `{ comun: 700, raro: 250, epico: 50 }` (milésimas) y cada Rooti del `catalogo` trae `{ id, nombre, lema, carcasa, fondo, tengo, pieles: [{ id, rareza, nombre, fondo, ojos, piel, rubor, adornos, tengo, probabilidad, paleta }] }` |
 | `GET /api/push/clave` | `{ clave }` VAPID pública |
 | `POST /api/push/suscripcion` | `{ suscripcion }` |
 | `DELETE /api/push/suscripcion` | `{ endpoint }` |

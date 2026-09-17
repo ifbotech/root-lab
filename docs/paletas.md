@@ -1,84 +1,89 @@
 # Paletas
 
-ROOTLAB se pinta con la paleta de tu Rooti. Este documento es para quien
+ROOTLAB se pinta con la piel de tu Rooti. Este documento es para quien
 diseña (Rocío) y para quien toca el código.
 
 ## Cómo funciona para quien usa la app
 
 - La primera vez, la app usa **Vibrant Tones**, la paleta de ROOTLAB.
-- Cuando abrís un cofre y te toca un Rooti **con paleta propia** (hoy: Chico
-  Malo y Chica Chill), apenas aparece la app se pinta con sus colores: un
-  círculo que crece desde el cofre hasta cubrir la pantalla. La paleta queda
-  guardada en la cuenta y se ve igual en todos tus teléfonos (y en los emails).
-- Un Rooti sin paleta propia no cambia la que tenías.
-- En **Ajustes → Paleta** podés volver a Vibrant Tones o elegir la de
-  cualquier Rooti que ya tengas. Las de los que te faltan se ven apagadas, con
-  candado.
+- Cada Rooti tiene tres **pieles** (común, rara, épica) y cada piel es una
+  paleta. Cuando abrís el cofre y sale la piel, apenas aparece la app se pinta
+  con sus colores: un círculo que crece desde el cofre hasta cubrir la
+  pantalla. La paleta queda guardada en la cuenta y se ve igual en todos tus
+  teléfonos (y en los emails). Reabrir un cofre ya abierto no la cambia.
+- En **Ajustes → Paleta** podés volver a Vibrant Tones, elegir cualquier piel
+  que ya te salió o una cosmética que ganaste. Las que faltan se ven apagadas,
+  con candado y el motivo.
 
-## Las paletas de hoy
+## Las pieles
 
-**Vibrant Tones** (ROOTLAB): Strawberry Red `#f94144`, Pumpkin Spice
-`#f3722c`, Carrot Orange `#f8961e`, Atomic Tangerine `#f9844a`, Tuscan Sun
-`#f9c74f`, Willow Green `#90be6d`, Seaweed `#43aa8b`, Dark Cyan `#4d908e`,
-Blue Slate `#577590`, Cerulean `#277da1`.
+Salen de `root-kit/firmware/core/persona.c`, la misma tabla con la que la
+maceta pinta la cara: `npm run firmware` las copia a
+`public/lib/rooties.mjs`, y `paletas.mjs` arma una paleta por piel. Cada una
+tiene cuatro colores: **fondo** (la pantalla), **ojos** (ojos, boca, cejas),
+**piel** (el cuerpo, la flor o el sombrero) y **rubor** (mejillas).
 
-**Chico Malo**: Ink Black `#03071e`, Night Bordeaux `#370617`, Black Cherry
-`#6a040f`, Oxblood `#9d0208`, Brick Ember `#d00000`, Red Ochre `#dc2f02`,
-Autumn Leaf `#e85d04`, Dark Orange `#f48c06`, Orange `#faa307`, Amber Flame
-`#ffba08`.
+| Rooti | Común | Rara | Épica |
+|---|---|---|---|
+| Brote | Hoja Nueva `#e8f5e9` `#1b5e20` `#a5d6a7` `#ff8a80` | Lavanda `#f3e5f5` `#4a148c` `#ce93d8` `#ea80fc` | Flor de Cerezo Dorada `#fff8e1` `#e65100` `#ffe082` `#ff5252` |
+| Musgo | Musgo `#f1f8e9` `#33691e` `#c5e1a5` `#aed581` | Glaciar `#e0f7fa` `#006064` `#80deea` `#4dd0e1` | Otoño Tostado `#fbe9e7` `#bf360c` `#ffab91` `#ff7043` |
+| Pinchito | Desierto `#e8f5e9` `#2e7d32` `#fff176` `#ff80ab` | Melocotón `#fce4ec` `#880e4f` `#f8bbd0` `#ff4081` | Medianoche Neón `#eceff1` `#0d47a1` `#90caf9` `#ffd600` |
+| Bulbo | Limonada `#fffde7` `#827717` `#fff59d` `#ffab91` | Lila Místico `#ede7f6` `#311b92` `#b39ddb` `#b388ff` | Galáctico `#e8eaf6` `#1a237e` `#7986cb` `#ff4081` |
+| Champi | Bosque `#efebe9` `#3e2723` `#d7ccc8` `#ff8a80` | Amanita Rosa `#fce4ec` `#ad1457` `#f48fb1` `#ffcdd2` | Bioluminiscente `#e0f2f1` `#004d40` `#80cbc4` `#69f0ae` |
 
-**Chica Chill**: Smart Blue `#0466c8`, Steel Azure `#0353a4`, Regal Navy
-`#023e7d`, Prussian Blue `#002855` / `#001845` / `#001233`, Twilight Indigo
-`#33415c`, Blue Slate `#5c677d`, Slate Grey `#7d8597`, Cool Steel `#979dac`.
+Los ids son `<rooti>-<rareza>`: `brote-comun`, `musgo-raro`, `champi-epico`.
+
+**Los roles de una piel** salen de sus cuatro colores: los ojos son el botón
+principal y la tinta, la piel tiñe paneles y bordes, el rubor es el acento y
+el destacado. Los estados (bien `#2e7d32`, atención `#e65100`, urgente
+`#c62828`) son fijos: una piel lila no puede dejar a "urgente" sin rojo.
+
+**Son temas claros**, pastel, de libro de cuentos: fondo del color de la
+pantalla, paneles casi blancos, tinta de los ojos oscurecida. Llevan
+`estilo: 'claro'` (`<html data-estilo="claro">`) para suavizar sombras.
+
+## Vibrant Tones
+
+Strawberry Red `#f94144`, Pumpkin Spice `#f3722c`, Carrot Orange `#f8961e`,
+Atomic Tangerine `#f9844a`, Tuscan Sun `#f9c74f`, Willow Green `#90be6d`,
+Seaweed `#43aa8b`, Dark Cyan `#4d908e`, Blue Slate `#577590`, Cerulean
+`#277da1`. Tema oscuro: el fondo se deriva de Blue Slate.
+
+| Rol | Qué pinta | Vibrant Tones |
+|---|---|---|
+| `fondo` | el fondo de la app (si no se da, sale de `base`) | *(de Blue Slate)* |
+| `base` | tiñe paneles y bordes | Blue Slate |
+| `primario` | botón principal, progreso, marca | Willow Green |
+| `secundario` | enlaces, foco, pestaña activa, burbuja propia del chat | Cerulean |
+| `destacado` | experiencia, logros, "Pro" | Tuscan Sun |
+| `acento` | revelaciones del diagnóstico | Atomic Tangerine |
+| `bien` / `atencion` / `urgente` | estados de la planta | Seaweed / Carrot Orange / Strawberry Red |
+| `datos` | series del gráfico (tierra, temperatura, luz, humedad) | Cerulean, Pumpkin Spice, Tuscan Sun, Dark Cyan |
 
 ## Las cosméticas: se ganan cuidando
-
-Además de las de los Rooties hay tres que no vienen de ningún cofre:
 
 | Paleta | Cómo es | Cómo se gana |
 |---|---|---|
 | **OLED Midnight** | negro absoluto (`#000000`) y verde fósforo / esmeralda; sin degradés, para pantallas OLED | libre |
-| **Cristal** | vidrio esmerilado: paneles translúcidos con desenfoque (`backdrop-filter`) sobre azul hielo, con luces de color detrás | el Rooti secreto, **o** una planta con 60 días sanos |
+| **Cristal** | vidrio esmerilado: paneles translúcidos con desenfoque (`backdrop-filter`) sobre azul hielo, con luces de color detrás | una piel **épica**, **o** una planta con 60 días sanos |
 | **Solar Gold** | oro y ámbar sobre marrón tostado | una planta con 180 días sanos |
 
 Cada una trae un `estilo` (`oled`, `cristal`, `solar`) que `tema.mjs` pone
 en `<html data-estilo>` para lo que los tokens no pueden decir, y un
 `requisito` que el servidor verifica al elegirla (`PATCH /api/cuenta`,
-`403` si no se cumple) con lo que sabe: la colección y los días sanos de
-cada planta. En Ajustes, el candado dice con qué se gana. El motor de
-contraste las trata como a las demás: en Cristal los paneles son
-translúcidos sobre el mismo fondo oscuro, así que el texto sigue leyéndose.
-
-## Cómo se combinan: los roles
-
-Una paleta son sus colores **y los roles** de algunos de ellos. Los roles dicen
-la intención; el motor calcula el resto.
-
-| Rol | Qué pinta | Vibrant Tones | Chico Malo | Chica Chill |
-|---|---|---|---|---|
-| `fondo` | el fondo de la app (si no se da, sale de `base`) | *(de Blue Slate)* | Ink Black | Prussian Blue `#001233` |
-| `base` | tiñe paneles y bordes | Blue Slate | Oxblood | Steel Azure |
-| `primario` | botón principal, progreso, marca | Willow Green | Amber Flame | Smart Blue |
-| `secundario` | enlaces, foco, pestaña activa, burbuja propia del chat | Cerulean | Orange | Smart Blue |
-| `destacado` | experiencia, logros, "Pro" | Tuscan Sun | Amber Flame | Cool Steel |
-| `acento` | revelaciones del diagnóstico | Atomic Tangerine | Autumn Leaf | Blue Slate |
-| `bien` / `atencion` / `urgente` | estados de la planta | Seaweed / Carrot Orange / Strawberry Red | *verde de estado* / Dark Orange / Brick Ember | *verde, ámbar y coral de estado* |
-| `datos` | series del gráfico (tierra, temperatura, luz, humedad) | Cerulean, Pumpkin Spice, Tuscan Sun, Dark Cyan | Orange, Red Ochre, Amber Flame, Autumn Leaf | Smart Blue, *ámbar*, Cool Steel, Blue Slate |
+`403` si no se cumple) con lo que sabe: la colección de pieles y los días
+sanos de cada planta.
 
 **Decisiones que no son obvias**
 
-- **El tema es oscuro en todas las paletas**: la app se mira de noche, al lado
-  de la planta, y los colores de los Rooties brillan sobre fondo profundo.
-  Vibrant Tones no tiene colores oscuros: el fondo se deriva de Blue Slate.
-- **Los estados siempre se reconocen**: verde es bien, ámbar es atención, rojo
-  es urgente. Chico Malo no tiene verde y Chica Chill no tiene cálidos, así
-  que esos estados usan un verde, un ámbar y un coral armonizados, y el resto
-  de la interfaz queda con la paleta. Además los estados nunca dependen sólo
-  del color: siempre van con texto ("URGENTE") o ícono.
-- **En Chico Malo el rojo es de alarma**: el botón principal es Amber Flame y
-  no Brick Ember, para que "urgente" siga siendo lo único rojo que grita.
-- **Las rarezas del cofre (común, raro, secreto) no cambian con la paleta**:
-  son del juego de colección.
+- **Los estados siempre se reconocen**: verde es bien, ámbar es atención,
+  rojo es urgente, en todas las paletas, y nunca dependen sólo del color:
+  siempre van con texto ("URGENTE") o ícono.
+- **Las rarezas del cofre (común, rara, épica) no cambian con la paleta**:
+  son del juego de colección (`--comun`, `--raro`, `--epico`).
+- **El globo de lo que dice el Rooti** usa `--globo` y `--sobre-globo`:
+  blanco con la tinta de la paleta en los temas claros, blanco con el fondo
+  en los oscuros.
 
 ## El motor garantiza que se lea
 
@@ -89,26 +94,28 @@ variables de CSS y **asegura el contraste WCAG AA**:
 - texto secundario y de color: 4,5:1;
 - texto sobre botones de color: 4,5:1 (elige blanco o tinta oscura, y si
   ninguno llega, ajusta el color del botón);
-- series de gráficos: 3:1 contra el panel.
+- series de gráficos: 3:1 contra el panel;
+- el texto del globo: 7:1.
 
-Si un color de la paleta no llega (un azul profundo como texto sobre azul
-noche), se aclara **lo justo**, mezclando en el espacio OKLab para que no
-cambie de tono. Por eso cada rol tiene su versión `-texto`: `--urgente` es el
-color lleno de un chip y `--urgente-texto` el mismo rojo, garantizado legible
-como letra.
+Si un color no llega —un azul profundo sobre azul noche, un amarillo pastel
+sobre crema— se aclara (en los temas oscuros) o se oscurece (en los claros)
+**lo justo**, mezclando en OKLab para que no cambie de tono. Por eso cada rol
+tiene su versión `-texto`: `--urgente` es el color lleno de un chip y
+`--urgente-texto` el mismo rojo, garantizado legible como letra.
 
-`test/paletas.test.mjs` recorre todas las paletas y falla si algún par no
-cumple. Una paleta nueva que no se lea no puede llegar a producción.
+`test/paletas.test.mjs` recorre las 19 paletas y falla si algún par no
+cumple, si un tema claro no es claro o si una piel no tiene exactamente los
+colores del firmware.
 
-## Agregar la paleta de un Rooti nuevo
+## Cambiar una piel
 
-1. En `public/lib/paletas.mjs`, un objeto más en `PALETAS`: `id`, `nombre`,
-   `rooti` (el id del Rooti en el firmware), `colores` (nombre, hex y nota,
-   como los entrega la artista) y `roles`.
-2. La cara del Rooti se define en `root-kit/firmware/core/persona.c` con
-   colores de esa misma paleta (piel, sombra, trazo, iris, acento).
+1. En `root-kit/firmware/core/persona.c`, los cuatro `RK_HEX(...)` de esa
+   piel (y sus adornos: brillos, aura, corona, luces).
+2. `make test` y `make golden` en root-kit (cambian las caras), `npm run
+   firmware` en root-lab (regenera `rooties.mjs`, el WebAssembly y las
+   imágenes de las notificaciones).
 3. `npm test`. Si el motor tuvo que ajustar mucho un color, el test igual
-   pasa; conviene mirar la app y, si el ajuste no gusta, elegir otro rol.
+   pasa; conviene mirar la app.
 
 No hay que tocar CSS ni vistas.
 
@@ -116,11 +123,12 @@ No hay que tocar CSS ni vistas.
 
 | Archivo | Qué hace |
 |---|---|
-| `public/lib/paletas.mjs` | datos + motor de color (OKLab, contraste WCAG) |
+| `public/lib/rooties.mjs` | generado: los cinco Rooties y sus tres pieles |
+| `public/lib/paletas.mjs` | datos + motor de color (OKLab, contraste WCAG); `paletaDeRooti(rooti, rareza)` |
 | `public/lib/tema.mjs` | `aplicarPaleta(id, { animar, origen })`: variables en `<html>`, `theme-color`, recuerdo en el teléfono, animación con View Transitions |
 | `public/tema.js` | script clásico en el `<head>`: aplica la paleta guardada antes de la primera pintada (sin parpadeo) |
 | `public/style.css` | `:root` con los valores de Vibrant Tones (por si no carga JS); todo lo demás usa variables |
-| `server/api.mjs` | `cuentas.paleta`; el cofre la cambia si el Rooti tiene paleta; `PATCH /api/cuenta {paleta}` valida que tengas al Rooti |
+| `server/api.mjs` | `cuentas.paleta`; el cofre la cambia a la piel que salió; `PATCH /api/cuenta {paleta}` valida que tengas esa piel o el requisito |
 | `server/plantillas-correo.mjs` | los emails usan la paleta de la cuenta |
 
 Si el navegador no tiene View Transitions o la persona pidió menos movimiento,
