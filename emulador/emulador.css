@@ -81,3 +81,37 @@ pre { max-height: 260px; overflow: auto; background: #081116; border-radius: 12p
 
 /* El detector de riego marcó un escurrimiento: se dice al lado del estado. */
 .estado-linea.escurre::after { content: " · el último riego se escurrió"; color: var(--rojo); }
+
+/* Probar lo nuevo. */
+.tarjeta h3 { margin: 4px 0 0; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--tinta-2); font-weight: 900; }
+.nota { margin: 0; color: var(--tinta-2); font-size: 13px; }
+.nota.error { color: var(--rojo); }
+.vista-app { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: center; }
+.vista-app-rooti { min-height: 165px; display: grid; place-items: center; border-radius: 16px; background: radial-gradient(closest-side, #2e3e4d, transparent); }
+.enlaces a { flex: 1 1 30%; text-align: center; padding: 8px 6px; border-radius: 12px; background: var(--panel-alto); border: 2px solid var(--borde); color: var(--tinta); text-decoration: none; font-weight: 900; font-size: 13px; }
+.enlaces a.apagado { opacity: .4; pointer-events: none; }
+.carcasa[data-rareza="epico"] { box-shadow: 0 30px 40px rgba(0,0,0,.45), inset 0 -8px 0 rgba(0,0,0,.18), inset 0 6px 0 rgba(255,255,255,.18), 0 0 0 4px #ffd54f, 0 0 30px rgba(255, 213, 79, .45); }
+.carcasa[data-rareza="raro"] { box-shadow: 0 30px 40px rgba(0,0,0,.45), inset 0 -8px 0 rgba(0,0,0,.18), inset 0 6px 0 rgba(255,255,255,.18), 0 0 24px rgba(213, 139, 255, .45); }
+@media (max-width: 420px) { .vista-app { grid-template-columns: 1fr; justify-items: center; } }
+
+/* El Rooti entero (lib/cuerpo.mjs), lo mínimo de public/style.css. */
+.cuerpo { position: relative; flex: none; }
+.cuerpo > svg, .cuerpo-pose, .cuerpo-pose > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.cuerpo-pose { transform-origin: 50% 94.5%; animation: respirar 3.6s ease-in-out infinite; transition: transform .6s; }
+.cuerpo-ventana { position: absolute; overflow: hidden; border-radius: 7%; }
+.cuerpo-ventana .cara { width: 100% !important; height: 100% !important; display: block; background-size: cover; }
+.cuerpo-brazo { animation: saludar 1.6s ease-in-out infinite; transform-box: view-box; }
+.cuerpo .chispa { transform-box: fill-box; transform-origin: center; animation: titilar 2.4s ease-in-out infinite; }
+.cuerpo .luz-flota { animation: flotar-luz 4.2s ease-in-out infinite; }
+.cuerpo-zzz text { font-family: "Nunito", system-ui, sans-serif; font-weight: 900; animation: zzz 3s ease-in-out infinite; opacity: 0; }
+.cuerpo.noche .cuerpo-pose { animation: none; transform: translateY(2%) scale(1.05, .92); }
+.cuerpo.noche .cuerpo-brazo { animation: none; transform: rotate(18deg); }
+@keyframes respirar { 50% { transform: scale(1.012, .985); } }
+@keyframes saludar { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-14deg); } 60% { transform: rotate(6deg); } }
+@keyframes titilar { 0%, 100% { opacity: .25; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.1); } }
+@keyframes flotar-luz { 0%, 100% { transform: translateY(0); opacity: .35; } 50% { transform: translateY(-9px); opacity: 1; } }
+@keyframes zzz { 0% { opacity: 0; transform: translate(0, 6px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -14px); } }
+@media (prefers-reduced-motion: reduce) {
+  .cuerpo-pose, .cuerpo-brazo, .cuerpo .chispa, .cuerpo .luz-flota { animation: none; }
+  .cuerpo-zzz text { animation: none; opacity: 1; }
+}

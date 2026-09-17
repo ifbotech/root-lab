@@ -169,7 +169,7 @@ export function vistaChat(ctx) {
 
   const cabecera = h('header', { class: 'chat-cab' },
     h('button', { class: 'boton chico', type: 'button', onClick: volver, 'aria-label': 'Volver' }, '‹'),
-    caraDeNodo(n, 56, { fondo: modelo?.fondo, fps: 12 }),
+    caraDeNodo(n, 56, { fps: 12 }),
     h('div', {},
       h('h2', {}, nombre),
       h('p', {}, [n.especie_info?.nombre, n.reason].filter(Boolean).join(' · '))));

@@ -115,9 +115,12 @@ export function hacerAcariciable(el, { alEmpezar = () => {}, alCaricia = () => {
  * lienzo (`acariciar`), vibra, suelta corazones sobre `escenario` (un
  * ancestro con position; si no, el padre del lienzo) y ronronea.
  * `direccion` es el touch-action: 'pan-y' deja hacer scroll vertical (la
- * planta), 'none' toma todo (el modo escritorio). Devuelve el deshacer.
+ * planta), 'none' toma todo (el modo escritorio). Sirve igual para un
+ * Rooti entero de lib/cuerpo.mjs, que también tiene `acariciar`.
+ * `alEmpezar` avisa de cada caricia nueva (la mascota la cuenta).
+ * Devuelve el deshacer.
  */
-export function acariciarCara(lienzo, { escenario = null, direccion = 'pan-y' } = {}) {
+export function acariciarCara(lienzo, { escenario = null, direccion = 'pan-y', alEmpezar = () => {} } = {}) {
   if (!lienzo) return () => {};
   lienzo.style.touchAction = direccion;
   const donde = () => escenario || lienzo.parentElement;
@@ -127,6 +130,7 @@ export function acariciarCara(lienzo, { escenario = null, direccion = 'pan-y' } 
       lienzo.acariciar?.(true);
       pararRonroneo?.();
       pararRonroneo = ronronear();
+      alEmpezar();
     },
     alCaricia: ({ x, y }) => {
       vibrar();

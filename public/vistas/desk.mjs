@@ -19,6 +19,7 @@
  */
 import { h, render, icono } from '../lib/ui.mjs';
 import { cara } from '../lib/caras.mjs';
+import { pielDe } from '../lib/rooties.mjs';
 import { acariciarCara } from '../lib/caricias.mjs';
 import { esDeNoche, ladoDesk, RELOJ_MS, OCULTAR_CONTROLES_MS } from '../lib/desk.mjs';
 import { ETAPAS, etapaDe } from '../lib/model.mjs';
@@ -42,7 +43,7 @@ async function soltarCandado() {
 }
 
 export function vistaDesk(ctx) {
-  const { estado, coleccion, plantaId, irA, repintar } = ctx;
+  const { estado, plantaId, irA, repintar } = ctx;
   const n = (estado?.nodes || []).find((x) => x.id === plantaId);
   const cont = h('div', { class: 'desk' });
 
@@ -53,12 +54,13 @@ export function vistaDesk(ctx) {
     return cont;
   }
 
-  const modelo = (coleccion?.catalogo || []).find((m) => m.id === n.modelo);
   const lado = ladoDesk(window.innerWidth, window.innerHeight);
   const lux = n.tel?.lux ?? null;
 
+  const piel = n.revelado ? pielDe(n.modelo, n.rareza || 'comun') : null;
   const lienzo = cara({
-    persona: n.revelado ? n.modelo : '',
+    persona: n.modelo || '',
+    rareza: n.rareza || 'comun',
     modo: n.revelado ? 'cara' : 'dormida',
     animo: n.mood,
     etapa: ETAPAS.indexOf(etapaDe(n.bond?.dias_sanos ?? 0)),
@@ -69,7 +71,7 @@ export function vistaDesk(ctx) {
     etiqueta: `${n.nombre || 'Tu Rooti'}: ${n.reason || ''}`,
   });
 
-  const marco = h('div', { class: 'desk-cara', style: modelo ? `--piel:${modelo.fondo}` : '' }, lienzo);
+  const marco = h('div', { class: 'desk-cara', style: piel ? `--piel:${piel.fondo}` : '' }, lienzo);
   const nombre = h('p', { class: 'desk-nombre' }, h('b', {}, n.nombre || 'Tu Rooti'), h('span', {}, n.reason || ''));
   const noche = h('span', { class: 'desk-noche', 'aria-hidden': 'true' }, icono('luna', 22));
 

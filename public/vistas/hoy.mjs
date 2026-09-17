@@ -12,16 +12,19 @@
 import { h, render, icono, progreso } from '../lib/ui.mjs';
 import { tareasDelDia, resumenDeTareas, contarEstados, URGENCIA_ES } from '../lib/tareas.mjs';
 import { xpTotal, nivelDe, saludo, evaluarLogros } from '../lib/gamificacion.mjs';
-import { ETAPAS, etapaDe } from '../lib/model.mjs';
+import { ETAPAS, etapaDe, progresoColeccion } from '../lib/model.mjs';
 import { cara } from '../lib/caras.mjs';
+import { pielDe } from '../lib/rooties.mjs';
 
 const SEV = { URGENT: 'sev-urgente', WATCH: 'sev-atencion' };
 
+/** La cara de una planta en su marco, con el fondo de su piel. */
 export function caraDeNodo(n, lado, extra = {}) {
-  const fondo = extra.fondo;
+  const fondo = n.revelado ? pielDe(n.modelo, n.rareza || 'comun')?.fondo : null;
   return h('div', { class: `cara-marco ${SEV[n.severity] || ''}`, style: fondo ? `background:${fondo}` : '' },
     cara({
-      persona: n.revelado ? n.modelo : '',
+      persona: n.modelo || '',
+      rareza: n.rareza || 'comun',
       modo: n.revelado ? 'cara' : 'dormida',
       animo: n.mood,
       etapa: ETAPAS.indexOf(etapaDe(n.bond?.dias_sanos ?? 0)),
@@ -34,12 +37,11 @@ export function caraDeNodo(n, lado, extra = {}) {
     }));
 }
 
-function ronda(nodos, modelos, alAbrir, alAgregar) {
-  const fondo = (n) => modelos.find((m) => m.id === n.modelo)?.fondo;
+function ronda(nodos, alAbrir, alAgregar) {
   return h('div', { class: 'ronda', role: 'list' },
     nodos.map((n) => h('button', {
       class: 'ronda-item', type: 'button', role: 'listitem', onClick: () => alAbrir(n.id),
-    }, caraDeNodo(n, 88, { fondo: fondo(n), fps: 12 }), h('b', {}, n.nombre || 'Sin nombre'))),
+    }, caraDeNodo(n, 88, { fps: 12 }), h('b', {}, n.nombre || 'Sin nombre'))),
     h('button', { class: 'ronda-item', type: 'button', onClick: alAgregar, 'aria-label': 'Agregar un Rooti' },
       h('span', { class: 'ronda-agregar' }, icono('mas', 34)), h('b', {}, 'Agregar')));
 }
@@ -98,9 +100,8 @@ export function vistaHoy(ctx) {
   const resumen = resumenDeTareas(tareas);
   const cuenta = contarEstados(nodos);
   const nivel = nivelDe(xpTotal(nodos));
-  const logros = evaluarLogros({ nodos, racha, coleccion });
+  const logros = evaluarLogros({ nodos, racha, coleccion: progresoColeccion(coleccion?.catalogo, coleccion?.tengo) });
   const hayUrgentes = tareas.some((t) => t.urgencia === 'urgente');
-  const modelos = coleccion?.catalogo || [];
   const cont = h('div', { class: 'vista' });
 
   if (nodos.length === 0) {
@@ -121,7 +122,7 @@ export function vistaHoy(ctx) {
         h('h2', { class: `saludo-titulo tono-${resumen.tono}` }, resumen.titulo),
         resumen.detalle ? h('p', { class: 'saludo-detalle' }, resumen.detalle) : null)),
 
-    ronda(nodos, modelos, alAbrir, () => irA('agregar')),
+    ronda(nodos, alAbrir, () => irA('agregar')),
     nodos.filter((n) => n.revelado).length >= 2
       ? h('div', { class: 'invernadero-enlace' },
           h('button', { class: 'boton chico', type: 'button', onClick: () => irA('invernadero') }, icono('hoja', 16), 'Ver el invernadero'))

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import {
   formatTemp, formatLux, formatEdad, battPct, ordenarNodos, contarAlertas,
   LINK_ES, ETAPAS, ETAPA_DIAS, etapaDe, progresoEtapa, bateriaDe,
-  RAREZAS, progresoColeccion, ordenarColeccion,
+  RAREZAS, progresoColeccion, ordenarColeccion, firmaTablero,
   posicionEnRango, validarAlta, interpretarIdentificacion, MOOD_ES,
 } from '../public/lib/model.mjs';
 
@@ -252,35 +252,51 @@ describe('vinculo y crecimiento', () => {
   test('el orden de la lista no mira la carcasa', () => {
     // Una maceta con sed importa lo mismo la carcasa que tenga puesta.
     const nodos = [
-      { nombre: 'A', modelo: 'glitch', severity: 'OK' },
-      { nombre: 'B', modelo: 'cresta', severity: 'URGENT' },
+      { nombre: 'A', modelo: 'bulbo', severity: 'OK' },
+      { nombre: 'B', modelo: 'pinchito', severity: 'URGENT' },
     ];
     assert.deepEqual(ordenarNodos(nodos).map((n) => n.nombre), ['B', 'A']);
   });
 
-  test('la coleccion no le cuenta al usuario cuantos secretos faltan', () => {
-    const cat = [
-      { id: 'a', rareza: 'COMUN' }, { id: 'b', rareza: 'COMUN' },
-      { id: 'c', rareza: 'RARO' },  { id: 's', rareza: 'SECRETO' },
-    ];
-    const sin = progresoColeccion(cat, ['a', 'b', 'c']);
-    assert.equal(sin.total, 3, 'el secreto no entra en el total');
-    assert.equal(sin.tengo, 3);
-    assert.equal(sin.completa, true, 'con los tres visibles ya esta completa');
+  const pieles = (id) => ['comun', 'raro', 'epico'].map((rareza) => ({ id: `${id}-${rareza}`, rareza }));
+  const catalogo = [{ id: 'brote', pieles: pieles('brote') }, { id: 'musgo', pieles: pieles('musgo') }];
 
-    const con = progresoColeccion(cat, ['a', 'b', 'c', 's']);
-    assert.equal(con.total, 4, 'una vez que salio, si entra');
-    assert.equal(con.tengo, 4);
-    assert.equal(con.secretos, 1);
+  test('la colección cuenta pieles, Rooties y épicas', () => {
+    const vacia = progresoColeccion(catalogo, []);
+    assert.deepEqual(vacia, { tengo: 0, total: 6, completa: false, rooties: 0, epicas: 0 });
+    const algo = progresoColeccion(catalogo, ['brote-comun', 'brote-epico', 'otra-cosa']);
+    assert.equal(algo.tengo, 2, 'lo que no está en el catálogo no cuenta');
+    assert.equal(algo.rooties, 1);
+    assert.equal(algo.epicas, 1);
+    const todo = progresoColeccion(catalogo, catalogo.flatMap((m) => m.pieles.map((p) => p.id)));
+    assert.equal(todo.completa, true);
+    assert.equal(todo.rooties, 2);
+    assert.equal(progresoColeccion(null, null).total, 0);
   });
 
-  test('la coleccion se ordena por rareza', () => {
-    const cat = [
-      { id: 's', nombre: 'S', rareza: 'SECRETO' },
-      { id: 'c', nombre: 'C', rareza: 'COMUN' },
-      { id: 'r', nombre: 'R', rareza: 'RARO' },
-    ];
-    assert.deepEqual(ordenarColeccion(cat).map((m) => m.id), ['c', 'r', 's']);
+  test('la colección deja los Rooties en su orden y las pieles de común a épica', () => {
+    const desordenado = [{ id: 'musgo', pieles: [...pieles('musgo')].reverse() }, { id: 'brote', pieles: pieles('brote') }];
+    const o = ordenarColeccion(desordenado);
+    assert.deepEqual(o.map((m) => m.id), ['musgo', 'brote']);
+    assert.deepEqual(o[0].pieles.map((p) => p.rareza), ['comun', 'raro', 'epico']);
     assert.deepEqual(ordenarColeccion(null), []);
+  });
+});
+
+describe('la firma del tablero', () => {
+  const nodo = (extra = {}) => ({ id: 'p1', mood: 'HAPPY', tel: { soil_pct: 40, age_s: 30 }, mascota: { felicidad: 60, caricia_en_ms: 5000 }, ...extra });
+
+  test('no cambia porque pasaron unos segundos, ni por la cuenta regresiva de la caricia', () => {
+    const a = firmaTablero([nodo()]);
+    assert.equal(firmaTablero([nodo({ tel: { soil_pct: 40, age_s: 45 }, mascota: { felicidad: 60, caricia_en_ms: 4000 } })]), a);
+  });
+
+  test('cambia con lo que se ve: el texto de la edad, un dato, la felicidad o que la caricia ya suma', () => {
+    const a = firmaTablero([nodo()]);
+    assert.notEqual(firmaTablero([nodo({ tel: { soil_pct: 40, age_s: 600 } })]), a, 'de "recién" a "hace 10 min"');
+    assert.notEqual(firmaTablero([nodo({ tel: { soil_pct: 39, age_s: 30 } })]), a);
+    assert.notEqual(firmaTablero([nodo({ mascota: { felicidad: 65, caricia_en_ms: 5000 } })]), a);
+    assert.notEqual(firmaTablero([nodo({ mascota: { felicidad: 60, caricia_en_ms: 0 } })]), a);
+    assert.equal(firmaTablero(null), '[]');
   });
 });

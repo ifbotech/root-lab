@@ -24,7 +24,7 @@ export const FOTO = 'x'.repeat(4000);
 /* Argon2id liviano en los tests: el formato y la lógica son los mismos. */
 const ARGON_TEST = { memoria: 1024, pasadas: 1, hilos: 1, largo: 32 };
 
-export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, argon = ARGON_TEST, url = 'https://rootlab.test', clima } = {}) {
+export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, argon = ARGON_TEST, url = 'https://rootlab.test', clima, azar = () => 0 } = {}) {
   const reloj = { t: T0 };
   const db = abrirBase();
   const push = crearPushDePrueba();
@@ -38,7 +38,7 @@ export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, arg
   const api = crearApi({
     db, push, ia, correo, claves, presupuesto,
     reloj: () => reloj.t,
-    azar: () => 0,
+    azar,
     urlPublica: () => url,
     ...(clima ? { clima } : {}),
   });
@@ -51,7 +51,7 @@ export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, arg
 }
 
 /* Un Rooti de mentira que habla igual que el de verdad. */
-export function aparato(esc, { persona = 'kawaii', id = 'A1B2C3D4E5F6' } = {}) {
+export function aparato(esc, { persona = 'brote', id = 'A1B2C3D4E5F6' } = {}) {
   const secreto = randomBytes(16);
   const yo = {
     id, secreto, token: tokenApi(secreto), epoca: 0, reloj: 1000, arranques: 1,
@@ -96,7 +96,7 @@ export async function cuenta(esc, { email = `persona${++nCuentas}@ejemplo.com`, 
 
 let nAparatos = 0;
 /** Una cuenta con un Rooti vinculado, el cofre abierto y la planta con nombre. */
-export async function conRooti(esc, { persona = 'kawaii', nombre = 'Rulo', token = null } = {}) {
+export async function conRooti(esc, { persona = 'brote', nombre = 'Rulo', token = null } = {}) {
   nAparatos += 1;
   const maceta = aparato(esc, { persona, id: `C0FFEE${String(nAparatos).padStart(6, '0')}` });
   const t = token || await cuenta(esc);

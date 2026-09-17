@@ -26,7 +26,7 @@ const MONSTERA = {
 };
 
 const nodo = (extra = {}) => ({
-  id: 'p1', nombre: 'MONSTERA', especie: 'monstera', modelo: 'cresta',
+  id: 'p1', nombre: 'MONSTERA', especie: 'monstera', modelo: 'pinchito',
   link: 'VIVO', mood: 'HAPPY', severity: 'OK', reason: 'estoy perfecta',
   tel: { soil_pct: 40, temp_dc: 230, rh_pct: 60, lux: 5000, batt_mv: 3900, age_s: 60 },
   nodo: { id: 'aabbcc112233', batt_pct: 80, seq: 1 },

@@ -27,7 +27,7 @@
  *   bien, atencion, urgente                     estados de la planta
  *   dato-*                                      series de los gráficos
  *
- * Los colores de rareza (común, raro, secreto) son fijos: son del juego de
+ * Los colores de rareza (común, rara, épica) son fijos: son del juego de
  * colección, no de la paleta, y nunca se mezclan con los de estado.
  */
 
@@ -78,8 +78,8 @@
 
   /* Rarezas del cofre: fijas. */
   --comun:       #7fd1ff;
-  --raro:        #ffb020;
-  --secreto:     #d58bff;
+  --raro:        #d58bff;
+  --epico:       #ffc107;
 
   --r:     20px;
   --r-ch:  14px;
@@ -406,12 +406,12 @@ body.sin-tabs .aviso { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 .heroe .cara-marco { border-radius: 32px; }
 .heroe h2 { font-size: 30px; }
 .dice {
-  position: relative; padding: 10px 16px; border-radius: 16px; background: #fff; color: var(--fondo);
-  font-weight: 900; font-size: 17px;
+  position: relative; padding: 10px 16px; border-radius: 16px; background: var(--globo, #fff); color: var(--sobre-globo, var(--fondo));
+  font-weight: 900; font-size: 17px; box-shadow: 0 3px 0 color-mix(in srgb, var(--borde) 70%, transparent);
 }
 .dice::before {
   content: ""; position: absolute; top: -9px; left: 50%; margin-left: -9px;
-  border: 9px solid transparent; border-top: 0; border-bottom-color: #fff;
+  border: 9px solid transparent; border-top: 0; border-bottom-color: var(--globo, #fff);
 }
 .heroe-sub { color: var(--tinta-2); font-size: 14px; text-align: center; }
 
@@ -486,25 +486,38 @@ input[type=range] { width: 100%; accent-color: var(--secundario); }
 .coleccion-cab { display: flex; align-items: center; justify-content: space-between; }
 .coleccion-cuenta { font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .coleccion-cuenta small { font-size: 18px; color: var(--tinta-3); }
-.modelos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+/* La colección: una fila por Rooti, tres casilleros de piel. */
+.modelos { display: flex; flex-direction: column; gap: 14px; }
 .modelo {
-  --rar: var(--comun);
-  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 12px 10px 14px; border-radius: 22px; text-align: center;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--rar) 16%, var(--panel)) 0%, var(--panel) 60%);
-  border: 3px solid color-mix(in srgb, var(--rar) 55%, var(--borde));
-  box-shadow: 0 5px 0 color-mix(in srgb, var(--rar) 35%, #000);
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 12px;
+  border-radius: 22px; background: var(--panel); border: 2px solid var(--borde);
 }
-.modelo.rar-raro { --rar: var(--raro); }
-.modelo.rar-secreto { --rar: var(--secreto); }
-.modelo h3 { font-size: 18px; }
-.modelo-rareza { font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--rar); }
+.modelo-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.modelo h3 { font-size: 20px; }
 .modelo-lema { font-size: 13px; color: var(--tinta-2); }
-.modelo-prob { font-size: 12px; color: var(--tinta-3); font-weight: 800; }
-.modelo.falta .cara-marco { filter: grayscale(1) brightness(.42) blur(2.5px); }
 .modelo.falta h3 { color: var(--tinta-3); }
+.pieles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.piel {
+  --rar: var(--comun);
+  display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0;
+  padding: 8px 4px 10px; border-radius: 18px; text-align: center;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rar) 18%, var(--panel-alto)) 0%, var(--panel-alto) 70%);
+  border: 3px solid color-mix(in srgb, var(--rar) 55%, var(--borde));
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--rar) 35%, #000);
+}
+.piel.rar-raro { --rar: var(--raro); }
+.piel.rar-epico { --rar: var(--epico); }
+.piel-escena { display: grid; place-items: center; width: 100%; border-radius: 14px; padding: 4px 0; }
+.piel.falta .cuerpo { filter: grayscale(1) brightness(.55) blur(1px); opacity: .75; }
+.piel-nombre { font-size: 12px; line-height: 1.2; overflow-wrap: anywhere; }
+.piel.falta .piel-nombre { color: var(--tinta-3); }
+.modelo-rareza { font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--tinta-2); }
+.modelo-prob { font-size: 11px; color: var(--tinta-3); font-weight: 800; }
 .probabilidades { display: flex; gap: 8px; flex-wrap: wrap; }
 .probabilidades .chip b { color: var(--tinta); }
+.probabilidades .chip { border-left: 6px solid var(--comun); }
+.probabilidades .chip.rar-raro { border-left-color: var(--raro); }
+.probabilidades .chip.rar-epico { border-left-color: var(--epico); }
 
 .logros { display: flex; flex-direction: column; gap: 8px; }
 .logro { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; background: var(--fondo-alto); color: var(--tinta-3); }
@@ -633,6 +646,7 @@ input[type=range] { width: 100%; accent-color: var(--secundario); }
 .cofre-toques i.hecho { background: var(--destacado); border-color: var(--destacado-canto); }
 .destello { position: fixed; inset: 0; background: #fff; pointer-events: none; opacity: 0; z-index: 50; }
 .destello.activo { animation: destello .7s ease-out; }
+.destello.oro { background: radial-gradient(circle at 50% 45%, #fff8e1, #ffd54f 60%, #ffb300); }
 @keyframes destello { 0% { opacity: 0; } 12% { opacity: .95; } 100% { opacity: 0; } }
 .revelado { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
 .revelado .cara-marco { animation: emerger .7s cubic-bezier(.2, 1.5, .4, 1) both; border-radius: 40px; border-width: 4px; }
@@ -643,8 +657,8 @@ input[type=range] { width: 100%; accent-color: var(--secundario); }
   background: var(--rar); color: #0c1a22; box-shadow: 0 4px 0 color-mix(in srgb, var(--rar) 60%, #000);
   animation: pop .45s .35s cubic-bezier(.2, 1.6, .4, 1) both;
 }
-.rareza-cinta.raro { --rar: var(--raro); }
-.rareza-cinta.secreto { --rar: var(--secreto); background: linear-gradient(90deg, #ff7ad9, #ce82ff, #7fd1ff, #8dff9b, #ffd36b); }
+.rareza-cinta.raro { --rar: var(--raro); background: linear-gradient(90deg, #f8bbd0, #d58bff, #80deea); }
+.rareza-cinta.epico { --rar: var(--epico); background: linear-gradient(90deg, #ffe082, #ffc107, #fff8e1, #ffb300); }
 .revelado h2 { font-size: 38px; animation: pop .45s .5s both; }
 .revelado p { color: var(--tinta-2); max-width: 30ch; animation: pop .45s .6s both; }
 .nuevo { color: var(--destacado-texto); font-weight: 900; letter-spacing: .12em; font-size: 13px; animation: pop .45s .7s both; }
@@ -788,8 +802,9 @@ html[data-estilo="solar"] body {
 .estante-marco { padding: 24px 0 0; }
 .estante { display: flex; gap: 12px; align-items: flex-end; justify-content: center; flex-wrap: wrap; padding: 0 8px 6px; }
 .maceta { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; color: var(--tinta); cursor: pointer; }
-.maceta .cara-marco { border-radius: 22px 22px 8px 8px; }
-.maceta-tierra { width: 70%; height: 10px; border-radius: 0 0 10px 10px; background: color-mix(in srgb, var(--acento) 45%, #4a2f1a); margin-top: -2px; }
+.maceta .cuerpo[data-sev="sev-urgente"] { animation: latido-cuerpo 1.4s ease-in-out infinite; }
+.maceta .cuerpo[data-sev="sev-atencion"] { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--atencion) 55%, transparent)); }
+@keyframes latido-cuerpo { 50% { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--urgente) 70%, transparent)); } }
 .maceta b { font-size: 14px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .maceta span { font-size: 12px; color: var(--tinta-3); font-weight: 800; }
 .estante-tabla { height: 14px; border-radius: 4px; background: linear-gradient(180deg, color-mix(in srgb, var(--destacado) 35%, #5b3a1e), #3a2412); box-shadow: 0 8px 0 #2a1a0c, 0 14px 24px rgba(0,0,0,.4); }
@@ -900,8 +915,93 @@ body.desk .contenido { max-width: none; padding: 0; }
 .desk.noche .desk-noche { opacity: .6; }
 .desk .panel.vacio { margin: 16px; }
 
+/* ============================================================== CUERPO === */
+/* El Rooti entero (lib/cuerpo.mjs): capas del mismo viewBox apiladas; la
+   pose (cuerpo, ventana y lo de encima) se sienta de noche y ronronea con
+   la caricia, desde la base (208 de 220). */
+.cuerpo { position: relative; flex: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.cuerpo > svg, .cuerpo-pose, .cuerpo-pose > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.cuerpo-atras, .cuerpo-adelante, .cuerpo-encima { pointer-events: none; }
+.cuerpo-pose { transform-origin: 50% 94.5%; animation: respirar 3.6s ease-in-out infinite; transition: transform .6s cubic-bezier(.3, 1.4, .5, 1); }
+.cuerpo-ventana { position: absolute; overflow: hidden; border-radius: 7%; }
+.cuerpo-ventana .cara { width: 100% !important; height: 100% !important; display: block; }
+.cuerpo-brazo { animation: saludar 1.6s ease-in-out infinite; transform-box: view-box; }
+.cuerpo-aura { transform-box: fill-box; transform-origin: center; }
+.cuerpo-aura.late { animation: latir-aura 2.8s ease-in-out infinite; }
+.cuerpo .chispa { transform-box: fill-box; transform-origin: center; animation: titilar 2.4s ease-in-out infinite; }
+.cuerpo .luz-flota { animation: flotar-luz 4.2s ease-in-out infinite; }
+.cuerpo .mota { animation: temblar-mota 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.cuerpo-zzz text { font-family: var(--fuente); font-weight: 900; animation: zzz 3s ease-in-out infinite; opacity: 0; }
+.cuerpo.noche .cuerpo-pose { animation: none; transform: translateY(2%) scale(1.05, .92); }
+.cuerpo.noche .cuerpo-brazo { animation: none; transform: rotate(18deg); }
+.cuerpo.mimo .cuerpo-pose { animation: ronroneo .16s linear infinite; }
+@keyframes respirar { 50% { transform: scale(1.012, .985); } }
+@keyframes saludar { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-14deg); } 60% { transform: rotate(6deg); } }
+@keyframes latir-aura { 50% { transform: scale(1.06); opacity: .75; } }
+@keyframes titilar { 0%, 100% { opacity: .25; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.1); } }
+@keyframes flotar-luz { 0%, 100% { transform: translateY(0); opacity: .35; } 50% { transform: translateY(-9px); opacity: 1; } }
+@keyframes temblar-mota { 50% { transform: translate(.6px, -.8px) rotate(8deg); } }
+@keyframes zzz { 0% { opacity: 0; transform: translate(0, 6px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -14px); } }
+@keyframes ronroneo { 0%, 100% { transform: translate(0, 0) scale(1.02, .98); } 50% { transform: translate(.6px, 0) scale(.99, 1.01); } }
+
+/* La ficha: la escena de la mascota. */
+.heroe-mascota { padding-top: 22px; }
+.escena-mascota { position: relative; display: grid; place-items: center; width: 100%; touch-action: pan-y; }
+.esponja-capa { position: absolute; inset: 0; z-index: 6; touch-action: none; cursor: none; }
+.esponja-capa[hidden] { display: none; }
+.esponja {
+  position: absolute; left: 0; top: 0; width: 46px; height: 34px; margin: -17px 0 0 -23px; pointer-events: none;
+  border-radius: 12px 14px 10px 16px; background: linear-gradient(180deg, #fff59d 0 58%, #81c784 58%);
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.15), 0 3px 6px rgba(0,0,0,.25);
+}
+.esponja::after {
+  content: ""; position: absolute; left: 8px; top: 6px; width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255,255,255,.7); box-shadow: 14px 4px 0 -1px rgba(255,255,255,.6), 24px 0 0 rgba(255,255,255,.5);
+}
+.particula.burbuja {
+  border-radius: 50%; border: 2px solid rgba(255, 255, 255, .95);
+  background: radial-gradient(circle at 32% 30%, #fff 0 18%, rgba(179, 229, 252, .45) 22%, rgba(179, 229, 252, .15));
+}
+.gota-snack { position: absolute; z-index: 6; pointer-events: none; color: #4fc3f7; line-height: 0; animation: gota-a-la-boca .85s cubic-bezier(.4, -.3, .6, 1) both; }
+.gota-snack svg { fill: currentColor; filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
+@keyframes gota-a-la-boca { 0% { transform: translate(-50%, -260%) scale(1.3); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(.2); opacity: 0; } }
+.panel-mascota { display: flex; flex-direction: column; gap: 12px; }
+.barras-mascota { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.barra-mascota { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.barra-mascota-cab { display: flex; justify-content: space-between; align-items: baseline; font-weight: 900; }
+.barra-mascota-cab b { font-variant-numeric: tabular-nums; }
+.barra-mascota small { color: var(--tinta-3); font-size: 12px; line-height: 1.3; }
+.barra-mascota.salud .progreso i { background: var(--bien); }
+.barra-mascota.felicidad .progreso i { background: var(--primario); }
+.progreso.vacia { opacity: .5; }
+.boton.activo { outline: 3px solid var(--primario-texto); outline-offset: 2px; }
+.mascota-pista { margin: 0; }
+.mascota-noche { margin: 0; font-weight: 800; color: var(--tinta-2); font-size: 14px; }
+
+/* El cofre y el alta: el Rooti reconocido y la piel que salió. */
+.cofre-reconocido { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 18px; background: var(--panel); border: 2px solid var(--borde); max-width: 360px; }
+.cofre-reconocido p { display: flex; flex-direction: column; gap: 2px; }
+.cofre-reconocido span { color: var(--tinta-2); font-size: 14px; }
+.revelado-escena { display: grid; place-items: center; padding: 8px 18px 0; border-radius: 40px; background: radial-gradient(closest-side, var(--piel-fondo, var(--panel-alto)), transparent); animation: emerger .7s cubic-bezier(.2, 1.5, .4, 1) both; }
+.revelado-piel { font-weight: 900; color: var(--tinta) !important; }
+.cofre-escena.sale-epico .rayos { background: repeating-conic-gradient(from 0deg, rgba(255, 213, 79, .34) 0deg 9deg, transparent 9deg 24deg); }
+.cofre-escena.sale-raro .rayos { background: repeating-conic-gradient(from 0deg, rgba(213, 139, 255, .24) 0deg 9deg, transparent 9deg 24deg); }
+.reconocido { display: grid; place-items: center; }
+.alta-lema { font-style: italic; color: var(--tinta-2); text-align: center; }
+
+/* Los temas claros de las pieles: sombras más suaves. */
+html[data-estilo="claro"] .cara-marco { border-color: color-mix(in srgb, var(--borde) 80%, transparent); box-shadow: 0 4px 0 color-mix(in srgb, var(--borde) 90%, #000 10%); }
+html[data-estilo="claro"] .cofre-svg { filter: drop-shadow(0 14px 14px rgba(0,0,0,.18)) drop-shadow(0 0 30px rgba(255, 200, 0, .25)); }
+html[data-estilo="claro"] .rayos { opacity: .45; }
+html[data-estilo="claro"] .estante-tabla { box-shadow: 0 8px 0 color-mix(in srgb, var(--borde-alto) 60%, #5b3a1e), 0 14px 18px rgba(0,0,0,.12); }
+
+/* La hora de prueba del emulador (lib/reloj.mjs). */
+.pildora-demo { position: fixed; left: 50%; bottom: calc(var(--tabs) + 10px); transform: translateX(-50%); z-index: 30; padding: 6px 12px; border-radius: 999px; background: var(--atencion); color: var(--sobre-atencion); font-weight: 900; font-size: 13px; border: 0; cursor: pointer; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .cuerpo-pose, .cuerpo-brazo, .cuerpo .chispa, .cuerpo .luz-flota, .cuerpo .mota, .cuerpo-aura.late { animation: none !important; }
+  .cuerpo-zzz text { animation: none !important; opacity: 1; }
   .rayos { animation: none; }
   ::view-transition-new(root) { animation: none; }
 }

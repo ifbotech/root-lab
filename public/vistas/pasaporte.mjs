@@ -10,6 +10,7 @@
  */
 import { h, render, icono } from '../lib/ui.mjs';
 import { cara } from '../lib/caras.mjs';
+import { pielDe } from '../lib/rooties.mjs';
 import { ETAPAS, ETAPA_ES, etapaDe, MOOD_ES, RAREZA_ES, formatTemp, formatLux } from '../lib/model.mjs';
 import { resumenHistorial, edadEnDias, loQueMasLePaso, numeroDePasaporte } from '../lib/pasaporte.mjs';
 import { tokenGuardado } from '../lib/api.mjs';
@@ -35,6 +36,7 @@ export function vistaPasaporte(ctx) {
   }
   const esp = n.especie_info;
   const modelo = (coleccion?.catalogo || []).find((m) => m.id === n.modelo);
+  const piel = n.revelado ? pielDe(n.modelo, n.rareza || 'comun') : null;
   const sanos = n.bond?.dias_sanos ?? 0;
   const etapa = etapaDe(sanos);
   const edad = edadEnDias(n.creada);
@@ -50,10 +52,10 @@ export function vistaPasaporte(ctx) {
         h('h1', {}, n.nombre || 'Sin nombre'),
         h('p', { class: 'pas-especie' }, esp ? [esp.nombre, esp.cientifico ? h('i', {}, ` ${esp.cientifico}`) : null] : 'Especie sin identificar')),
       h('div', { class: 'pas-rooti' },
-        h('div', { class: 'pas-cara', style: modelo ? `background:${modelo.fondo}` : '' },
-          cara({ persona: n.revelado ? n.modelo : '', modo: n.revelado ? 'cara' : 'dormida', animo: n.revelado ? 'HAPPY' : 'SLEEPING', lado: 96, fps: 1, etiqueta: modelo?.nombre || 'Rooti' })),
+        h('div', { class: 'pas-cara', style: piel ? `background:${piel.fondo}` : '' },
+          cara({ persona: n.modelo || '', rareza: n.rareza || 'comun', modo: n.revelado ? 'cara' : 'dormida', animo: n.revelado ? 'HAPPY' : 'SLEEPING', lado: 96, fps: 1, etiqueta: modelo?.nombre || 'Rooti' })),
         h('b', {}, modelo?.nombre || '—'),
-        h('span', {}, modelo ? `Rooti ${RAREZA_ES[modelo.rareza] || ''}` : ''))),
+        h('span', {}, piel ? `Piel ${RAREZA_ES[n.rareza] || ''}: ${piel.nombre}` : 'Sin abrir el cofre'))),
 
     h('section', { class: 'pas-bloque' },
       h('h2', {}, 'Identidad'),

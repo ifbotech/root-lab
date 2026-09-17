@@ -47,7 +47,7 @@ const basePath = new URL(BASE).pathname.replace(/\/+$/, '');
 
 const salud = await json('/api/salud').catch((e) => [0, { error: e.message }]);
 ok('responde /api/salud', salud[0] === 200 && salud[1]?.ok, JSON.stringify(salud));
-ok('base de datos en el esquema 5 (datos personales cifrados)', salud[1]?.esquema === 5, `esquema ${salud[1]?.esquema}`);
+ok('base de datos en el esquema 6 (pieles y mascota; datos personales cifrados)', salud[1]?.esquema === 6, `esquema ${salud[1]?.esquema}`);
 if (salud[1]?.version) console.log(`    versión ${salud[1].version}, ${salud[1].cuentas} cuentas, ${salud[1].plantas} plantas, ${salud[1].dispositivos} aparatos`);
 
 const pagina = await pedir('/');
@@ -77,8 +77,11 @@ ok('service worker', sw.status === 200 && /javascript/.test(sw.headers.get('cont
 const wasm = await pedir('/caras/rootkit_caras.wasm');
 ok('renderer de caras (wasm)', wasm.status === 200 && wasm.headers.get('content-type') === 'application/wasm');
 
-const caras = await Promise.all(['kawaii', 'chico-malo', 'chica-chill'].map((p) => pedir(`/caras/${p}-HAPPY.png`)));
-ok('caras de los Rooties, Chico Malo y Chica Chill incluidos', caras.every((r) => r.status === 200));
+const caras = await Promise.all(['brote-comun-HAPPY', 'musgo-raro-THIRSTY', 'champi-epico-HAPPY', 'bulbo-dormido'].map((p) => pedir(`/caras/${p}.png`)));
+ok('caras de los cinco Rooties con sus pieles, y la dormida', caras.every((r) => r.status === 200));
+
+const modulos = await Promise.all(['lib/rooties.mjs', 'lib/cuerpo.mjs', 'lib/mascota.mjs', 'vistas/mascota.mjs'].map((m) => pedir(`/${m}`)));
+ok('cuerpos y mascota servidos', modulos.every((r) => r.status === 200));
 
 const fuente = await pedir('/fuentes/nunito-latin.woff2');
 ok('fuente servida desde la app', fuente.status === 200 && fuente.headers.get('content-type') === 'font/woff2');
@@ -101,7 +104,7 @@ if (FLUJO) {
   const tokenDisp = tokenApi(secreto);
   const codigo = codigoVinculo(secreto, 0);
   const disp = (cuerpo) => json('/api/d/sync', { method: 'POST', headers: { authorization: `Bearer ${tokenDisp}` }, body: {
-    id, fw: 'verificacion', placa: 'prueba', pantalla: 'ninguna', persona: 'chica-chill', epoca: 0, rssi: -50, usb: true, bat_mv: 0, arranques: 1, ...cuerpo,
+    id, fw: 'verificacion', placa: 'prueba', pantalla: 'ninguna', persona: 'musgo', epoca: 0, rssi: -50, usb: true, bat_mv: 0, arranques: 1, ...cuerpo,
   } });
 
   const clave = randomBytes(12).toString('hex');
@@ -127,8 +130,8 @@ if (FLUJO) {
   const [cr] = await json('/api/cuenta/restablecer?token=inventado');
   ok('un enlace inventado no restablece nada', cr === 200);
 
-  const [cpal] = await json('/api/cuenta', { method: 'PATCH', headers: auth, body: { paleta: 'chica-chill' } });
-  ok('la paleta de un Rooti que no tenés está bloqueada', cpal === 403);
+  const [cpal] = await json('/api/cuenta', { method: 'PATCH', headers: auth, body: { paleta: 'musgo-comun' } });
+  ok('la paleta de una piel que no tenés está bloqueada', cpal === 403);
 
   const [cia] = await json('/api/identificar', { method: 'POST', headers: auth, body: { image_b64: 'x'.repeat(200) } });
   ok('sin Rooti no hay reconocimiento de plantas', cia === 403);
@@ -137,18 +140,24 @@ if (FLUJO) {
   ok('el aparato se presenta', c1 === 200 && r1?.ok && r1.vinculado === false);
 
   const [cv, planta] = await json('/api/vinculo', { method: 'POST', headers: auth, body: { codigo } });
-  ok('vincular', cv === 201 && planta?.id);
+  ok('vincular: la app reconoce al Musgo de la figura', cv === 201 && planta?.id && planta?.modelo === 'musgo' && planta?.rareza === null);
 
-  const [ck, cofre] = await json(`/api/plantas/${planta?.id}/cofre`, { method: 'POST', headers: auth });
-  ok('abrir el cofre: sale Chica Chill y pinta la app', ck === 200 && cofre?.id === 'chica-chill' && cofre?.pinta === true);
+  const [ck, cofre] = await json('/api/cofre/abrir', { method: 'POST', headers: auth, body: { planta: planta?.id } });
+  ok('abrir el cofre: sale una piel del Musgo y pinta la app', ck === 200 && cofre?.id === 'musgo' && ['comun', 'raro', 'epico'].includes(cofre?.rareza) && cofre?.pinta === true);
+  console.log(`    piel: ${cofre?.piel?.nombre} (${cofre?.rareza})`);
   const [, yo] = await json('/api/cuenta', { headers: auth });
-  ok('la cuenta quedó con la paleta de su Rooti', yo?.paleta === 'chica-chill');
+  ok('la cuenta quedó con la paleta de esa piel', yo?.paleta === `musgo-${cofre?.rareza}`);
 
   const [cp, p] = await json(`/api/plantas/${planta?.id}`, { method: 'PATCH', headers: auth, body: { nombre: 'Verificación', especie: 'monstera' } });
   ok('nombre y especie, con su ficha de cuidados', cp === 200 && p?.ficha?.cuidados?.riego && p?.chat === true);
 
   const [c2, r2] = await disp({ estado: 'ACTIVO', reloj: 20, lecturas: [{ hace: 1, suelo: 12, temp: 230, hr: 55, lux: 4000, animo: 'THIRSTY', sev: 'URGENT' }] });
-  ok('el aparato recibe cofre y especie', c2 === 200 && r2?.revelado && r2?.especie?.id === 'monstera' && r2?.aceptadas === 1);
+  ok('el aparato recibe cofre, piel y especie', c2 === 200 && r2?.revelado && r2?.rareza === cofre?.rareza && r2?.especie?.id === 'monstera' && r2?.aceptadas === 1);
+
+  const [cmi, mimo] = await json(`/api/plantas/${planta?.id}/mascota`, { method: 'POST', headers: auth, body: { accion: 'caricia' } });
+  ok('la mascota: una caricia suma felicidad', cmi === 200 && mimo?.suma === 5 && mimo?.mascota?.felicidad === 65);
+  const [cdemo] = await json('/api/d/demo', { method: 'POST', headers: { authorization: `Bearer ${tokenDisp}` }, body: { id, accion: 'gotas' } });
+  ok('sólo el emulador adelanta el tiempo de la mascota', cdemo === 403);
 
   const [ce, estado] = await json('/api/estado', { headers: auth });
   const n = estado?.nodes?.[0];

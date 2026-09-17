@@ -16,7 +16,7 @@ import {
 } from '../lib/model.mjs';
 import { caraDeNodo } from './hoy.mjs';
 import { token } from '../lib/tema.mjs';
-import { acariciarCara } from '../lib/caricias.mjs';
+import { heroeMascota } from './mascota.mjs';
 import { panelBotanica } from './botanica.mjs';
 
 const CUIDADO_ES = {
@@ -62,16 +62,15 @@ function medidores(n, esp) {
 
 const dato = (ico, texto, mal = false) => h('span', { class: `dato ${mal ? 'mal' : ''}` }, icono(ico, 14), texto);
 
-function fila(n, esp, modelos, alAbrir) {
+function fila(n, esp, alAbrir) {
   const bat = bateriaDe(n);
   const t = n.tel || {};
-  const fondo = modelos.find((m) => m.id === n.modelo)?.fondo;
   return h('li', {
     class: `planta sev-${SEV_CLASE[n.severity] || 'bien'}`, tabindex: '0', role: 'button',
     onClick: () => alAbrir(n.id),
     onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alAbrir(n.id); } },
   },
-    caraDeNodo(n, 84, { fondo, fps: 12 }),
+    caraDeNodo(n, 84, { fps: 12 }),
     h('div', { class: 'planta-cuerpo' },
       h('div', { class: 'planta-cab' },
         h('h3', {}, n.nombre || 'Sin nombre'),
@@ -88,10 +87,9 @@ function fila(n, esp, modelos, alAbrir) {
 }
 
 export function vistaPlantas(ctx) {
-  const { estado, especies, coleccion, alAbrir, irA } = ctx;
+  const { estado, especies, alAbrir, irA } = ctx;
   const nodos = ordenarNodos(estado?.nodes || []);
   const porId = new Map((especies || []).map((e) => [e.id, e]));
-  const modelos = coleccion?.catalogo || [];
   const cont = h('div', { class: 'vista' });
 
   render(cont,
@@ -101,7 +99,7 @@ export function vistaPlantas(ctx) {
         icono('mas', 16), 'Agregar')),
     nodos.length === 0
       ? h('section', { class: 'panel vacio' }, h('p', {}, 'Todavía no tenés ningún Rooti.'))
-      : h('ul', { class: 'plantas' }, nodos.map((n) => fila(n, porId.get(n.especie), modelos, alAbrir))));
+      : h('ul', { class: 'plantas' }, nodos.map((n) => fila(n, porId.get(n.especie), alAbrir))));
   return cont;
 }
 
@@ -311,18 +309,18 @@ export function vistaDetalle(ctx) {
     } catch (e) { avisar(e.message, true); }
   };
 
-  /* La cara grande se deja acariciar (lib/caricias.mjs). */
-  const marco = caraDeNodo(n, 176, { fondo: modelo?.fondo, fps: 24 });
-  const heroe = h('section', { class: `heroe sev-${SEV_CLASE[n.severity] || 'bien'}`, style: modelo ? `--piel:${modelo.fondo}` : '' },
-    marco,
+  /* El Rooti entero, con sus mimos (vistas/mascota.mjs): se deja acariciar,
+     limpiar y convidar un snack. */
+  const { heroe, panel: panelMimos } = heroeMascota(ctx, n, { encabezado: [
     h('h2', {}, n.nombre || 'Sin nombre'),
     n.revelado ? h('p', { class: 'dice' }, n.reason || '') : null,
     h('p', { class: 'heroe-sub' },
       esp?.nombre || 'sin identificar', ' · ',
       h('span', { class: `enlace-${(n.link || '').toLowerCase()}` }, LINK_ES[n.link] || '—'), ' · ',
       formatEdad(n.tel?.age_s)),
-    n.riego ? h('p', { class: 'heroe-sub' }, icono('gota', 14), ` ${n.riego.quien || 'Alguien'} regó ${formatEdad(Math.floor((Date.now() - n.riego.t) / 1000))}`) : null);
-  if (n.revelado) acariciarCara(marco.querySelector('canvas'), { escenario: heroe, direccion: 'pan-y' });
+    n.riego ? h('p', { class: 'heroe-sub' }, icono('gota', 14), ` ${n.riego.quien || 'Alguien'} regó ${formatEdad(Math.floor((Date.now() - n.riego.t) / 1000))}`) : null,
+  ] });
+  heroe.classList.add(`sev-${SEV_CLASE[n.severity] || 'bien'}`);
 
   render(cont,
     h('header', { class: 'vista-cab' },
@@ -341,6 +339,8 @@ export function vistaDetalle(ctx) {
         : h('section', { class: 'panel' },
             h('p', { class: 'nota', style: 'margin-bottom:10px' }, `Para charlar con ${n.nombre || 'tu planta'}, primero reconozcamos su especie.`),
             h('button', { class: 'boton azul ancho', type: 'button', onClick: () => alCambiarEspecie(n.id) }, icono('camara', 20), 'Sacarle una foto')),
+
+    panelMimos,
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Ahora'),
@@ -418,7 +418,7 @@ export function vistaDetalle(ctx) {
       h('dl', { class: 'datos' },
         h('div', {}, h('dt', {}, 'Batería'), h('dd', {}, n.nodo?.usb ? 'Cargando' : bat === null ? '—' : `${bat} %`)),
         h('div', {}, h('dt', {}, 'Wifi'), h('dd', {}, n.nodo?.rssi ? `${n.nodo.rssi} dBm` : '—')),
-        h('div', {}, h('dt', {}, 'Rooti'), h('dd', {}, modelo?.nombre || '—')),
+        h('div', {}, h('dt', {}, 'Rooti'), h('dd', {}, modelo ? `${modelo.nombre}${n.revelado ? ` · ${modelo.pieles?.find((p) => p.rareza === n.rareza)?.nombre || ''}` : ''}` : '—')),
         h('div', {}, h('dt', {}, 'Firmware'), h('dd', { class: 'mono' }, n.nodo?.fw || '—')))),
 
     h('button', { class: 'boton peligro ancho', type: 'button', onClick: desvincular }, icono('basura', 18), 'Desvincular'));

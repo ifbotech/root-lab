@@ -12,12 +12,11 @@
  * Unidades, iguales a las del firmware: humedad de suelo y aire en %,
  * temperatura en DÉCIMAS de grado, luz en lux.
  *
- * MODELOS
+ * ROOTIES
  *
- * Generado desde rootkit/firmware/core/persona.c por
- * tools/sincronizar-firmware.mjs. El `idx` es la posición en esa tabla y el
- * color de fondo es la piel del personaje, para que la app lo pinte igual.
- * No editar a mano.
+ * Los cinco personajes y sus tres pieles viven en public/lib/rooties.mjs,
+ * generado desde rootkit/firmware/core/persona.c por
+ * tools/sincronizar-firmware.mjs. Acá sólo se reexportan.
  */
 
 export const ESPECIES = [
@@ -64,29 +63,11 @@ function e(id, nombre, cientifico, soilMin, soilMax, tMin, tMax, rh, luxMin, lux
   };
 }
 
-/* ---- generado: no editar a mano ---------------------------------------- */
-export const MODELOS = [
-  { idx: 0, id: 'cresta', nombre: 'Cresta', rareza: 'COMUN', fondo: '#62c536',
-    carcasa: 'carcasas/cresta.stl', lema: 'No te va a agradecer. Igual regala.' },
-  { idx: 1, id: 'kawaii', nombre: 'Kawaii', rareza: 'COMUN', fondo: '#ffa8d0',
-    carcasa: 'carcasas/kawaii.stl', lema: 'Te quiere aunque la olvides. Eso es peor.' },
-  { idx: 2, id: 'visor', nombre: 'Visor', rareza: 'COMUN', fondo: '#3a526a',
-    carcasa: 'carcasas/visor.stl', lema: 'Registra. No opina.' },
-  { idx: 3, id: 'ciclope', nombre: 'Ciclope', rareza: 'RARO', fondo: '#ffa838',
-    carcasa: 'carcasas/ciclope.stl', lema: 'Mira una sola cosa. La mira mucho.' },
-  { idx: 4, id: 'hongo', nombre: 'Hongo', rareza: 'RARO', fondo: '#ba8ef2',
-    carcasa: 'carcasas/hongo.stl', lema: 'Duerme. Crece igual.' },
-  { idx: 5, id: 'chico-malo', nombre: 'Chico Malo', rareza: 'COMUN', fondo: '#9d0208',
-    carcasa: 'carcasas/chico-malo.stl', lema: 'Se hace el malo. Igual te espera despierto.' },
-  { idx: 6, id: 'chica-chill', nombre: 'Chica Chill', rareza: 'COMUN', fondo: '#0466c8',
-    carcasa: 'carcasas/chica-chill.stl', lema: 'Leyó todo sobre tu planta. No se estresa por nada.' },
-  { idx: 7, id: 'glitch', nombre: '?????', rareza: 'SECRETO', fondo: '#1c1c26',
-    carcasa: 'carcasas/glitch.stl', lema: 'No estaba en la caja. Igual salio.' },
-];
-/* ---- fin de lo generado ------------------------------------------------ */
+/* Los Rooties salen de public/lib/rooties.mjs, que se genera desde el
+   firmware: el servidor y la app ven la misma tabla. */
+export { MODELOS, RAREZAS, modeloPorId, pielDe, idPiel } from '../public/lib/rooties.mjs';
 
 export const especiePorId = (id) => ESPECIES.find((x) => x.id === id) || null;
-export const modeloPorId = (id) => MODELOS.find((x) => x.id === id) || null;
 
 /* Los once ánimos del firmware (core/mood.h), en el mismo orden. */
 export const ANIMOS = [

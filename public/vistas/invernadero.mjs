@@ -1,7 +1,7 @@
 /* invernadero.mjs — todos los Rooties en un estante, mirándose.
  *
  * Es la escena de la casa: las plantas una al lado de la otra, cada Rooti
- * con la cara que está poniendo ahora. Y se miran (lib/miradas.mjs): un
+ * entero (lib/cuerpo.mjs) con la cara que está poniendo ahora. Y se miran (lib/miradas.mjs): un
  * vistazo al de al lado cada tanto y, cuando uno tiene sed o frío, los
  * vecinos lo miran con preocupación. Sirve para saber de un vistazo quién
  * necesita algo sin leer nada: el que tiene a todos mirándolo.
@@ -10,17 +10,16 @@
  * cuatro veces por segundo (lib/caras.mjs las suaviza).
  */
 import { h, render, icono } from '../lib/ui.mjs';
-import { cara } from '../lib/caras.mjs';
-import { ETAPAS, etapaDe, MOOD_ES } from '../lib/model.mjs';
+import { MOOD_ES } from '../lib/model.mjs';
 import { miradaDe } from '../lib/miradas.mjs';
+import { cuerpoDeNodo } from './mascota.mjs';
 
 const PASO_MS = 250;
 const SEV = { URGENT: 'sev-urgente', WATCH: 'sev-atencion' };
 
 export function vistaInvernadero(ctx) {
-  const { estado, coleccion, alAbrir, volver, irA } = ctx;
+  const { estado, alAbrir, volver, irA } = ctx;
   const nodos = (estado?.nodes || []);
-  const modelos = coleccion?.catalogo || [];
   const cont = h('div', { class: 'vista invernadero' });
 
   if (nodos.length === 0) {
@@ -31,23 +30,12 @@ export function vistaInvernadero(ctx) {
   }
 
   const lado = Math.max(96, Math.min(150, Math.floor((Math.min(window.innerWidth, 560) - 32 - 12 * (nodos.length - 1)) / Math.max(2, Math.min(nodos.length, 3)))));
-  const lienzos = nodos.map((n) => cara({
-    persona: n.revelado ? n.modelo : '',
-    modo: n.revelado ? 'cara' : 'dormida',
-    animo: n.mood,
-    etapa: ETAPAS.indexOf(etapaDe(n.bond?.dias_sanos ?? 0)),
-    lado,
-    fps: 20,
-    clave: n.id,
-    lux: n.tel?.lux ?? null,
-    etiqueta: `${n.nombre || 'Tu Rooti'}: ${n.reason || ''}`,
-  }));
+  const lienzos = nodos.map((n) => cuerpoDeNodo(n, lado, { fps: 20 }));
 
   const macetas = nodos.map((n, i) => {
-    const fondo = modelos.find((m) => m.id === n.modelo)?.fondo;
+    if (SEV[n.severity]) lienzos[i].dataset.sev = SEV[n.severity];
     return h('button', { class: 'maceta', type: 'button', onClick: () => alAbrir(n.id), 'aria-label': `${n.nombre || 'Tu Rooti'}, ${MOOD_ES[n.mood] || ''}` },
-      h('div', { class: `cara-marco ${SEV[n.severity] || ''}`, style: fondo ? `background:${fondo}` : '' }, lienzos[i]),
-      h('div', { class: 'maceta-tierra' }),
+      lienzos[i],
       h('b', {}, n.nombre || 'Sin nombre'),
       h('span', {}, n.revelado ? (MOOD_ES[n.mood] || '') : 'dormido'));
   });

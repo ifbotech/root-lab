@@ -65,7 +65,7 @@ describe('reconocer la planta', () => {
 
   test('con el primer reconocimiento nace la ficha y el prompt del chat', async () => {
     const esc = escenario();
-    const { token, planta } = await conRooti(esc, { persona: 'chica-chill', nombre: 'Lola' });
+    const { token, planta } = await conRooti(esc, { persona: 'musgo', nombre: 'Lola' });
     const [, ident] = await esc.llamar('POST', '/api/identificar', { token, cuerpo: { planta: planta.id, image_b64: FOTO } });
     const [, p] = await esc.llamar('PATCH', `/api/plantas/${planta.id}`, { token, cuerpo: { especie: ident.especie.id } });
     assert.equal(p.ficha.fuente, 'ia', 'con los cuidados del reconocimiento');
@@ -73,7 +73,8 @@ describe('reconocer la planta', () => {
     assert.equal(p.chat, true);
     const guardada = esc.db.planta(planta.id);
     assert.match(guardada.prompt, /^Sos Lola, una planta de la especie/);
-    assert.match(guardada.prompt, /Chica Chill/);
+    assert.match(guardada.prompt, /Rooti llamado Musgo/);
+    assert.match(guardada.prompt, /serena y zen/);
 
     /* Elegir otra especie de la lista: ficha sólo con los rangos, sin gastar. */
     const otra = ident.especie.id === 'cactus' ? 'monstera' : 'cactus';
@@ -100,7 +101,7 @@ describe('diagnosticar', () => {
 
 describe('charlar con la planta', () => {
   async function plantaLista(esc, opciones = {}) {
-    const r = await conRooti(esc, { persona: 'kawaii', nombre: 'Rulo', ...opciones });
+    const r = await conRooti(esc, { persona: 'brote', nombre: 'Rulo', ...opciones });
     await esc.llamar('PATCH', `/api/plantas/${r.planta.id}`, { token: r.token, cuerpo: { especie: 'monstera' } });
     r.maceta.medir({ suelo: 12, temp: 231, hr: 58, lux: 5200, animo: 'THIRSTY', sev: 'URGENT' });
     r.maceta.pasar(60);

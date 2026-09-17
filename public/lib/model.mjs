@@ -15,14 +15,16 @@
  * qué planta va primero en la lista. */
 export const SEVERIDADES = ['URGENT', 'WATCH', 'OK'];
 
-/* Las rarezas de la caja ciega, de la más común a la más rara. El orden
- * importa: es el que ordena la vista de colección. */
-export const RAREZAS = ['COMUN', 'RARO', 'SECRETO'];
+/* Las rarezas del cofre, de la más común a la más rara. Son rarezas de la
+ * PIEL: qué Rooti es lo dice la figura; el cofre sortea sus colores. El
+ * orden importa: es el que ordena la vista de colección. Los ids son los
+ * del firmware y la nube. */
+export const RAREZAS = ['comun', 'raro', 'epico'];
 
 export const RAREZA_ES = {
-  COMUN: 'común',
-  RARO: 'raro',
-  SECRETO: 'secreto',
+  comun: 'común',
+  raro: 'rara',
+  epico: 'épica',
 };
 
 /* Salud del enlace, tal como la calcula firmware/core/node.c. La app la
@@ -86,6 +88,21 @@ export function formatEdad(s) {
   if (s < 5400) return `hace ${Math.round(s / 60)} min`;
   if (s < 172800) return `hace ${Math.round(s / 3600)} h`;
   return `hace ${Math.round(s / 86400)} días`;
+}
+
+/**
+ * La firma de un tablero para decidir si hay que repintar: lo que se ve.
+ * La edad de la lectura cuenta como el texto que se muestra ("hace 3 min"),
+ * no en segundos, y la espera de la caricia no cuenta (la app la descuenta
+ * sola): si no, cada consulta cambiaría la firma y la ficha se rehacería en
+ * medio de una caricia.
+ */
+export function firmaTablero(nodes) {
+  return JSON.stringify((nodes || []).map((n) => ({
+    ...n,
+    tel: n.tel ? { ...n.tel, age_s: formatEdad(n.tel.age_s) } : n.tel,
+    mascota: n.mascota ? { ...n.mascota, caricia_en_ms: n.mascota.caricia_en_ms > 0 } : n.mascota,
+  })));
 }
 
 /** Tensión de celda a porcentaje. Misma curva que firmware/nodo/power.c. */
@@ -170,41 +187,40 @@ export function bateriaDe(nodo) {
 }
 
 /**
- * Cómo va la colección de carcasas. El secreto NO entra en el total: si
- * entrara, el contador diría "3 de 6" y le estaría contando al usuario que
- * existe algo que todavía no descubrió, que es justo lo que arruina un
- * secreto. Aparece en la cuenta recién cuando ya lo tiene.
+ * Cómo va la colección de pieles: cinco Rooties por tres rarezas. `rooties`
+ * cuenta de cuántos Rooties tenés al menos una piel (eso depende de las
+ * figuras que tengas) y `epicas`, las épicas (eso, del azar del cofre).
  */
 export function progresoColeccion(catalogo, tengo) {
-  const lista = catalogo || [];
   const mios = tengo || [];
-  const visibles = lista.filter((m) => m.rareza !== 'SECRETO');
-  const tengoVisibles = visibles.filter((m) => mios.includes(m.id)).length;
-  const secretos = lista.filter(
-    (m) => m.rareza === 'SECRETO' && mios.includes(m.id),
-  ).length;
+  const lista = catalogo || [];
+  const pieles = lista.flatMap((m) => (m.pieles || []).map((p) => p.id || `${m.id}-${p.rareza}`));
+  const propias = pieles.filter((id) => mios.includes(id));
   return {
-    tengo: tengoVisibles + secretos,
-    total: visibles.length + secretos,
-    completa: tengoVisibles === visibles.length && visibles.length > 0,
-    secretos,
+    tengo: propias.length,
+    total: pieles.length,
+    completa: pieles.length > 0 && propias.length === pieles.length,
+    rooties: lista.filter((m) => (m.pieles || []).some((p) => mios.includes(p.id || `${m.id}-${p.rareza}`))).length,
+    epicas: propias.filter((id) => id.endsWith('-epico')).length,
   };
 }
 
 /**
- * Orden de la colección: por rareza y después por nombre. Los repetidos no
- * existen como concepto acá —la app registra qué modelos tenés, no cuántos
- * de cada uno— porque contar duplicados convertiría la colección en un
+ * Orden de la colección: los Rooties como vienen del firmware y, dentro de
+ * cada uno, las pieles de la común a la épica. Los repetidos no existen como
+ * concepto acá —la app registra qué pieles tenés, no cuántas veces te
+ * salieron— porque contar duplicados convertiría la colección en un
  * inventario, y un inventario no da ganas de completar nada.
  */
 export function ordenarColeccion(catalogo) {
-  const rank = (m) => {
-    const i = RAREZAS.indexOf(m.rareza);
+  const rank = (r) => {
+    const i = RAREZAS.indexOf(r);
     return i < 0 ? RAREZAS.length : i;
   };
-  return [...(catalogo || [])].sort(
-    (a, b) => rank(a) - rank(b) || String(a.nombre).localeCompare(String(b.nombre)),
-  );
+  return (catalogo || []).map((m) => ({
+    ...m,
+    pieles: [...(m.pieles || [])].sort((a, b) => rank(a.rareza) - rank(b.rareza)),
+  }));
 }
 
 /**

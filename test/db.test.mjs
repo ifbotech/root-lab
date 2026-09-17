@@ -145,7 +145,7 @@ test('una base v1 (email en claro) se migra a v2 sin perder nada', () => conDir(
       pantalla TEXT NOT NULL DEFAULT 'toque', brillo INTEGER NOT NULL DEFAULT 80, vinculo TEXT NOT NULL, desvinculada INTEGER);
     INSERT INTO cuentas VALUES ('c1', 'Vieja@Ejemplo.com', 'Vera', 'scrypt$16384$8$1$sal$hash', 'UTC', '["kawaii"]', 1);
     INSERT INTO sesiones VALUES ('s1', 'c1', 1, 1, '');
-    INSERT INTO plantas (id, cuenta, dispositivo, epoca, creada, nombre, vinculo) VALUES ('p1', 'c1', 'D', 0, 2, 'Rulo', '{}');
+    INSERT INTO plantas (id, cuenta, dispositivo, epoca, creada, nombre, vinculo, persona, revelado) VALUES ('p1', 'c1', 'D', 0, 2, 'Rulo', '{}', 'glitch', 1);
   `);
   v1.close();
 
@@ -156,11 +156,14 @@ test('una base v1 (email en claro) se migra a v2 sin perder nada', () => conDir(
   assert.equal(c.id, 'c1');
   assert.equal(c.email, 'vieja@ejemplo.com');
   assert.equal(c.nombre, 'Vera');
-  assert.deepEqual(c.coleccion, ['kawaii']);
+  assert.deepEqual(c.coleccion, ['brote-comun'], 'v6: la colección pasa a pieles de los cinco Rooties');
   assert.equal(c.clave_hash, 'scrypt$16384$8$1$sal$hash', 'el hash viejo se conserva: se rehace al entrar');
   assert.equal(c.plan, 'gratis');
   assert.equal(db.sesionCuenta('s1', 2).id, 'c1', 'las sesiones siguen');
   assert.equal(db.planta('p1').nombre, 'Rulo');
+  assert.equal(db.planta('p1').persona, 'bulbo', 'v6: el Rooti secreto de antes pasa al Bulbo');
+  assert.equal(db.planta('p1').rareza, 'epico', 'con su piel épica');
+  assert.equal(db.planta('p1').mascota, null, 'la mascota nace la primera vez que se la mira');
   db.chatAgregar({ planta: 'p1', cuenta: 'c1', t: 3, rol: 'persona', texto: 'hola' });
   db.cuentaBorrar('c1');
   assert.equal(db.planta('p1'), null, 'las claves foráneas siguen andando después de reconstruir la tabla');

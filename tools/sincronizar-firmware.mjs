@@ -10,14 +10,16 @@
  *      (rootkit/firmware/build/rootkit_caras.wasm, `make wasm`) a
  *      public/caras/. La app dibuja las caras con él.
  *
- *   2. Con ese mismo módulo, renderiza una imagen por modelo y ánimo en
- *      public/caras/<modelo>-<ANIMO>.png. Son los íconos de las
- *      notificaciones y la primera pintada antes de que cargue el módulo.
+ *   2. Con ese mismo módulo, renderiza una imagen por Rooti, piel y ánimo
+ *      en public/caras/<rooti>-<rareza>-<ANIMO>.png, y cada Rooti dormido en
+ *      <rooti>-dormido.png. Son los íconos de las notificaciones y la
+ *      primera pintada antes de que cargue el módulo.
  *
- *   3. Regenera la tabla MODELOS de server/catalogo.mjs a partir de
- *      rootkit/firmware/core/persona.c.
+ *   3. Regenera public/lib/rooties.mjs —los cinco Rooties con sus tres
+ *      pieles— a partir de rootkit/firmware/core/persona.c. De ahí salen las
+ *      quince paletas de la app, los cuerpos y el catálogo del servidor.
  */
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
@@ -83,50 +85,102 @@ export async function cargarModulo(archivo) {
   return { x, texto };
 }
 
+export const RAREZAS = ['comun', 'raro', 'epico'];
+
 function renderizar({ x, texto }) {
   mkdirSync(CARAS, { recursive: true });
+  /* Las imágenes son todas generadas: se borran las viejas (de Rooties que
+     ya no existen) antes de escribir las nuevas. */
+  for (const f of readdirSync(CARAS)) if (f.endsWith('.png')) unlinkSync(join(CARAS, f));
   x.lienzo(LADO, LADO);
   const rgba = () => new Uint8Array(x.memory.buffer, x.rgba(), LADO * LADO * 4);
   let n = 0;
   for (let p = 0; p < x.personas(); p++) {
     const id = texto(x.persona_id(p));
-    for (let m = 0; m < x.animos(); m++) {
-      /* El instante 1200 ms: ojos abiertos, sin parpadeo ni gesto. */
-      x.cara(p, m, 0, 1200);
-      writeFileSync(join(CARAS, `${id}-${texto(x.animo_id(m))}.png`), png(rgba(), LADO, LADO));
-      n++;
-    }
+    RAREZAS.forEach((rareza, r) => {
+      for (let m = 0; m < x.animos(); m++) {
+        /* El instante 1200 ms: ojos abiertos, sin parpadeo ni gesto. */
+        x.cara(p, r, m, 0, 1200);
+        writeFileSync(join(CARAS, `${id}-${rareza}-${texto(x.animo_id(m))}.png`), png(rgba(), LADO, LADO));
+        n++;
+      }
+    });
+    x.dormida(p, 1200);
+    writeFileSync(join(CARAS, `${id}-dormido.png`), png(rgba(), LADO, LADO));
+    n++;
   }
-  x.dormida(1200);
-  writeFileSync(join(CARAS, 'incognito.png'), png(rgba(), LADO, LADO));
-  return n + 1;
+  return n;
 }
 
 /* ------------------------------------------------------------ modelos ----- */
+const ADORNOS = { BRILLOS: 'brillos', AURA: 'aura', CORONA: 'corona', LUCES: 'luces' };
+
+/** Los Rooties de persona.c: sus datos y las tres pieles de cada uno. */
 export function modelosDesdePersona(c) {
-  const re = /\{\s*"([a-z0-9-]+)",\s*"([^"]*)",\s*"([^"]*)",\s*"([^"]*)",\s*RK_RAR_([A-Z]+),[\s\S]*?RK_RGB\(\s*(\d+),\s*(\d+),\s*(\d+)\)/g;
+  const cabeza = /\{\s*"([a-z0-9-]+)",\s*"([^"]*)",\s*"([^"]*)",\s*"([^"]*)",/g;
+  const piel = /\{\s*"([^"]*)",\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*([^}]*?)\s*\}/g;
   const salida = [];
   let m;
-  while ((m = re.exec(c))) {
-    const hex = [m[6], m[7], m[8]].map((v) => Number(v).toString(16).padStart(2, '0')).join('');
-    salida.push({ idx: salida.length, id: m[1], nombre: m[2], carcasa: m[3], lema: m[4], rareza: m[5], fondo: `#${hex}` });
+  while ((m = cabeza.exec(c))) {
+    piel.lastIndex = cabeza.lastIndex;
+    const pieles = {};
+    for (const rareza of RAREZAS) {
+      const k = piel.exec(c);
+      if (!k) throw new Error(`a ${m[1]} le faltan pieles en persona.c`);
+      pieles[rareza] = {
+        nombre: k[1],
+        fondo: `#${k[2].toLowerCase()}`, ojos: `#${k[3].toLowerCase()}`,
+        piel: `#${k[4].toLowerCase()}`, rubor: `#${k[5].toLowerCase()}`,
+        adornos: [...k[6].matchAll(/RK_ADORNO_([A-Z]+)/g)].map((a) => ADORNOS[a[1]]).filter(Boolean),
+      };
+    }
+    salida.push({ idx: salida.length, id: m[1], nombre: m[2], carcasa: m[3], lema: m[4], pieles });
+    cabeza.lastIndex = piel.lastIndex;
   }
   return salida;
 }
 
-function escribirModelos(modelos) {
-  const archivo = join(RAIZ, 'server', 'catalogo.mjs');
-  const fuente = readFileSync(archivo, 'utf8');
-  const a = '/* ---- generado: no editar a mano ---------------------------------------- */';
-  const b = '/* ---- fin de lo generado ------------------------------------------------ */';
-  const i = fuente.indexOf(a);
-  const j = fuente.indexOf(b);
-  if (i < 0 || j < 0) throw new Error('no encontré las marcas en catalogo.mjs');
+function escribirRooties(modelos) {
+  const archivo = join(RAIZ, 'public', 'lib', 'rooties.mjs');
   const q = (s) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
-  const bloque = `${a}\nexport const MODELOS = [\n${modelos.map((m) =>
-    `  { idx: ${m.idx}, id: ${q(m.id)}, nombre: ${q(m.nombre)}, rareza: ${q(m.rareza)}, fondo: ${q(m.fondo)},\n`
-    + `    carcasa: ${q(m.carcasa)}, lema: ${q(m.lema)} },`).join('\n')}\n];\n`;
-  writeFileSync(archivo, fuente.slice(0, i) + bloque + fuente.slice(j));
+  const pieles = (m) => RAREZAS.map((r) => {
+    const p = m.pieles[r];
+    return `      ${r}: { nombre: ${q(p.nombre)}, fondo: ${q(p.fondo)}, ojos: ${q(p.ojos)}, piel: ${q(p.piel)}, rubor: ${q(p.rubor)}, adornos: [${p.adornos.map(q).join(', ')}] },`;
+  }).join('\n');
+  writeFileSync(archivo, `/* rooties.mjs — los cinco Rooties y sus tres pieles.
+ *
+ * GENERADO desde rootkit/firmware/core/persona.c por
+ * tools/sincronizar-firmware.mjs (npm run firmware). No editar a mano: para
+ * cambiar un color o un lema se edita persona.c y se vuelve a generar, así
+ * la pantalla de la maceta y la app no se separan nunca.
+ *
+ * \`idx\` es la posición en la tabla del firmware (la clave del módulo de
+ * caras). Cada piel es una rareza del cofre: común, rara o épica.
+ */
+
+export const RAREZAS = ['comun', 'raro', 'epico'];
+
+export const MODELOS = [
+${modelos.map((m) => `  {
+    idx: ${m.idx}, id: ${q(m.id)}, nombre: ${q(m.nombre)}, carcasa: ${q(m.carcasa)},
+    lema: ${q(m.lema)},
+    pieles: {
+${pieles(m)}
+    },
+  },`).join('\n')}
+];
+
+export const modeloPorId = (id) => MODELOS.find((x) => x.id === id) || null;
+
+/** La piel de un Rooti en una rareza (la común si la rareza no existe). */
+export const pielDe = (id, rareza) => {
+  const m = modeloPorId(id);
+  return m ? (m.pieles[rareza] || m.pieles.comun) : null;
+};
+
+/** La clave de una piel: "brote-epico". Es también el id de su paleta. */
+export const idPiel = (id, rareza) => \`\${id}-\${RAREZAS.includes(rareza) ? rareza : 'comun'}\`;
+`);
 }
 
 /* --------------------------------------------------------------- main ----- */
@@ -138,7 +192,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   copyFileSync(WASM, join(CARAS, 'rootkit_caras.wasm'));
   const n = renderizar(await cargarModulo(WASM));
   const modelos = modelosDesdePersona(readFileSync(PERSONA, 'utf8'));
-  if (modelos.length === 0) throw new Error('no pude leer los modelos de persona.c');
-  escribirModelos(modelos);
-  console.log(`wasm copiado, ${n} caras de ${LADO}x${LADO}, ${modelos.length} modelos`);
+  if (modelos.length === 0) throw new Error('no pude leer los Rooties de persona.c');
+  escribirRooties(modelos);
+  console.log(`wasm copiado, ${n} caras de ${LADO}x${LADO}, ${modelos.length} Rooties con ${modelos.length * RAREZAS.length} pieles`);
 }

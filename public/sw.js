@@ -10,7 +10,7 @@
  */
 
 /* Subir la versión invalida el caché entero. */
-const CACHE = 'rootlab-v13';
+const CACHE = 'rootlab-v14';
 
 /* La app puede estar montada en una subruta (/rootkit/): todo se resuelve
    contra el alcance del service worker, nunca contra la raíz del dominio. */
@@ -30,6 +30,11 @@ const ARMAZON = [
   'lib/gif.mjs',
   'lib/miradas.mjs',
   'lib/pasaporte.mjs',
+  'lib/cuerpo.mjs',
+  'lib/mascota.mjs',
+  'lib/reloj.mjs',
+  'lib/rooties.mjs',
+  'vistas/mascota.mjs',
   'vistas/album.mjs',
   'vistas/invernadero.mjs',
   'vistas/pasaporte.mjs',
@@ -65,7 +70,7 @@ const ARMAZON = [
   'vistas/plantas.mjs',
   'vistas/sitter.mjs',
   'caras/rootkit_caras.wasm',
-  'caras/incognito.png',
+  'caras/brote-dormido.png',
   'iconos/icono-192.png',
   'iconos/icono-512.png',
   'iconos/apple-touch-icon.png',

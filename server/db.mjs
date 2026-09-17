@@ -24,8 +24,10 @@
  *                   verificar el email (el hash, nunca el token)
  *   dispositivos    cada Rooti: token, estado, código y época, última lectura
  *   plantas         el vínculo de un Rooti con una cuenta: nombre, especie,
- *                   personaje, días sanos, ficha de cuidados y el prompt del
- *                   chat. Desvincular no la borra: la marca.
+ *                   qué Rooti es y la piel que salió del cofre (rareza),
+ *                   días sanos, la mascota (felicidad, gotas de rocío), la
+ *                   ficha de cuidados y el prompt del chat. Desvincular no la
+ *                   borra: la marca.
  *   lecturas        TODAS las lecturas, para siempre, de la planta a la que
  *                   pertenecían cuando se midieron; `escurre` marca las que
  *                   el Rooti tomó justo después de un riego que se escurrió
@@ -58,8 +60,9 @@ import { dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { crearCripto } from './cripto.mjs';
+import { LEGADO } from './cofre.mjs';
 
-export const VERSION_ESQUEMA = 5;
+export const VERSION_ESQUEMA = 6;
 
 export const normalizarEmail = (e) => String(e || '').trim().toLowerCase();
 
@@ -167,7 +170,9 @@ CREATE TABLE IF NOT EXISTS plantas (
   desvinculada   INTEGER,
   ficha          TEXT,
   prompt         TEXT,
-  identificacion TEXT
+  identificacion TEXT,
+  rareza         TEXT NOT NULL DEFAULT 'comun',
+  mascota        TEXT
 );
 CREATE INDEX IF NOT EXISTS plantas_cuenta ON plantas(cuenta);
 `;
@@ -273,6 +278,8 @@ function filaPlanta(f) {
     vinculo: json(f.vinculo, {}),
     ficha: json(f.ficha),
     identificacion: json(f.identificacion),
+    rareza: f.rareza || 'comun',
+    mascota: json(f.mascota),
   } : null;
 }
 
@@ -477,11 +484,12 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
     /* ------------------------------------------------------------ plantas */
     plantaCrear(p) {
       q(`INSERT INTO plantas (id, cuenta, dispositivo, epoca, creada, persona, revelado, nombre, especie,
-           pantalla, brillo, vinculo)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+           pantalla, brillo, vinculo, rareza, mascota)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(p.id, p.cuenta, p.dispositivo, p.epoca, p.creada, nulo(p.persona), bool(p.revelado),
           p.nombre || '', p.especie ? JSON.stringify(p.especie) : null, p.pantalla || 'toque',
-          p.brillo ?? 80, JSON.stringify(p.vinculo || {}));
+          p.brillo ?? 80, JSON.stringify(p.vinculo || {}), p.rareza || 'comun',
+          p.mascota ? JSON.stringify(p.mascota) : null);
     },
     /** Una planta vinculada (las desvinculadas no se devuelven). */
     planta(id) {
@@ -495,11 +503,12 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
     },
     plantaGuardar(p) {
       q(`UPDATE plantas SET persona = ?, revelado = ?, revelada_en = ?, nombre = ?, especie = ?, pantalla = ?,
-           brillo = ?, vinculo = ?, ficha = ?, prompt = ?, identificacion = ? WHERE id = ?`)
+           brillo = ?, vinculo = ?, ficha = ?, prompt = ?, identificacion = ?, rareza = ?, mascota = ? WHERE id = ?`)
         .run(nulo(p.persona), bool(p.revelado), nulo(p.revelada_en), p.nombre || '',
           p.especie ? JSON.stringify(p.especie) : null, p.pantalla || 'toque', p.brillo ?? 80,
           JSON.stringify(p.vinculo || {}), p.ficha ? JSON.stringify(p.ficha) : null, nulo(p.prompt),
-          p.identificacion ? JSON.stringify(p.identificacion) : null, p.id);
+          p.identificacion ? JSON.stringify(p.identificacion) : null, p.rareza || 'comun',
+          p.mascota ? JSON.stringify(p.mascota) : null, p.id);
     },
     /** Desvincula sin borrar: la planta y sus lecturas quedan guardadas. */
     plantaDesvincular(id, t) {
@@ -682,6 +691,41 @@ function migrar(db, cripto) {
   if (v < 3) migrarV2aV3(db);
   if (v < 4) migrarV3aV4(db);
   if (v < 5) db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '5')").run();   /* v5: la tabla fotos, creada arriba */
+  if (v < 6) migrarV5aV6(db);
+}
+
+/* v5 -> v6: los cinco Rooties botánicos y la piel del cofre.
+ *
+ * Cada planta guarda la rareza que salió del cofre y el estado de su
+ * mascota. Los Rooties de la primera tanda pasan al más parecido de los
+ * nuevos (server/cofre.mjs, LEGADO) en las plantas, los aparatos y las
+ * colecciones, que ahora son de pieles ("brote-epico") y no de Rooties. Las
+ * paletas de Chico Malo y Chica Chill pasan a la piel común de su Rooti. */
+function migrarV5aV6(db) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const cols = db.prepare('PRAGMA table_info(plantas)').all().map((c) => c.name);
+    if (!cols.includes('rareza')) db.exec("ALTER TABLE plantas ADD COLUMN rareza TEXT NOT NULL DEFAULT 'comun'");
+    if (!cols.includes('mascota')) db.exec('ALTER TABLE plantas ADD COLUMN mascota TEXT');
+    for (const [viejo, nuevo] of Object.entries(LEGADO)) {
+      db.prepare('UPDATE plantas SET persona = ?, rareza = ? WHERE persona = ?').run(nuevo.persona, nuevo.rareza, viejo);
+      db.prepare('UPDATE dispositivos SET persona_fabrica = ? WHERE persona_fabrica = ?').run(nuevo.persona, viejo);
+    }
+    const PALETA = { 'chico-malo': 'pinchito-comun', 'chica-chill': 'musgo-comun' };
+    const actualizar = db.prepare('UPDATE cuentas SET coleccion = ?, paleta = ? WHERE id = ?');
+    for (const c of db.prepare('SELECT id, coleccion, paleta FROM cuentas').all()) {
+      let lista = [];
+      try { lista = JSON.parse(c.coleccion || '[]'); } catch { lista = []; }
+      const pieles = [...new Set(lista.map((id) => (LEGADO[id] ? `${LEGADO[id].persona}-${LEGADO[id].rareza}` : id))
+        .filter((id) => /^[a-z]+-(comun|raro|epico)$/.test(id)))];
+      actualizar.run(JSON.stringify(pieles), PALETA[c.paleta] || c.paleta, c.id);
+    }
+    db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '6')").run();
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
 }
 
 /* v3 -> v4: la ciudad de cada cuenta (para el pronóstico), y las tablas de

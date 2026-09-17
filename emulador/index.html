@@ -11,7 +11,7 @@
 </head>
 <body>
 <header class="cab">
-  <h1>ROOT<span>LAB</span> <small>emulador de Rooti</small></h1>
+  <h1>ROOT<span>LAB</span> <small>emulador de Rooti · <span id="d-instancia">aparato 1</span></small></h1>
   <p>Un Rooti virtual que corre el firmware real del ROOTKIT (compilado a WebAssembly) y habla con ROOTLAB igual que la placa.</p>
 </header>
 
@@ -33,6 +33,7 @@
         <div><dt>Código</dt><dd id="d-codigo" class="mono">—</dd></div>
         <div><dt>Red del portal</dt><dd id="d-ssid" class="mono">—</dd></div>
         <div><dt>Época</dt><dd id="d-epoca">—</dd></div>
+        <div><dt>Piel</dt><dd id="d-piel">—</dd></div>
       </dl>
       <p class="qr-destino">El QR lleva a <a id="d-url" target="_blank" rel="noopener">—</a></p>
       <div class="fila">
@@ -66,24 +67,70 @@
 
     <div class="tarjeta">
       <h2>Fábrica</h2>
-      <label class="caja">Rooti grabado
+      <label class="caja">Rooti de la figura
         <select id="s-persona">
-          <option value="">ninguno (el cofre tira)</option>
-          <option value="cresta">Cresta</option>
-          <option value="kawaii">Kawaii</option>
-          <option value="visor">Visor</option>
-          <option value="ciclope">Cíclope</option>
-          <option value="hongo">Hongo</option>
-          <option value="chico-malo">Chico Malo (pinta la app)</option>
-          <option value="chica-chill">Chica Chill (pinta la app)</option>
-          <option value="glitch">????? (secreto)</option>
+          <option value="brote">Brote</option>
+          <option value="musgo">Musgo</option>
+          <option value="pinchito">Pinchito</option>
+          <option value="bulbo">Bulbo</option>
+          <option value="champi">Champi</option>
         </select>
       </label>
+      <p class="nota">La figura dice qué Rooti es (NVS de fábrica); el cofre de la app sortea sólo la piel. Cambialo antes de vincular.</p>
       <div class="fila">
         <button type="button" class="btn rojo" id="b-reset">Mantener 10 s</button>
         <button type="button" class="btn" id="b-nuevo">Aparato nuevo</button>
       </div>
       <details><summary>Última conversación con la nube</summary><pre id="log"></pre></details>
+    </div>
+
+    <div class="tarjeta" id="probar">
+      <h2>Probar lo nuevo</h2>
+      <div class="vista-app">
+        <div id="vista-app" class="vista-app-rooti"></div>
+        <div>
+          <p id="vista-leyenda" class="nota">—</p>
+          <label class="caja">Ver piel
+            <select id="s-piel">
+              <option value="">la de la nube</option>
+              <option value="comun">común</option>
+              <option value="raro">rara</option>
+              <option value="epico">épica</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <h3>Sensores</h3>
+      <div class="fila">
+        <button type="button" class="btn" id="b-escurre">Riego que se escurre</button>
+        <button type="button" class="btn" id="b-historial">48 h de historial</button>
+      </div>
+      <div class="fila" role="group" aria-label="Luz de ejemplo">
+        <button type="button" class="btn" data-lux="15">Penumbra</button>
+        <button type="button" class="btn" data-lux="600">Interior</button>
+        <button type="button" class="btn" data-lux="60000">Sol pleno</button>
+      </div>
+      <h3>Mascota</h3>
+      <div class="fila">
+        <label class="caja"><input type="checkbox" id="c-noche"> Noche simulada (23 h en la app)</label>
+      </div>
+      <div class="fila">
+        <button type="button" class="btn" id="b-tres-dias">3 días sin mimos</button>
+        <button type="button" class="btn" id="b-gotas">+3 gotas de rocío</button>
+      </div>
+      <h3>Ir a</h3>
+      <nav class="fila enlaces" aria-label="Pantallas de la app">
+        <a data-ir="planta" data-planta="1" target="rootlab">Ficha y mimos</a>
+        <a data-ir="desk" data-planta="1" target="rootlab">Escritorio</a>
+        <a data-ir="album" data-planta="1" target="rootlab">Álbum</a>
+        <a data-ir="pasaporte" data-planta="1" target="rootlab">Pasaporte</a>
+        <a data-ir="invernadero" target="rootlab">Invernadero</a>
+        <a data-ir="coleccion" target="rootlab">Colección</a>
+      </nav>
+      <div class="fila">
+        <button type="button" class="btn" id="b-otro">Otro Rooti (pestaña nueva)</button>
+      </div>
+      <p id="probar-aviso" class="nota" role="status" aria-live="polite"></p>
     </div>
   </section>
 </main>

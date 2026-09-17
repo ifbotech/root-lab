@@ -11,9 +11,10 @@
  *              guardan en esa cuenta. Se saltea si ya hay sesión.
  *   avisos     ahora que se puede, y a nombre de la cuenta
  *   wifi       el Rooti se conecta a la red de la casa por su portal
- *   vincular   la nube la ve con el mismo código que leyó el QR: es tuya
- *   cofre      quién es tu Rooti (y en ese momento abre los ojos); si
- *              tiene paleta propia, ROOTLAB se pinta con sus colores
+ *   vincular   la nube la ve con el mismo código que leyó el QR: es tuya,
+ *              y ya se sabe qué Rooti es (lo dice la figura)
+ *   cofre      qué piel le toca (común, rara o épica), y en ese momento
+ *              abre los ojos; ROOTLAB se pinta con los colores de la piel
  *   nombre     ya sabés quién es: ahora se puede bautizar
  *   foto       qué planta cuida, y con eso qué necesita
  *   listo
@@ -24,6 +25,8 @@
  */
 import { h, render, icono, progreso } from '../lib/ui.mjs';
 import { cara } from '../lib/caras.mjs';
+import { cuerpo } from '../lib/cuerpo.mjs';
+import { modeloPorId } from '../lib/rooties.mjs';
 import {
   esIOS, esAndroid, instalada, puedeInstalarConBoton, alCambiarInstalable, instalar,
   motivoSinAvisos, activarAvisos, avisosActivos, prepararFoto,
@@ -33,15 +36,12 @@ import { formularioCuenta } from './cuenta.mjs';
 
 export const PASOS = ['hola', 'instalar', 'cuenta', 'avisos', 'wifi', 'vincular', 'cofre', 'nombre', 'foto', 'listo'];
 
-const NOMBRES = {
-  cresta: ['Rulo', 'Punk', 'Chispa', 'Brasa'],
-  kawaii: ['Mochi', 'Lulú', 'Bombón', 'Nube'],
-  visor: ['Pixel', 'Radar', 'Unit', 'Sonda'],
-  ciclope: ['Ojito', 'Faro', 'Lupa', 'Tuerto'],
-  hongo: ['Siesta', 'Musgo', 'Esporas', 'Boletus'],
-  glitch: ['404', 'Ruido', 'Estática', 'Bug'],
-  'chico-malo': ['Brasa', 'Rocky', 'Canela', 'Chispa'],
-  'chica-chill': ['Lola', 'Brisa', 'Luna', 'Sabia'],
+export const NOMBRES = {
+  brote: ['Brotecito', 'Hojita', 'Semilla', 'Tallito'],
+  musgo: ['Zen', 'Musguito', 'Calma', 'Bosque'],
+  pinchito: ['Pincho', 'Chispa', 'Púa', 'Saltarín'],
+  bulbo: ['Lirio', 'Estrella', 'Sueño', 'Tulipa'],
+  champi: ['Boletus', 'Bocadito', 'Hongui', 'Glotón'],
 };
 
 const legible = (c) => (c && c.length === 8 ? `${c.slice(0, 4)}-${c.slice(4)}` : c || '');
@@ -76,13 +76,13 @@ function pasoHola(ctx) {
 }
 
 function pasoInstalar(ctx) {
-  const cuerpo = h('div', { class: 'alta-cuerpo' });
+  const zona = h('div', { class: 'alta-cuerpo' });
   const pie = h('div', { class: 'alta-pie' });
 
   const pintar = () => {
     const icon = h('img', { src: 'iconos/icono-192.png', alt: '', width: 96, height: 96, style: 'border-radius:26px;box-shadow:0 6px 0 rgba(0,0,0,.35)' });
     if (esIOS()) {
-      render(cuerpo, icon,
+      render(zona, icon,
         h('h1', { class: 'alta-titulo' }, 'Ponela en tu inicio'),
         h('p', { class: 'alta-texto' }, 'Así se abre a pantalla completa y te puede avisar cuando tu planta te necesite.'),
         h('ol', { class: 'pasos' },
@@ -94,7 +94,7 @@ function pasoInstalar(ctx) {
             h('div', {}, h('b', {}, 'Abrí ROOTLAB desde el inicio'), h('span', {}, 'Seguimos ahí, en este mismo paso.')))));
       render(pie, h('button', { class: 'enlace-boton', type: 'button', onClick: () => ctx.siguiente() }, 'Seguir en Safari'));
     } else if (puedeInstalarConBoton()) {
-      render(cuerpo, icon,
+      render(zona, icon,
         h('h1', { class: 'alta-titulo' }, 'Instalá la app'),
         h('p', { class: 'alta-texto' }, 'Se abre a pantalla completa, sin barra de navegador, y te avisa cuando tu planta te necesite.'));
       render(pie,
@@ -104,7 +104,7 @@ function pasoInstalar(ctx) {
         }, icono('telefono', 20), 'Instalar'),
         h('button', { class: 'enlace-boton', type: 'button', onClick: () => ctx.siguiente() }, 'Ahora no'));
     } else {
-      render(cuerpo, icon,
+      render(zona, icon,
         h('h1', { class: 'alta-titulo' }, 'Tenela a mano'),
         h('p', { class: 'alta-texto' }, esAndroid()
           ? 'Abrí el menú del navegador (⋮) y tocá “Instalar app” o “Agregar a la pantalla principal”.'
@@ -112,9 +112,9 @@ function pasoInstalar(ctx) {
       render(pie, h('button', { class: 'boton primario ancho', type: 'button', onClick: () => ctx.siguiente() }, 'Seguir'));
     }
   };
-  const quitar = alCambiarInstalable(() => { if (cuerpo.isConnected) pintar(); else quitar(); });
+  const quitar = alCambiarInstalable(() => { if (zona.isConnected) pintar(); else quitar(); });
   pintar();
-  return [cuerpo, pie];
+  return [zona, pie];
 }
 
 function pasoCuenta(ctx) {
@@ -146,7 +146,7 @@ function pasoAvisos(ctx) {
   return [
     h('div', { class: 'alta-cuerpo' },
       h('div', { class: 'maqueta-notif', 'aria-hidden': 'true' },
-        h('img', { src: 'caras/incognito.png', alt: '' }),
+        h('img', { src: `caras/${ctx.alta.persona || 'brote'}-comun-THIRSTY.png`, alt: '' }),
         h('div', {}, h('b', {}, 'Tu planta tiene sed'), h('span', {}, 'La tierra está al 18 %. Regala hoy.'))),
       h('h1', { class: 'alta-titulo' }, 'Que te avise cuando te necesite'),
       h('p', { class: 'alta-texto' },
@@ -231,24 +231,28 @@ function pasoWifi(ctx) {
 }
 
 function pasoVincular(ctx) {
-  const cuerpo = h('div', { class: 'alta-cuerpo' }, esperando('Vinculando…'));
+  const cuerpoPaso = h('div', { class: 'alta-cuerpo' }, esperando('Vinculando…'));
   const pie = h('div', { class: 'alta-pie' });
 
   (async () => {
     try {
       const planta = await ctx.api('/api/vinculo', { metodo: 'POST', cuerpo: { codigo: ctx.alta.codigo } });
-      ctx.guardarAlta({ plantaId: planta.id });
-      render(cuerpo,
-        h('div', { class: 'exito', 'aria-hidden': 'true' }, icono('tilde', 64)),
-        h('h1', { class: 'alta-titulo' }, '¡Es tuyo!'),
-        h('p', { class: 'alta-texto' }, 'Tu Rooti quedó vinculado. Ahora está dormido, esperando que abras su cofre.'));
+      ctx.guardarAlta({ plantaId: planta.id, persona: planta.modelo || null });
+      /* La figura ya dijo quién es: la app lo reconoce antes del cofre. */
+      const m = modeloPorId(planta.modelo);
+      render(cuerpoPaso,
+        m ? h('div', { class: 'reconocido' }, cuerpo({ persona: m.id, dormido: true, lado: 170, etiqueta: `${m.nombre}, dormido` }))
+          : h('div', { class: 'exito', 'aria-hidden': 'true' }, icono('tilde', 64)),
+        h('h1', { class: 'alta-titulo' }, m ? `¡Conectaste a tu ${m.nombre}!` : '¡Es tuyo!'),
+        m ? h('p', { class: 'alta-lema' }, m.lema) : null,
+        h('p', { class: 'alta-texto' }, 'Quedó vinculado y está dormido, esperando que abras su cofre: ahí adentro está la piel con la que va a despertar.'));
       render(pie, h('button', { class: 'boton primario ancho', type: 'button', onClick: () => ctx.siguiente() }, 'Ir al cofre'));
     } catch (e) {
       if (e.estado === 409 && /todavía no se conectó/.test(e.message)) {
         ctx.ir('wifi');
         return;
       }
-      render(cuerpo,
+      render(cuerpoPaso,
         h('h1', { class: 'alta-titulo' }, 'No se pudo vincular'),
         h('p', { class: 'alta-texto' }, e.message),
         /otra cuenta/.test(e.message)
@@ -257,7 +261,7 @@ function pasoVincular(ctx) {
       render(pie, h('button', { class: 'boton ancho', type: 'button', onClick: () => ctx.ir('vincular') }, 'Probar de nuevo'));
     }
   })();
-  return [cuerpo, pie];
+  return [cuerpoPaso, pie];
 }
 
 function pasoCofre(ctx) {
@@ -269,9 +273,10 @@ function pasoCofre(ctx) {
     h('h1', { class: 'alta-titulo', style: 'text-align:center' }, 'Tu cofre'),
     escenaCofre({
       probabilidades: ctx.config?.probabilidades,
+      persona: modeloPorId(ctx.alta.persona),
       abrir: async () => {
-        const m = await ctx.api(`/api/plantas/${ctx.alta.plantaId}/cofre`, { metodo: 'POST' });
-        ctx.guardarAlta({ persona: m.id, fondo: m.fondo });
+        const m = await ctx.api('/api/cofre/abrir', { metodo: 'POST', cuerpo: { planta: ctx.alta.plantaId } });
+        ctx.guardarAlta({ persona: m.id, rareza: m.rareza });
         return m;
       },
       alPintar: (m, origen) => ctx.pintarApp(m.paleta, origen),
@@ -307,11 +312,11 @@ function pasoNombre(ctx) {
   };
   return [
     h('form', { class: 'alta-cuerpo', onSubmit: guardar },
-      marcoCara({ persona, animo: 'HAPPY', lado: 168 }, ctx.alta.fondo),
+      cuerpo({ persona, rareza: ctx.alta.rareza || 'comun', animo: 'HAPPY', lado: 168 }),
       h('h1', { class: 'alta-titulo' }, '¿Cómo se va a llamar?'),
       input,
       h('div', { class: 'sugerencias' },
-        (NOMBRES[persona] || NOMBRES.cresta).map((n) => h('button', {
+        (NOMBRES[persona] || NOMBRES.brote).map((n) => h('button', {
           type: 'button', onClick: () => { input.value = n; input.focus(); },
         }, n))),
       error),
@@ -443,7 +448,7 @@ function pasoListo(ctx) {
   const nombre = ctx.alta.nombre || 'Tu Rooti';
   return [
     h('div', { class: 'alta-cuerpo' },
-      marcoCara({ persona: ctx.alta.persona, animo: 'HAPPY', lado: 200 }, ctx.alta.fondo),
+      cuerpo({ persona: ctx.alta.persona, rareza: ctx.alta.rareza || 'comun', animo: 'HAPPY', lado: 200 }),
       h('h1', { class: 'alta-titulo' }, `${nombre} ya te cuida`),
       h('p', { class: 'alta-texto' },
         'Mirá la cara de tu Rooti: si algo le falta, lo vas a notar. Y si no estás mirando, te aviso acá. Cuando quieras, charlá con ella desde su ficha.')),

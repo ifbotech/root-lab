@@ -55,21 +55,29 @@ describe('el primer encendido hasta la cara', () => {
     [cs, rs] = await maceta.sync();
     assert.equal(rs.vinculado, true);
     assert.equal(rs.revelado, false);
-    assert.equal(rs.persona, '', 'el personaje no se filtra antes del cofre');
+    assert.equal(rs.persona, 'brote', 'qué Rooti es lo dice la figura, desde antes del cofre');
+    assert.equal(rs.rareza, undefined, 'la piel, en cambio, no existe hasta abrirlo');
+    assert.equal(planta.modelo, 'brote', 'la app lo reconoce al vincular');
+    assert.equal(planta.rareza, null);
 
-    /* Se abre el cofre: sale la persona de fábrica. */
+    /* Se abre el cofre: sale la piel del Rooti de la figura. */
     const [cc, cofre] = await esc.llamar('POST', `/api/plantas/${planta.id}/cofre`, { token });
     assert.equal(cc, 200);
-    assert.equal(cofre.id, 'kawaii');
+    assert.equal(cofre.id, 'brote');
+    assert.equal(cofre.rareza, 'comun', 'con azar 0 sale la común');
+    assert.equal(cofre.piel.nombre, 'Hoja Nueva');
+    assert.equal(cofre.piel.id, 'brote-comun');
+    assert.equal(cofre.probabilidad, 0.7);
     assert.equal(cofre.nuevo, true);
     assert.equal(cofre.de_fabrica, true);
     const [, otraVez] = await esc.llamar('POST', `/api/plantas/${planta.id}/cofre`, { token });
-    assert.equal(otraVez.id, 'kawaii', 'abrirlo dos veces no vuelve a tirar');
+    assert.equal(otraVez.id, 'brote', 'abrirlo dos veces no vuelve a tirar');
     assert.equal(otraVez.nuevo, false);
 
     [cs, rs] = await maceta.sync();
     assert.equal(rs.revelado, true, 'la maceta se entera y abre los ojos');
-    assert.equal(rs.persona, 'kawaii');
+    assert.equal(rs.persona, 'brote');
+    assert.equal(rs.rareza, 'comun', 'y se pinta con la piel que salió');
 
     /* Nombre y foto. */
     let [cp, p] = await esc.llamar('PATCH', `/api/plantas/${planta.id}`, { token, cuerpo: { nombre: 'Rulo' } });
@@ -104,7 +112,7 @@ describe('el primer encendido hasta la cara', () => {
     assert.equal(esc.push.enviados.length, 1, 'un aviso de sed');
     assert.match(esc.push.enviados[0].titulo, /Rulo tiene sed/);
     assert.match(esc.push.enviados[0].cuerpo, /12 %/);
-    assert.equal(esc.push.enviados[0].icono, 'caras/kawaii-THIRSTY.png', 'relativo a la app, para que ande en una subruta');
+    assert.equal(esc.push.enviados[0].icono, 'caras/brote-comun-THIRSTY.png', 'relativo a la app, para que ande en una subruta');
 
     /* La misma sed en la próxima lectura no vuelve a avisar. */
     maceta.medir({ suelo: 11, temp: 231, hr: 58, lux: 5200, animo: 'THIRSTY', sev: 'URGENT' });
@@ -120,9 +128,11 @@ describe('el primer encendido hasta la cara', () => {
     assert.equal(n.mood, 'THIRSTY');
     assert.equal(n.severity, 'URGENT');
     assert.equal(n.tel.soil_pct, 11);
-    assert.equal(n.modelo, 'kawaii');
+    assert.equal(n.modelo, 'brote');
+    assert.equal(n.rareza, 'comun');
     assert.equal(n.link, 'VIVO');
-    assert.equal(estado.coleccion.tengo.includes('kawaii'), true);
+    assert.equal(estado.coleccion.tengo.includes('brote-comun'), true, 'la colección es de pieles');
+    assert.equal(estado.coleccion.total, 15);
 
     const [ch, hist] = await esc.llamar('GET', `/api/plantas/${planta.id}/historial`, { token, query: { horas: '24' } });
     assert.equal(ch, 200);
@@ -217,11 +227,15 @@ describe('vincular, desvincular y volver a empezar', () => {
     assert.equal(c2, 404, 'ni siquiera la ve');
   });
 
-  test('sin persona de fábrica, el cofre tira', async () => {
-    const { token, planta } = await vinculada();
+  test('sin persona de fábrica, el Rooti sale del id y el cofre igual sortea sólo la piel', async () => {
+    const { maceta, token, planta } = await vinculada();
+    assert.ok(['brote', 'musgo', 'pinchito', 'bulbo', 'champi'].includes(planta.modelo));
     const [, cofre] = await esc.llamar('POST', `/api/plantas/${planta.id}/cofre`, { token });
     assert.equal(cofre.de_fabrica, false);
-    assert.equal(cofre.rareza, 'COMUN', 'con azar 0 sale el primer común');
+    assert.equal(cofre.id, planta.modelo, 'el cofre no cambia de Rooti');
+    assert.equal(cofre.rareza, 'comun', 'con azar 0 sale la común');
+    const [, r] = await maceta.sync();
+    assert.equal(r.persona, planta.modelo);
   });
 
   test('desvincular desde la app devuelve el QR con código nuevo', async () => {
@@ -538,5 +552,121 @@ describe('cuentas', () => {
     assert.equal(esc.db.contarLecturas(maceta.id), 0, 'sus lecturas se borran con la cuenta');
     const [, r] = await maceta.sync();
     assert.equal(r.vinculado, false, 'la maceta vuelve a quedar libre');
+  });
+});
+
+describe('la piel del cofre y la mascota', () => {
+  test('POST /api/cofre/abrir sortea la piel del Rooti de la figura, la guarda y la maceta la recibe', async () => {
+    const esc = escenario({ azar: () => 972 });
+    const maceta = aparato(esc, { persona: 'musgo' });
+    const token = await cuenta(esc);
+    await maceta.sync();
+    const [, v] = await esc.llamar('GET', `/api/vinculo/${maceta.codigo}`, { token });
+    assert.equal(v.persona.id, 'musgo', 'la app lo reconoce desde el QR');
+    assert.equal(v.persona.nombre, 'Musgo');
+    const [, planta] = await esc.llamar('POST', '/api/vinculo', { token, cuerpo: { codigo: maceta.codigo } });
+    const otro = await cuenta(esc);
+    const [ajeno] = await esc.llamar('POST', '/api/cofre/abrir', { token: otro, cuerpo: { planta: planta.id } });
+    assert.equal(ajeno, 404, 'el cofre de otro no se abre');
+
+    const [c, cofre] = await esc.llamar('POST', '/api/cofre/abrir', { token, cuerpo: { planta: planta.id } });
+    assert.equal(c, 200);
+    assert.equal(cofre.id, 'musgo');
+    assert.equal(cofre.rareza, 'epico', '972 de 1000 cae en el 5 % épico');
+    assert.equal(cofre.piel.nombre, 'Otoño Tostado');
+    assert.equal(cofre.probabilidad, 0.05);
+    assert.equal(cofre.paleta, 'musgo-epico');
+    assert.equal(cofre.pinta, true, 'la app se pinta con la piel');
+
+    const [, r] = await maceta.sync();
+    assert.equal(r.rareza, 'epico', 'el sync le dice a la maceta con qué paleta pintarse');
+    const [, estado] = await esc.llamar('GET', '/api/estado', { token });
+    assert.deepEqual(estado.coleccion.tengo, ['musgo-epico']);
+    assert.equal(estado.cuenta.paleta, 'musgo-epico');
+    const musgo = estado.coleccion.catalogo.find((m) => m.id === 'musgo');
+    assert.equal(musgo.pieles.find((p) => p.rareza === 'epico').tengo, true);
+    assert.equal(musgo.pieles.find((p) => p.rareza === 'comun').probabilidad, 0.7);
+  });
+
+  test('acariciar suma una vez cada 4 h, el snack gasta gotas y el polvo sólo sale con la esponja', async () => {
+    const esc = escenario();
+    const { token, planta } = await conRooti(esc);
+    let [, n] = await esc.llamar('GET', `/api/plantas/${planta.id}`, { token });
+    assert.deepEqual([n.mascota.felicidad, n.mascota.gotas, n.mascota.polvo], [60, 1, 0]);
+
+    const gesto = (accion) => esc.llamar('POST', `/api/plantas/${planta.id}/mascota`, { token, cuerpo: { accion } });
+    let [c, r] = await gesto('caricia');
+    assert.equal(c, 200);
+    assert.equal(r.suma, 5);
+    assert.equal(r.mascota.felicidad, 65);
+    [c, r] = await gesto('caricia');
+    assert.equal(r.suma, 0, 'la segunda caricia se siente, pero no suma');
+    assert.ok(r.mascota.caricia_en_ms > 3.9 * H);
+    [c, r] = await gesto('snack');
+    assert.equal(r.suma, 15);
+    assert.equal(r.mascota.gotas, 0);
+    [c] = await gesto('snack');
+    assert.equal(c, 409, 'sin gotas no hay snack');
+    [c] = await gesto('limpiar');
+    assert.equal(c, 409, 'limpio no hay nada que limpiar');
+    [c] = await gesto('bailar');
+    assert.equal(c, 400);
+
+    esc.reloj.t += 4 * 24 * H;
+    [, n] = await esc.llamar('GET', `/api/plantas/${planta.id}`, { token });
+    assert.ok(n.mascota.polvo >= 4, 'a los 3 días sin mimos aparece el polvo');
+    assert.ok(n.mascota.felicidad < 80, 'y la felicidad bajó');
+    [c, r] = await gesto('caricia');
+    assert.ok(r.mascota.polvo > 0, 'una caricia no limpia');
+    [c, r] = await gesto('limpiar');
+    assert.equal(c, 200);
+    assert.equal(r.suma, 10);
+    assert.equal(r.mascota.polvo, 0);
+  });
+
+  test('antes del cofre no hay mascota', async () => {
+    const esc = escenario();
+    const maceta = aparato(esc);
+    const token = await cuenta(esc);
+    await maceta.sync();
+    const [, planta] = await esc.llamar('POST', '/api/vinculo', { token, cuerpo: { codigo: maceta.codigo } });
+    assert.equal(planta.mascota, null);
+    const [c] = await esc.llamar('POST', `/api/plantas/${planta.id}/mascota`, { token, cuerpo: { accion: 'caricia' } });
+    assert.equal(c, 409);
+  });
+
+  test('las gotas de rocío se ganan con la planta cómoda: una cada 8 h', async () => {
+    const esc = escenario();
+    const { token, planta, maceta } = await conRooti(esc);
+    await esc.llamar('PATCH', `/api/plantas/${planta.id}`, { token, cuerpo: { especie: 'monstera' } });
+    await esc.llamar('POST', `/api/plantas/${planta.id}/mascota`, { token, cuerpo: { accion: 'snack' } });
+    for (let i = 0; i <= 32; i++) {
+      maceta.medir({ suelo: 40, temp: 230, hr: 60, lux: 5000, animo: 'HAPPY', sev: 'OK' });
+      maceta.pasar(900);
+      if (i % 10 === 9) await maceta.sync();
+    }
+    await maceta.sync();
+    const [, n] = await esc.llamar('GET', `/api/plantas/${planta.id}`, { token });
+    assert.equal(n.mascota.gotas, 1);
+    assert.ok(n.salud >= 84, 'la salud la ponen los sensores');
+  });
+
+  test('el emulador puede adelantar el tiempo de su mascota; una placa de verdad no', async () => {
+    const esc = escenario();
+    const { maceta } = await conRooti(esc);
+    const demo = (accion, tok = maceta.token) => esc.llamar('POST', '/api/d/demo', { token: tok, cuerpo: { id: maceta.id, accion } });
+    let [c] = await demo('gotas');
+    assert.equal(c, 403, 'la placa real no');
+    await maceta.sync({ placa: 'emulador' });
+    let r;
+    [c, r] = await demo('gotas');
+    assert.equal(c, 200);
+    assert.equal(r.mascota.gotas, 4);
+    [c, r] = await demo('tres-dias');
+    assert.ok(r.mascota.polvo >= 4);
+    [c] = await demo('otra');
+    assert.equal(c, 400);
+    [c] = await demo('gotas', tokenApi(randomBytes(16)));
+    assert.equal(c, 401);
   });
 });

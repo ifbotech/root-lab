@@ -1,41 +1,66 @@
-/* cofre.mjs — qué personaje sale del cofre.
+/* cofre.mjs — qué Rooti es cada aparato, y qué piel sale del cofre.
  *
- * DOS CASOS
+ * LA FIGURA ES EL PERSONAJE
  *
- * 1. La maceta trae persona de fábrica (el caso del producto): la carcasa
- *    impresa ya es un personaje, así que el cofre REVELA la que viene
- *    grabada. No hay azar en el software; el azar ocurrió al armar la caja.
+ * Qué Rooti es un ROOTKIT lo decide la figura impresa que viene en la caja:
+ * la fábrica lo graba en la NVS y el aparato lo cuenta en cada sync
+ * (`persona`). La app lo reconoce apenas se vincula ("¡Conectaste a tu
+ * Brote!"): no hay nada que sortear, la persona ya lo tiene en la mano.
  *
- * 2. La maceta no trae persona (prototipos, placas de desarrollo): el cofre
- *    tira. Las probabilidades son públicas —la app las muestra antes de
- *    abrir— y no hay nada que comprar para cambiarlas: el cofre viene con
- *    el aparato y se abre una vez.
+ * Una placa de desarrollo sin persona grabada es siempre el mismo Rooti,
+ * elegido por su id: así el emulador y los prototipos también tienen uno, y
+ * no cambia entre un sync y el siguiente.
+ *
+ * EL COFRE SORTEA LA PIEL
+ *
+ * Al abrir el cofre sale la rareza, una sola vez por vínculo: común (70 %),
+ * rara (25 %) o épica (5 %). Cada una es una paleta de ese Rooti, en la app y
+ * en la pantalla de la maceta. Las probabilidades son públicas —la app las
+ * muestra antes de abrir— y no hay nada que comprar para cambiarlas.
  */
-import { randomInt } from 'node:crypto';
-import { MODELOS, modeloPorId } from './catalogo.mjs';
+import { randomInt, createHash } from 'node:crypto';
+import { MODELOS, RAREZAS, modeloPorId } from '../public/lib/rooties.mjs';
 
 /* Probabilidad de cada rareza, en milésimas. */
-export const PROBABILIDADES = { COMUN: 700, RARO: 250, SECRETO: 50 };
+export const PROBABILIDADES = { comun: 700, raro: 250, epico: 50 };
 
-export function probabilidadDe(modelo) {
-  const mismos = MODELOS.filter((m) => m.rareza === modelo.rareza).length;
-  return PROBABILIDADES[modelo.rareza] / mismos / 1000;
-}
+export const probabilidadDe = (rareza) => (PROBABILIDADES[rareza] ?? 0) / 1000;
 
-/** Tira el cofre. `azar(n)` devuelve un entero en [0, n). */
-export function tirarCofre(azar = randomInt) {
+/** Sortea la rareza. `azar(n)` devuelve un entero en [0, n). */
+export function sortearRareza(azar = randomInt) {
   let r = azar(1000);
-  for (const rareza of ['COMUN', 'RARO', 'SECRETO']) {
-    const p = PROBABILIDADES[rareza];
-    if (r < p) {
-      const deEsa = MODELOS.filter((m) => m.rareza === rareza);
-      return deEsa[azar(deEsa.length)];
-    }
-    r -= p;
+  for (const rareza of RAREZAS) {
+    if (r < PROBABILIDADES[rareza]) return rareza;
+    r -= PROBABILIDADES[rareza];
   }
-  return MODELOS[0];
+  return 'comun';
 }
 
-export function abrirCofre(personaDeFabrica, azar = randomInt) {
-  return modeloPorId(personaDeFabrica) || tirarCofre(azar);
+/* Los Rooties de la primera tanda, por si una placa vieja todavía los tiene
+ * grabados o una base vieja los guardó. Cada uno pasa al más parecido de los
+ * nuevos, y su rareza de caja a la de piel. */
+export const LEGADO = {
+  cresta: { persona: 'pinchito', rareza: 'comun' },
+  kawaii: { persona: 'brote', rareza: 'comun' },
+  visor: { persona: 'bulbo', rareza: 'comun' },
+  ciclope: { persona: 'bulbo', rareza: 'raro' },
+  hongo: { persona: 'champi', rareza: 'raro' },
+  'chico-malo': { persona: 'pinchito', rareza: 'comun' },
+  'chica-chill': { persona: 'musgo', rareza: 'comun' },
+  glitch: { persona: 'bulbo', rareza: 'epico' },
+};
+
+/** Un id de Rooti válido, traduciendo los de la primera tanda; null si no es ninguno. */
+export function normalizarPersona(id) {
+  const s = String(id || '').trim().toLowerCase();
+  if (modeloPorId(s)) return s;
+  return LEGADO[s]?.persona || null;
+}
+
+/** Qué Rooti es un aparato: el grabado en fábrica, o uno fijo por su id. */
+export function personaDeAparato(d) {
+  const grabada = normalizarPersona(d?.persona_fabrica);
+  if (grabada) return grabada;
+  const h = createHash('sha256').update(String(d?.id || '')).digest();
+  return MODELOS[h[0] % MODELOS.length].id;
 }

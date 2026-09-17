@@ -2,33 +2,40 @@
  *
  * LA IDEA
  *
- * La app se pinta con la paleta de tu Rooti. Cuando abrís un cofre y te toca
- * un Rooti que tiene paleta propia, la app entera cambia a sus colores. La
- * paleta por defecto es Vibrant Tones, y en Ajustes se puede elegir entre
- * ella y las de los Rooties que ya tenés.
+ * La app se pinta con la piel de tu Rooti. Cada uno de los cinco tiene tres
+ * pieles (común, rara, épica) y cada piel es una paleta: cuando abrís el
+ * cofre y sale la rareza, la app entera cambia a esos colores. La paleta por
+ * defecto es Vibrant Tones, y en Ajustes se puede elegir entre ella, las
+ * pieles que ya te salieron y las cosméticas que ganaste.
+ *
+ * Las quince pieles salen de public/lib/rooties.mjs, que se genera desde el
+ * firmware: la maceta y la app usan exactamente los mismos cuatro colores
+ * (fondo, ojos, piel, rubor). Son temas CLAROS, pastel, de libro de
+ * cuentos; Vibrant Tones y las cosméticas son oscuros.
  *
  * ARTE COMO DATOS
  *
  * Cada paleta son sus colores (con nombre y descripción, como los entrega
  * la artista) y unos ROLES: qué color es la base de las superficies, cuál es
  * el botón principal, cuál el destacado, cuáles los estados. Agregar la
- * paleta de un Rooti nuevo es agregar un objeto a PALETAS; no hay que tocar
- * CSS ni vistas.
+ * paleta nueva es agregar un objeto a PALETAS (o una piel en persona.c); no
+ * hay que tocar CSS ni vistas.
  *
  * EL MOTOR GARANTIZA QUE SE LEA
  *
  * Los roles dicen la intención; `temaDesdePaleta()` la convierte en tokens de
  * CSS y se asegura de que todo texto cumpla WCAG AA contra su fondo (4,5:1;
  * 7:1 para el texto principal). Si un color de la paleta no llega —un azul
- * profundo como texto sobre azul noche— se aclara lo justo, en el espacio
- * OKLab para que no cambie de tono. Así la artista elige colores con libertad
+ * profundo como texto sobre azul noche, un amarillo pastel sobre crema— se
+ * aclara (o se oscurece, en los temas claros) lo justo, en el espacio OKLab
+ * para que no cambie de tono. Así la artista elige colores con libertad
  * y la app nunca queda ilegible. test/paletas.test.mjs lo verifica en todas.
  *
  * PALETAS COSMÉTICAS
  *
- * Además de las de los Rooties hay tres que se ganan cuidando: OLED Midnight
- * (negro absoluto y verde fósforo; libre), Cristal (vidrio esmerilado; el
- * Rooti secreto o 60 días sanos) y Solar Gold (oro y ámbar; 180 días sanos).
+ * Además de las pieles hay tres que se ganan cuidando: OLED Midnight (negro
+ * absoluto y verde fósforo; libre), Cristal (vidrio esmerilado; una piel
+ * épica o 60 días sanos) y Solar Gold (oro y ámbar; 180 días sanos).
  * Cada una trae un `estilo` que el CSS usa para lo que los tokens no pueden
  * decir (paneles translúcidos, fondo sin degradé) y un `requisito`. El motor
  * de contraste las trata como a las demás.
@@ -37,7 +44,46 @@
  * el servidor (colores de los emails) y los tests.
  */
 
+import { MODELOS, RAREZAS } from './rooties.mjs';
+
 export const PALETA_POR_DEFECTO = 'vibrant';
+
+export const RAREZA_ES = { comun: 'común', raro: 'rara', epico: 'épica' };
+
+/* La paleta de una piel. Los roles salen de sus cuatro colores: los ojos son
+ * el botón principal y la tinta, la piel tiñe paneles y bordes, el rubor es
+ * el acento. Los estados (bien, atención, urgente) son fijos y armonizados:
+ * una piel lila no puede dejar a "urgente" sin rojo. */
+function paletaDePiel(m, rareza) {
+  const p = m.pieles[rareza];
+  return {
+    id: `${m.id}-${rareza}`,
+    nombre: `${m.nombre} · ${p.nombre}`,
+    rooti: m.id,
+    rareza,
+    claro: true,
+    estilo: 'claro',
+    descripcion: `La piel ${RAREZA_ES[rareza]} de ${m.nombre}: ${p.nombre}.`,
+    colores: [
+      { nombre: 'Fondo', hex: p.fondo, nota: 'La pantalla de la maceta.' },
+      { nombre: 'Ojos', hex: p.ojos, nota: 'Ojos, boca y cejas.' },
+      { nombre: 'Piel', hex: p.piel, nota: 'El cuerpo, la flor o el sombrero.' },
+      { nombre: 'Rubor', hex: p.rubor, nota: 'Las mejillas.' },
+    ],
+    roles: {
+      fondo: p.fondo,
+      base: p.piel,
+      primario: p.ojos,
+      secundario: p.ojos,
+      destacado: p.rubor,
+      acento: p.rubor,
+      bien: '#2e7d32',
+      atencion: '#e65100',
+      urgente: '#c62828',
+      datos: { tierra: p.ojos, temperatura: '#e65100', luz: p.piel, humedad: p.rubor },
+    },
+  };
+}
 
 export const PALETAS = [
   {
@@ -67,68 +113,6 @@ export const PALETAS = [
       atencion: '#f8961e',
       urgente: '#f94144',
       datos: { tierra: '#277da1', temperatura: '#f3722c', luz: '#f9c74f', humedad: '#4d908e' },
-    },
-  },
-  {
-    id: 'chico-malo',
-    nombre: 'Chico Malo',
-    rooti: 'chico-malo',
-    descripcion: 'Tinta, bordó y brasas. Nocturna y con drama.',
-    colores: [
-      { nombre: 'Ink Black', hex: '#03071e', nota: 'Tinta profunda con un dejo azul.' },
-      { nombre: 'Night Bordeaux', hex: '#370617', nota: 'Bordó casi negro, poder silencioso.' },
-      { nombre: 'Black Cherry', hex: '#6a040f', nota: 'Rojo negro intenso y elegante.' },
-      { nombre: 'Oxblood', hex: '#9d0208', nota: 'Carmesí de vino viejo y terciopelo.' },
-      { nombre: 'Brick Ember', hex: '#d00000', nota: 'Brasa roja, fuerza y emoción.' },
-      { nombre: 'Red Ochre', hex: '#dc2f02', nota: 'Ocre rojizo de arcilla al sol.' },
-      { nombre: 'Autumn Leaf', hex: '#e85d04', nota: 'Hoja de otoño, tostada y terrosa.' },
-      { nombre: 'Dark Orange', hex: '#f48c06', nota: 'Atardecer feroz.' },
-      { nombre: 'Orange', hex: '#faa307', nota: 'Naranja puro, calor y movimiento.' },
-      { nombre: 'Amber Flame', hex: '#ffba08', nota: 'Llamarada ámbar, intensidad.' },
-    ],
-    roles: {
-      fondo: '#03071e',
-      base: '#9d0208',
-      primario: '#ffba08',
-      secundario: '#faa307',
-      destacado: '#ffba08',
-      acento: '#e85d04',
-      bien: '#8fd14f',
-      atencion: '#f48c06',
-      urgente: '#d00000',
-      datos: { tierra: '#faa307', temperatura: '#dc2f02', luz: '#ffba08', humedad: '#e85d04' },
-    },
-  },
-  {
-    id: 'chica-chill',
-    nombre: 'Chica Chill',
-    rooti: 'chica-chill',
-    descripcion: 'Azules de medianoche y acero. Inteligente y en calma.',
-    colores: [
-      { nombre: 'Smart Blue', hex: '#0466c8', nota: 'Azul que irradia inteligencia y calma.' },
-      { nombre: 'Steel Azure', hex: '#0353a4', nota: 'Azul acero, resistencia y equilibrio.' },
-      { nombre: 'Regal Navy', hex: '#023e7d', nota: 'Azul marino de mares a medianoche.' },
-      { nombre: 'Prussian Blue', hex: '#002855', nota: 'Azul tinta, gravedad académica.' },
-      { nombre: 'Prussian Blue', hex: '#001845', nota: 'Azul tinta, más profundo.' },
-      { nombre: 'Prussian Blue', hex: '#001233', nota: 'Azul tinta, el más profundo.' },
-      { nombre: 'Twilight Indigo', hex: '#33415c', nota: 'El abrazo sereno del atardecer.' },
-      { nombre: 'Blue Slate', hex: '#5c677d', nota: 'Pizarra azulada, calma profunda.' },
-      { nombre: 'Slate Grey', hex: '#7d8597', nota: 'Gris frío, equilibrio y claridad.' },
-      { nombre: 'Cool Steel', hex: '#979dac', nota: 'Acero con bruma, claridad creativa.' },
-    ],
-    roles: {
-      fondo: '#001233',
-      base: '#0353a4',
-      primario: '#0466c8',
-      secundario: '#0466c8',
-      destacado: '#979dac',
-      acento: '#5c677d',
-      tinta2: '#979dac',
-      tinta3: '#7d8597',
-      bien: '#4cc38a',
-      atencion: '#ffb454',
-      urgente: '#ff6b6b',
-      datos: { tierra: '#0466c8', temperatura: '#ffb454', luz: '#979dac', humedad: '#5c677d' },
     },
   },
   {
@@ -165,8 +149,8 @@ export const PALETAS = [
     nombre: 'Cristal',
     rooti: null,
     estilo: 'cristal',
-    requisito: { secreto: true, dias_sanos: 60 },
-    desbloqueo: 'el Rooti secreto, o 60 días sanos de una planta',
+    requisito: { epica: true, dias_sanos: 60 },
+    desbloqueo: 'una piel épica, o 60 días sanos de una planta',
     descripcion: 'Vidrio esmerilado sobre azul hielo: paneles translúcidos con luz detrás.',
     colores: [
       { nombre: 'Deep Ice', hex: '#0b1220', nota: 'Azul hielo profundo, el fondo.' },
@@ -223,36 +207,40 @@ export const PALETAS = [
       datos: { tierra: '#f59e0b', temperatura: '#ef4444', luz: '#fde68a', humedad: '#a3e635' },
     },
   },
+  ...MODELOS.flatMap((m) => RAREZAS.map((r) => paletaDePiel(m, r))),
 ];
 
 export const paletaPorId = (id) => PALETAS.find((p) => p.id === id) || null;
-export const paletaDeRooti = (rooti) => PALETAS.find((p) => p.rooti && p.rooti === rooti) || null;
+/** La paleta de la piel de un Rooti: "brote" + "epico" -> brote-epico. */
+export const paletaDeRooti = (rooti, rareza = 'comun') =>
+  PALETAS.find((p) => p.rooti === rooti && p.rareza === rareza) || null;
 
 /**
- * Si un requisito cosmético está cumplido: `secreto` (tener al Rooti
- * secreto) o `dias_sanos` (una planta que llegó a esos días). Con los dos,
- * alcanza uno.
+ * Si un requisito cosmético está cumplido: `epica` (tener una piel épica) o
+ * `dias_sanos` (una planta que llegó a esos días). Con los dos, alcanza uno.
  */
-export function cumpleRequisito(requisito, { secretos = 0, diasSanos = 0 } = {}) {
+export function cumpleRequisito(requisito, { epicas = 0, diasSanos = 0 } = {}) {
   if (!requisito) return true;
-  if (requisito.secreto && secretos > 0) return true;
+  if (requisito.epica && epicas > 0) return true;
   if (Number.isFinite(requisito.dias_sanos) && diasSanos >= requisito.dias_sanos) return true;
   return false;
 }
 
 /**
- * Las paletas que puede elegir quien tiene esta colección de Rooties,
- * `secretos` Rooties secretos y una planta con `diasSanos` días sanos.
- * Cada una trae `bloqueada` y, si lo está, `porque`.
+ * Las paletas que puede elegir quien tiene esta colección de pieles
+ * ("brote-epico"...), con una planta de `diasSanos` días sanos. Las épicas
+ * se cuentan solas de la colección. Cada una trae `bloqueada` y, si lo
+ * está, `porque`.
  */
-export function paletasDisponibles(coleccion = [], { secretos = 0, diasSanos = 0 } = {}) {
+export function paletasDisponibles(coleccion = [], { diasSanos = 0 } = {}) {
+  const epicas = coleccion.filter((id) => String(id).endsWith('-epico')).length;
   return PALETAS.map((p) => {
-    const porRooti = Boolean(p.rooti && !coleccion.includes(p.rooti));
-    const porRequisito = Boolean(p.requisito && !cumpleRequisito(p.requisito, { secretos, diasSanos }));
+    const porPiel = Boolean(p.rooti && !coleccion.includes(p.id));
+    const porRequisito = Boolean(p.requisito && !cumpleRequisito(p.requisito, { epicas, diasSanos }));
     return {
       ...p,
-      bloqueada: porRooti || porRequisito,
-      porque: porRooti ? 'Conseguí su Rooti' : porRequisito ? `Se gana con ${p.desbloqueo}` : null,
+      bloqueada: porPiel || porRequisito,
+      porque: porPiel ? `Sale del cofre de un ${MODELOS.find((m) => m.id === p.rooti)?.nombre || 'Rooti'}` : porRequisito ? `Se gana con ${p.desbloqueo}` : null,
     };
   });
 }
@@ -347,7 +335,53 @@ function lleno(color) {
  * fondo profundo.
  */
 export function temaDesdePaleta(paleta) {
-  const r = (paleta || paletaPorId(PALETA_POR_DEFECTO)).roles;
+  const pal = paleta || paletaPorId(PALETA_POR_DEFECTO);
+  return pal.claro ? temaClaro(pal.roles) : temaOscuro(pal.roles);
+}
+
+const ROLES_LLENOS = ['primario', 'secundario', 'destacado', 'acento', 'bien', 'atencion', 'urgente'];
+
+/* El tema claro de las pieles: fondo pastel, paneles casi blancos, tinta de
+ * los ojos oscurecida. Todo texto se asegura contra las cuatro superficies
+ * oscureciendo hacia el negro. */
+function temaClaro(r) {
+  const fondo = r.fondo;
+  const t = {
+    fondo,
+    'fondo-alto': mezclar(fondo, r.base, 0.16),
+    panel: mezclar(fondo, '#ffffff', 0.62),
+    'panel-alto': mezclar(fondo, '#ffffff', 0.88),
+    borde: mezclar(fondo, r.base, 0.62),
+    'borde-alto': mezclar(r.base, r.primario, 0.3),
+  };
+  const superficies = [t.fondo, t['fondo-alto'], t.panel, t['panel-alto']];
+
+  t.tinta = asegurarContraste(mezclar(r.primario, '#000000', 0.45), superficies, 7, '#000000');
+  t['tinta-2'] = asegurarContraste(mezclar(r.primario, '#000000', 0.2), superficies, 4.5, '#000000');
+  t['tinta-3'] = asegurarContraste(mezclar(r.primario, fondo, 0.22), superficies, 4.5, '#000000');
+
+  for (const nombre of ROLES_LLENOS) {
+    const l = lleno(r[nombre]);
+    t[nombre] = l.color;
+    t[`sobre-${nombre}`] = l.texto;
+    t[`${nombre}-canto`] = mezclar(l.color, '#000000', 0.22);
+    t[`${nombre}-texto`] = asegurarContraste(r[nombre], superficies, 4.5, '#000000');
+  }
+
+  const datos = r.datos || {};
+  t['dato-tierra'] = asegurarContraste(datos.tierra || r.primario, [t.panel], 3, '#000000');
+  t['dato-temperatura'] = asegurarContraste(datos.temperatura || r.atencion, [t.panel], 3, '#000000');
+  t['dato-luz'] = asegurarContraste(datos.luz || r.destacado, [t.panel], 3, '#000000');
+  t['dato-humedad'] = asegurarContraste(datos.humedad || r.acento, [t.panel], 3, '#000000');
+
+  t.resplandor = mezclar(fondo, r.base, 0.55);
+  t['fondo-rgb'] = hexARgb(fondo).join(', ');
+  t.globo = '#ffffff';
+  t['sobre-globo'] = t.tinta;
+  return t;
+}
+
+function temaOscuro(r) {
   const fondo = r.fondo || mezclar('#05070a', r.base, 0.12);
   const sup = (t) => mezclar(fondo, r.base, t);
 
@@ -365,8 +399,8 @@ export function temaDesdePaleta(paleta) {
   t['tinta-2'] = asegurarContraste(r.tinta2 || mezclar('#ffffff', r.base, 0.38), superficies, 4.5);
   t['tinta-3'] = asegurarContraste(r.tinta3 || mezclar('#ffffff', r.base, 0.58), superficies, 4.5);
 
-  for (const [nombre, valor] of [['primario', r.primario], ['secundario', r.secundario], ['destacado', r.destacado],
-    ['acento', r.acento], ['bien', r.bien], ['atencion', r.atencion], ['urgente', r.urgente]]) {
+  for (const nombre of ROLES_LLENOS) {
+    const valor = r[nombre];
     const l = lleno(valor);
     t[nombre] = l.color;
     t[`sobre-${nombre}`] = l.texto;
@@ -383,6 +417,8 @@ export function temaDesdePaleta(paleta) {
 
   t.resplandor = mezclar(fondo, r.base, 0.42);
   t['fondo-rgb'] = hexARgb(fondo).join(', ');
+  t.globo = '#ffffff';
+  t['sobre-globo'] = fondo;
   return t;
 }
 

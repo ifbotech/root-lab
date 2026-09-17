@@ -10,9 +10,26 @@
  * Sirve para recorrer el flujo completo sin placa, y para probar la app en
  * un teléfono de verdad: el QR que dibuja apunta a la URL pública del
  * servidor.
+ *
+ * VARIOS ROOTIES
+ *
+ * Cada pestaña con `?n=2`, `?n=3`... es otro aparato, con su identidad y
+ * su NVS guardados aparte: así se prueba el invernadero con varios.
+ *
+ * PROBAR LO NUEVO
+ *
+ * La tarjeta de abajo acorta lo que en la vida real lleva días: un riego que
+ * se escurre, 48 h de historial, luces de ejemplo, la noche simulada (la
+ * hora de prueba de lib/reloj.mjs, que la app lee en vivo), tres días sin
+ * mimos y gotas de rocío (POST /api/d/demo, que sólo acepta a la placa
+ * "emulador"), y enlaces directos a cada pantalla de la planta. Muestra al
+ * Rooti entero como lo dibuja la app (lib/cuerpo.mjs).
  */
-import { cargarCaras, escribirEntrada, leerTexto, ANIMOS } from '../lib/caras.mjs';
+import { cargarCaras, escribirEntrada, leerTexto, ANIMOS, indiceRareza } from '../lib/caras.mjs';
 import { enBase } from '../lib/base.mjs';
+import { MODELOS, RAREZAS, pielDe, modeloPorId } from '../lib/rooties.mjs';
+import { cuerpo } from '../lib/cuerpo.mjs';
+import { horaDePrueba, fijarHoraDePrueba } from '../lib/reloj.mjs';
 
 const EV = { TICK: 0, WIFI_GUARDADO: 1, WIFI_OK: 2, WIFI_FALLO: 3, NUBE_OK: 4, NUBE_FALLO: 5, BOTON_LARGO: 6 };
 const ESTADOS = ['SIN_WIFI', 'CONECTANDO', 'SIN_VINCULO', 'ESPERA_COFRE', 'DESPERTANDO', 'ACTIVO'];
@@ -28,20 +45,28 @@ const LEYENDAS = {
 };
 
 const $ = (id) => document.getElementById(id);
-const leer = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const escribir = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+/* Cada instancia (?n=2) guarda lo suyo con otro prefijo. */
+const INSTANCIA = Math.max(1, Math.min(9, Number(new URLSearchParams(location.search).get('n')) || 1));
+const P = INSTANCIA === 1 ? 'emu:' : `emu${INSTANCIA}:`;
+const leer = (k, d) => { try { return JSON.parse(localStorage.getItem(P + k)) ?? d; } catch { return d; } };
+const escribir = (k, v) => localStorage.setItem(P + k, JSON.stringify(v));
+const PERSONAS = MODELOS.map((mo) => mo.id);
 const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 /* -------------------------------------------------------------- identidad */
 function identidad() {
-  let yo = leer('emu:yo', null);
+  let yo = leer('yo', null);
   if (!yo) {
     const s = crypto.getRandomValues(new Uint8Array(16));
     const mac = crypto.getRandomValues(new Uint8Array(6));
-    yo = { secreto: hex(s), id: hex(mac).toUpperCase(), persona: '', arranques: 0 };
+    /* La figura sale de fábrica con su Rooti: el primero, el Brote; la
+       segunda instancia, el Musgo; y así. */
+    yo = { secreto: hex(s), id: hex(mac).toUpperCase(), persona: PERSONAS[(INSTANCIA - 1) % PERSONAS.length], arranques: 0 };
   }
+  /* Un aparato de antes de los cinco Rooties se vuelve Brote. */
+  if (!PERSONAS.includes(yo.persona)) yo.persona = 'brote';
   yo.arranques += 1;
-  escribir('emu:yo', yo);
+  escribir('yo', yo);
   return yo;
 }
 
@@ -54,12 +79,13 @@ const x = m.x;
 const config = await fetch(enBase('api/config')).then((r) => r.json()).catch(() => ({ url_publica: location.origin + enBase('').replace(/\/$/, '') }));
 
 let yo = identidad();
-let nvs = leer('emu:nvs', { epoca: 0, wifi: false, vinculado: false, revelado: false });
-let nube = leer('emu:nube', { persona: '', especie: null, nombre: '', dias_sanos: 0, brillo: 80 });
+let nvs = leer('nvs', { epoca: 0, wifi: false, vinculado: false, revelado: false, rareza: 'comun' });
+const NUBE_VACIA = { persona: '', rareza: 'comun', planta: null, especie: null, nombre: '', dias_sanos: 0, brillo: 80 };
+let nube = { ...NUBE_VACIA, ...leer('nube', {}) };
 const inicioMs = Date.now();
-let relojBase = leer('emu:reloj', 0);
+let relojBase = leer('reloj', 0);
 const reloj = () => relojBase + Math.floor((Date.now() - inicioMs) / 1000);
-let pendientes = leer('emu:pendientes', []);
+let pendientes = leer('pendientes', []);
 let token = '';
 let codigo = '';
 let epocaQr = -1;
@@ -171,8 +197,8 @@ function medir() {
   if (!(l.fallas & 2)) { r.temp = l.temp; r.hr = l.hr; }
   if (l.bat) r.bat = l.bat;
   pendientes.push(r);
-  if (pendientes.length > 288) pendientes.shift();
-  escribir('emu:pendientes', pendientes);
+  if (pendientes.length > 400) pendientes.shift();
+  escribir('pendientes', pendientes);
   transmitir = true;
 }
 $('b-medir').addEventListener('click', medir);
@@ -216,6 +242,13 @@ async function sincronizar() {
     x.enlace_evento(EV.NUBE_OK, j.vinculado ? 1 : 0, j.revelado ? 1 : 0, ahora());
     if (j.vinculado) {
       if (j.persona) nube.persona = j.persona;
+      nube.planta = j.planta || null;
+      /* La piel que salió del cofre: como la placa, se guarda en la NVS y
+         pinta la maceta. */
+      if (j.revelado && RAREZAS.includes(j.rareza)) {
+        nube.rareza = j.rareza;
+        nvs.rareza = j.rareza;
+      }
       nube.nombre = j.nombre || '';
       if (j.especie && JSON.stringify(j.especie) !== JSON.stringify(nube.especie)) {
         nube.especie = j.especie;
@@ -226,9 +259,10 @@ async function sincronizar() {
       nube.brillo = j.brillo || 80;
     }
     pendientes.splice(0, Math.min(j.aceptadas || 0, lote.length));
-    escribir('emu:pendientes', pendientes);
+    escribir('pendientes', pendientes);
     transmitir = pendientes.length > 0;
-    escribir('emu:nube', nube);
+    escribir('nube', nube);
+    pintarProbar();
   } catch {
     x.enlace_evento(EV.NUBE_FALLO, 0, 0, ahora());
   } finally {
@@ -247,12 +281,13 @@ $('b-reset').addEventListener('click', () => {
 });
 $('b-nuevo').addEventListener('click', () => {
   if (!confirm('¿Borrar la identidad de este aparato virtual y empezar de cero?')) return;
-  for (const k of ['emu:yo', 'emu:nvs', 'emu:nube', 'emu:pendientes', 'emu:reloj']) localStorage.removeItem(k);
+  for (const k of ['yo', 'nvs', 'nube', 'pendientes', 'reloj']) localStorage.removeItem(P + k);
   location.reload();
 });
 $('s-persona').addEventListener('change', (e) => {
   yo.persona = e.target.value;
-  escribir('emu:yo', yo);
+  escribir('yo', yo);
+  pintarProbar();
 });
 $('b-abrir').addEventListener('click', () => window.open(enBase(`v/${codigo}`), '_blank', 'noopener'));
 $('s-panel').addEventListener('change', (e) => {
@@ -267,27 +302,26 @@ $('s-panel').addEventListener('change', (e) => {
 let animoPantalla = null;
 let animoDesde = null;
 let transicionT0 = 0;
-const MODELOS = {
-  cresta: '#62c536', kawaii: '#ffa8d0', visor: '#3a526a', ciclope: '#ffa838', hongo: '#ba8ef2',
-  'chico-malo': '#9d0208', 'chica-chill': '#0466c8', glitch: '#2a2a36',
-};
 const lienzo = $('pantalla');
 const ctx = lienzo.getContext('2d');
 let ultimoCuadro = 0;
 let estadoPrevio = '';
 
 function persistir() {
-  const n = { epoca: x.enlace_epoca(), wifi: Boolean(x.enlace_wifi()), vinculado: Boolean(x.enlace_vinculado()), revelado: Boolean(x.enlace_revelado()) };
+  const n = { epoca: x.enlace_epoca(), wifi: Boolean(x.enlace_wifi()), vinculado: Boolean(x.enlace_vinculado()), revelado: Boolean(x.enlace_revelado()), rareza: nvs.rareza || 'comun' };
   if (JSON.stringify(n) !== JSON.stringify(nvs)) {
     if (!n.vinculado && nvs.vinculado) {
-      nube = { persona: '', especie: null, nombre: '', dias_sanos: 0, brillo: 80 };
-      escribir('emu:nube', nube);
+      /* Desvincular borra la piel: el próximo dueño abre su propio cofre. */
+      nube = { ...NUBE_VACIA };
+      n.rareza = 'comun';
+      escribir('nube', nube);
+      pintarProbar();
     }
     if (!n.wifi && nvs.wifi) wifiOk = false;
     nvs = n;
-    escribir('emu:nvs', nvs);
+    escribir('nvs', nvs);
   }
-  escribir('emu:reloj', reloj());
+  escribir('reloj', reloj());
 }
 
 function cuadro(t) {
@@ -321,8 +355,12 @@ function cuadro(t) {
     $('estado-linea').textContent = LEYENDAS[estado];
     $('b-wifi').disabled = estado !== 'SIN_WIFI';
   }
-  const personaId = yo.persona || nube.persona;
-  $('carcasa').style.setProperty('--piel', x.enlace_revelado() && MODELOS[personaId] ? MODELOS[personaId] : '#8d9aa3');
+  const personaId = PERSONAS.includes(yo.persona) ? yo.persona : (nube.persona || 'brote');
+  const rareza = $('s-piel').value || nvs.rareza || 'comun';
+  const revelado = Boolean(x.enlace_revelado());
+  const piel = pielDe(personaId, rareza);
+  $('carcasa').style.setProperty('--piel', revelado && piel ? piel.piel : '#8d9aa3');
+  $('carcasa').dataset.rareza = revelado ? rareza : '';
 
   if (t - ultimoCuadro < 33) return;
   ultimoCuadro = t;
@@ -332,6 +370,7 @@ function cuadro(t) {
   const oy = (lienzo.height - lado) / 2;
   x.lienzo(lado, lado);
   const idx = m.personas.get(personaId) ?? 0;
+  const r = indiceRareza(rareza);
   let cierre = 0;
   if (apretadoDesde && ms - apretadoDesde > 2000) cierre = Math.min(100, ((ms - apretadoDesde - 2000) * 100) / 8000);
   switch (x.enlace_pantalla()) {
@@ -339,10 +378,10 @@ function cuadro(t) {
       x.qr(estado === 'SIN_WIFI' ? 0 : estado === 'CONECTANDO' ? 1 : 2, ms);
       break;
     case PANT.DORMIDA:
-      x.dormida(ms);
+      x.dormida(idx, ms);
       break;
     case PANT.DESPERTAR:
-      x.despertar(idx, x.enlace_ms(ms));
+      x.despertar(idx, r, x.enlace_ms(ms));
       break;
     default: {
       const etapa = nube.dias_sanos >= 180 ? 4 : nube.dias_sanos >= 90 ? 3 : nube.dias_sanos >= 30 ? 2 : nube.dias_sanos >= 7 ? 1 : 0;
@@ -353,11 +392,11 @@ function cuadro(t) {
       }
       const pasado = animoDesde === null ? Infinity : ms - transicionT0;
       if (pasado < x.transicion_ms()) {
-        x.cara_mezcla(idx, animoDesde, animo, x.cara_anim_pct(Math.floor(pasado)), etapa, cierre, Date.now());
+        x.cara_mezcla(idx, r, animoDesde, animo, x.cara_anim_pct(Math.floor(pasado)), etapa, cierre, Date.now());
       } else {
         animoDesde = null;
-        if (cierre > 0) x.cara_cierre(idx, animo, etapa, cierre, Date.now());
-        else x.cara(idx, animo, etapa, Date.now());
+        if (cierre > 0) x.cara_cierre(idx, r, animo, etapa, cierre, Date.now());
+        else x.cara(idx, r, animo, etapa, Date.now());
       }
     }
   }
@@ -367,3 +406,133 @@ function cuadro(t) {
   ctx.putImageData(new ImageData(new Uint8ClampedArray(px), lado, lado), 0, oy);
 }
 requestAnimationFrame(cuadro);
+
+/* ============================================================ probar lo nuevo */
+const aviso = (texto, error = false) => {
+  $('probar-aviso').textContent = texto;
+  $('probar-aviso').classList.toggle('error', error);
+};
+
+/* El Rooti entero, como lo dibuja la app. */
+let vista = null;
+let vistaClave = '';
+function pintarProbar() {
+  const personaId = PERSONAS.includes(yo.persona) ? yo.persona : 'brote';
+  const rareza = $('s-piel').value || nvs.rareza || 'comun';
+  const revelado = Boolean(x.enlace_revelado());
+  const clave = `${personaId}|${rareza}|${revelado}`;
+  const noche = horaDePrueba() !== null && (horaDePrueba() >= 22 || horaDePrueba() < 8);
+  if (clave !== vistaClave) {
+    vistaClave = clave;
+    vista = cuerpo({ persona: personaId, rareza, dormido: !revelado, animo: ANIMOS[animo], lado: 150, noche, fps: 12 });
+    $('vista-app').replaceChildren(vista);
+  } else {
+    vista.actualizar({ animo: ANIMOS[animo], noche });
+  }
+  const mo = modeloPorId(personaId);
+  $('d-piel').textContent = revelado ? `${pielDe(personaId, nvs.rareza)?.nombre || '—'} (${nvs.rareza})` : 'sin cofre';
+  $('vista-leyenda').textContent = revelado
+    ? `${mo?.nombre}: piel ${pielDe(personaId, rareza)?.nombre}${$('s-piel').value ? ' (sólo acá, para ver)' : ''}`
+    : `${mo?.nombre}, dormido: abrí el cofre en la app.`;
+  $('c-noche').checked = noche;
+  const planta = nube.planta;
+  for (const a of document.querySelectorAll('[data-ir]')) {
+    const destino = a.dataset.ir;
+    const necesita = a.dataset.planta === '1';
+    a.href = enBase(`#${necesita ? `${destino}/${planta || ''}` : destino}`);
+    a.classList.toggle('apagado', necesita && !planta);
+    a.setAttribute('aria-disabled', necesita && !planta ? 'true' : 'false');
+  }
+  $('b-tres-dias').disabled = !revelado;
+  $('b-gotas').disabled = !revelado;
+}
+setInterval(pintarProbar, 1000);
+
+$('s-piel').addEventListener('change', pintarProbar);
+
+/* Un riego que se escurre: sube de golpe y enseguida vuelve a bajar
+   (nodo/soil.h: +25 puntos en 5 min y perder el 70 % en 30 min). */
+$('b-escurre').addEventListener('click', async () => {
+  const antes = Math.min(40, Number($('r-suelo').value));
+  const paso = (v, adelanto) => {
+    relojBase += adelanto;
+    $('r-suelo').value = String(v);
+    pintarValores();
+    medir();
+  };
+  paso(antes, 1);
+  paso(antes + 34, 20);
+  await new Promise((r) => setTimeout(r, 400));
+  paso(antes + 20, 240);
+  await new Promise((r) => setTimeout(r, 400));
+  paso(antes + 6, 480);
+  aviso('Listo: un riego que se escurrió. Mirá el aviso en la ficha de la planta.');
+});
+
+/* 48 horas de historial: el reloj se adelanta dos días y se llenan con una
+   lectura cada 15 minutos (se secó, se regó, día y noche). */
+$('b-historial').addEventListener('click', () => {
+  if (!nube.especie) aviso('Sin especie todavía: las lecturas van a salir sin ánimo. Elegí la especie en la app.', true);
+  const PASO = 900;
+  const N = 48 * 4;
+  const inicio = reloj() + 1;
+  relojBase += N * PASO + 2;
+  for (let k = 0; k < N; k++) {
+    const hs = (k * PASO) / 3600;
+    const dia = Math.sin(((hs + 6) / 24) * 2 * Math.PI);
+    const suelo = Math.round(hs < 30 ? 62 - hs * 1.1 : 64 - (hs - 30) * 1.0);
+    const temp = Math.round(215 + 45 * dia);
+    const hr = Math.round(60 - 12 * dia);
+    const lux = Math.max(0, Math.round(dia > 0 ? 900 + 14000 * dia : 0));
+    const a = nube.especie ? x.animo(suelo, temp, hr, lux, 0) : 3;
+    const sv = nube.especie ? x.severidad() : 0;
+    pendientes.push({ reloj: inicio + k * PASO, suelo, suelo_raw: 2650 - suelo * 14, lux, temp, hr, usb: false, bat: 3900, animo: ANIMOS[a], sev: SEV[sv], fallas: 0 });
+  }
+  escribir('pendientes', pendientes);
+  transmitir = true;
+  medir();
+  aviso(`Anotadas ${N} lecturas de 48 h. Se mandan en tandas de 20; en unos segundos están en el gráfico.`);
+});
+
+/* La luz: el deslizador es logarítmico (luxDe). */
+const deLux = (lux) => Math.round((Math.log10(lux + 1) / 5) * 1000);
+for (const b of document.querySelectorAll('[data-lux]')) {
+  b.addEventListener('click', () => {
+    $('r-lux').value = String(deLux(Number(b.dataset.lux)));
+    pintarValores();
+    medir();
+  });
+}
+
+/* La noche: la hora de prueba que lee la app (lib/reloj.mjs). */
+$('c-noche').addEventListener('change', (e) => {
+  fijarHoraDePrueba(e.target.checked ? 23 : null);
+  aviso(e.target.checked ? 'Son las 23 h para la app: los Rooties se sientan a dormir con gorrito.' : 'La app vuelve a la hora real.');
+  pintarProbar();
+});
+
+/* El tiempo de la mascota, en la nube. */
+async function demo(accion, texto) {
+  try {
+    const r = await fetch(enBase('api/d/demo'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: yo.id, accion }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.status);
+    aviso(`${texto} Felicidad ${j.mascota.felicidad} %, ${j.mascota.polvo} motas, ${j.mascota.gotas} gotas.`);
+  } catch (e) {
+    aviso(`No se pudo: ${e.message}`, true);
+  }
+}
+$('b-tres-dias').addEventListener('click', () => demo('tres-dias', 'Pasaron 3 días sin mimos.'));
+$('b-gotas').addEventListener('click', () => demo('gotas', 'Tres gotas de rocío más.'));
+
+$('b-otro').addEventListener('click', () => {
+  const siguiente = INSTANCIA + 1 > 9 ? 2 : INSTANCIA + 1;
+  window.open(enBase(`emulador/?n=${siguiente}`), '_blank', 'noopener');
+});
+if (INSTANCIA > 1) document.title = `Emulador de Rooti ${INSTANCIA} · ROOTLAB`;
+$('d-instancia').textContent = INSTANCIA > 1 ? `aparato ${INSTANCIA}` : 'aparato 1';
+pintarProbar();

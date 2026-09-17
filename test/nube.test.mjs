@@ -10,10 +10,12 @@ import assert from 'node:assert/strict';
 import {
   codigoVinculo, tokenApi, normalizarCodigo, ssidDe, codigoLegible, CROCKFORD,
 } from '../server/codigo.mjs';
-import { tirarCofre, abrirCofre, PROBABILIDADES, probabilidadDe } from '../server/cofre.mjs';
+import {
+  sortearRareza, PROBABILIDADES, probabilidadDe, LEGADO, normalizarPersona, personaDeAparato,
+} from '../server/cofre.mjs';
 import { avisosPendientes, esHoraDeCalma, ESPERA, ANIMOS_CON_AVISO } from '../server/avisos.mjs';
 import { crearIA, especieDesdeModelo, extraerJson, validarFoto } from '../server/ia.mjs';
-import { MODELOS, ESPECIES, validarEspecie } from '../server/catalogo.mjs';
+import { MODELOS, RAREZAS, ESPECIES, validarEspecie } from '../server/catalogo.mjs';
 
 const SECRETO = Buffer.from([
   0x3a, 0x91, 0x7c, 0x05, 0xee, 0x42, 0x18, 0xb6,
@@ -44,32 +46,55 @@ describe('código de vinculación', () => {
 });
 
 describe('cofre', () => {
-  test('las probabilidades suman uno y son públicas', () => {
+  test('las probabilidades de la piel suman uno y son 70/25/5', () => {
     const total = Object.values(PROBABILIDADES).reduce((a, b) => a + b, 0);
     assert.equal(total, 1000);
-    const suma = MODELOS.reduce((a, m) => a + probabilidadDe(m), 0);
+    assert.deepEqual(PROBABILIDADES, { comun: 700, raro: 250, epico: 50 });
+    const suma = RAREZAS.reduce((a, r) => a + probabilidadDe(r), 0);
     assert.ok(Math.abs(suma - 1) < 1e-9);
+    assert.equal(probabilidadDe('secreto'), 0);
   });
 
-  test('la tirada respeta las rarezas', () => {
-    assert.equal(tirarCofre(() => 0).rareza, 'COMUN');
-    let r = 0;
-    const secuencia = [960, 0];
-    assert.equal(tirarCofre(() => secuencia[r++]).rareza, 'SECRETO');
-    r = 0;
-    const raro = [800, 1];
-    assert.equal(tirarCofre(() => raro[r++]).id, 'hongo');
+  test('el sorteo cae en cada rareza según el número', () => {
+    assert.equal(sortearRareza(() => 0), 'comun');
+    assert.equal(sortearRareza(() => 699), 'comun');
+    assert.equal(sortearRareza(() => 700), 'raro');
+    assert.equal(sortearRareza(() => 949), 'raro');
+    assert.equal(sortearRareza(() => 950), 'epico');
+    assert.equal(sortearRareza(() => 999), 'epico');
   });
 
-  test('con persona de fábrica no hay azar', () => {
-    assert.equal(abrirCofre('ciclope', () => 0).id, 'ciclope');
-    assert.equal(abrirCofre('inventada', () => 0).rareza, 'COMUN');
+  test('en muchas tiradas, las proporciones se parecen a las publicadas', () => {
+    const cuenta = { comun: 0, raro: 0, epico: 0 };
+    for (let i = 0; i < 20000; i++) cuenta[sortearRareza()] += 1;
+    assert.ok(Math.abs(cuenta.comun / 20000 - 0.7) < 0.02, JSON.stringify(cuenta));
+    assert.ok(Math.abs(cuenta.raro / 20000 - 0.25) < 0.02, JSON.stringify(cuenta));
+    assert.ok(Math.abs(cuenta.epico / 20000 - 0.05) < 0.01, JSON.stringify(cuenta));
+  });
+
+  test('la figura define el Rooti: el grabado de fábrica manda, y si no hay, uno fijo por id', () => {
+    assert.equal(personaDeAparato({ id: 'A1', persona_fabrica: 'musgo' }), 'musgo');
+    const sin = personaDeAparato({ id: 'AABBCCDDEEFF' });
+    assert.ok(MODELOS.some((m) => m.id === sin));
+    assert.equal(personaDeAparato({ id: 'AABBCCDDEEFF' }), sin, 'siempre el mismo');
+    assert.equal(personaDeAparato({ id: 'A1', persona_fabrica: 'inventada' }), personaDeAparato({ id: 'A1' }));
+  });
+
+  test('los Rooties de la primera tanda pasan a los nuevos', () => {
+    assert.equal(normalizarPersona('KAWAII'), 'brote');
+    assert.equal(normalizarPersona('chica-chill'), 'musgo');
+    assert.equal(normalizarPersona('champi'), 'champi');
+    assert.equal(normalizarPersona('nada'), null);
+    for (const v of Object.values(LEGADO)) {
+      assert.ok(MODELOS.some((m) => m.id === v.persona));
+      assert.ok(RAREZAS.includes(v.rareza));
+    }
   });
 });
 
 describe('avisos', () => {
   const T = Date.parse('2026-09-16T15:00:00-03:00');
-  const planta = { id: 'p1', nombre: 'Rulo', persona: 'cresta', revelado: true };
+  const planta = { id: 'p1', nombre: 'Rulo', persona: 'pinchito', rareza: 'raro', revelado: true };
   const disp = (extra) => ({
     visto: T, usb: false, bat_mv: 3900, animo: 'THIRSTY', sev: 'WATCH',
     ultima: { suelo: 18, temp: 220, hr: 50, lux: 3000 }, ...extra,

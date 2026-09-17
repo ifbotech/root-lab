@@ -7,8 +7,10 @@
  *                Contrato: root-kit/docs/nube.md y docs/api.md.
  *
  *   LA APP       /api/*, con la sesión de una CUENTA (email y contraseña).
- *                Cada cuenta ve sólo sus plantas. Vincula su Rooti, abre el
- *                cofre, bautiza, reconoce la especie, charla con la planta.
+ *                Cada cuenta ve sólo sus plantas. Vincula su Rooti (y la app
+ *                ya sabe cuál es: lo dice la figura), abre el cofre (que
+ *                sortea la piel), bautiza, reconoce la especie, charla con la
+ *                planta y la cuida como mascota.
  *
  * `manejar()` recibe un pedido ya parseado y devuelve [código, cuerpo]. Así
  * los tests recorren el flujo completo —de la primera consulta del aparato
@@ -32,12 +34,18 @@
  */
 import { randomBytes } from 'node:crypto';
 import {
-  ESPECIES, MODELOS, FRASES, ANIMOS, especiePorId, modeloPorId, validarEspecie,
+  ESPECIES, MODELOS, RAREZAS, FRASES, ANIMOS, especiePorId, modeloPorId, idPiel, validarEspecie,
 } from './catalogo.mjs';
 import {
   normalizarCodigo, ssidDe, codigoLegible, hash, tokenNuevo, igualesSeguro,
 } from './codigo.mjs';
-import { abrirCofre, PROBABILIDADES, probabilidadDe } from './cofre.mjs';
+import {
+  PROBABILIDADES, probabilidadDe, sortearRareza, normalizarPersona, personaDeAparato,
+} from './cofre.mjs';
+import {
+  mascotaNueva, normalizar as normalizarMascota, aplicar as aplicarGesto, publico as mascotaPublica,
+  acumularOptimo, saludBiologica, ACCIONES, GOTAS,
+} from '../public/lib/mascota.mjs';
 import { avisosPendientes } from './avisos.mjs';
 import {
   crearClima, tasaSecado, mediaReciente, factorClima, prevision as previsionDe, resumenPronostico,
@@ -208,10 +216,13 @@ export function crearApi({
     const mood = !p.revelado ? 'SLEEPING' : (u ? (d.animo || 'UNKNOWN') : 'UNKNOWN');
     const link = linkDe(d, t);
     const moodVisible = link === 'CAIDO' ? 'OFFLINE' : mood;
-    return {
+    const nodo = {
       id: p.id,
       nombre: p.nombre || '',
-      modelo: p.persona,
+      /* Qué Rooti es se sabe desde el vínculo (lo dice la figura); la piel,
+         recién con el cofre abierto. */
+      modelo: p.persona || personaDeAparato(d),
+      rareza: p.revelado ? (p.rareza || 'comun') : null,
       revelado: Boolean(p.revelado),
       especie: p.especie?.id || null,
       especie_info: p.especie || null,
@@ -248,7 +259,10 @@ export function crearApi({
       brillo: p.brillo ?? 80,
       creada: p.creada,
       riego: riegoRecienteDe(p.id, t),
+      mascota: p.revelado ? mascotaPublica(normalizarMascota(p.mascota, p.revelada_en || t), t) : null,
     };
+    nodo.salud = saludBiologica(nodo);
+    return nodo;
   }
 
   /* Lo que ve el cuidador: la planta sin ids ni nada de la cuenta. */
@@ -256,7 +270,7 @@ export function crearApi({
     const e = n.especie_info;
     return {
       id: 'cuidada',
-      nombre: n.nombre, modelo: n.modelo, revelado: n.revelado,
+      nombre: n.nombre, modelo: n.modelo, rareza: n.rareza, revelado: n.revelado,
       mood: n.mood, severity: n.severity, reason: n.reason, link: n.link,
       tel: { soil_pct: n.tel.soil_pct, temp_dc: n.tel.temp_dc, rh_pct: n.tel.rh_pct, lux: n.tel.lux, age_s: n.tel.age_s, escurre: n.tel.escurre },
       especie: n.especie,
@@ -299,24 +313,30 @@ export function crearApi({
   }
   const ubicacionPublica = (c) => (c?.ubicacion ? { nombre: c.ubicacion.nombre, pais: c.ubicacion.pais, region: c.ubicacion.region || '' } : null);
 
+  /* La colección es de PIELES: cada Rooti tiene tres, y cada cofre abierto
+     suma la que salió ("brote-epico"). */
   function coleccionDe(cuenta) {
     const tengo = cuenta.coleccion || [];
-    const visibles = MODELOS.filter((m) => m.rareza !== 'SECRETO' || tengo.includes(m.id));
     return {
       tengo,
-      total: MODELOS.filter((m) => m.rareza !== 'SECRETO').length,
+      total: MODELOS.length * RAREZAS.length,
       probabilidades: PROBABILIDADES,
-      catalogo: visibles.map((m) => ({
-        ...m, tengo: tengo.includes(m.id), probabilidad: probabilidadDe(m), paleta: paletaDeRooti(m.id)?.id || null,
+      catalogo: MODELOS.map((m) => ({
+        id: m.id, nombre: m.nombre, lema: m.lema, carcasa: m.carcasa, fondo: m.pieles.comun.fondo,
+        tengo: RAREZAS.some((r) => tengo.includes(idPiel(m.id, r))),
+        pieles: RAREZAS.map((r) => ({
+          ...m.pieles[r], id: idPiel(m.id, r), rareza: r, tengo: tengo.includes(idPiel(m.id, r)),
+          probabilidad: probabilidadDe(r), paleta: paletaDeRooti(m.id, r)?.id || null,
+        })),
       })),
     };
   }
 
   /** Lo que desbloquea las paletas cosméticas. */
   function logrosDe(c) {
-    const secretos = (c.coleccion || []).filter((id) => modeloPorId(id)?.rareza === 'SECRETO').length;
+    const epicas = (c.coleccion || []).filter((id) => String(id).endsWith('-epico')).length;
     const diasSanos = Math.max(0, ...db.plantasDe(c.id).map((p) => p.vinculo?.dias_sanos || 0));
-    return { secretos, diasSanos };
+    return { epicas, diasSanos };
   }
 
   /** Cuántas plantas de la cuenta necesitan algo: el número del ícono. */
@@ -542,7 +562,7 @@ export function crearApi({
     }
     if (!planta) d.planta = null;
 
-    const persona = texto(cuerpo.persona, 15);
+    const persona = normalizarPersona(texto(cuerpo.persona, 15));
     Object.assign(d, {
       visto: t,
       fw: texto(cuerpo.fw, 16),
@@ -553,8 +573,9 @@ export function crearApi({
       rssi: Number.isFinite(Number(cuerpo.rssi)) ? entero(cuerpo.rssi) : null,
       usb: Boolean(cuerpo.usb),
       bat_mv: Math.max(0, entero(cuerpo.bat_mv)),
-      persona_fabrica: modeloPorId(persona) ? persona : (d.persona_fabrica || null),
+      persona_fabrica: persona || d.persona_fabrica || null,
     });
+    if (planta && !planta.persona) planta.persona = personaDeAparato(d);
     const codigo = normalizarCodigo(cuerpo.codigo);
     if (codigo) {
       d.codigo = codigo;
@@ -597,6 +618,11 @@ export function crearApi({
         /* El Rooti vio un riego que se escurrió sin empapar (nodo/soil.h). */
         if (l.escurre === true || (Number(l.fallas) & 0x10)) r.escurre = true;
         db.lecturaInsertar({ ...r, dispositivo: idDisp, planta: planta?.id || null });
+        /* El tiempo con la planta cómoda se vuelve gotas de rocío para la
+           mascota (public/lib/mascota.mjs). */
+        if (planta?.revelado && d.ultima?.t && r.t > d.ultima.t && sev === 'OK' && animo === 'HAPPY') {
+          planta.mascota = acumularOptimo(normalizarMascota(planta.mascota, planta.revelada_en || t), r.t - d.ultima.t);
+        }
         d.ultima = r;
         d.animo = animo;
         d.sev = sev;
@@ -615,7 +641,10 @@ export function crearApi({
       ok: true,
       vinculado: Boolean(planta),
       revelado: Boolean(planta?.revelado),
-      persona: planta?.persona || '',
+      planta: planta?.id || null,
+      persona: planta ? (planta.persona || personaDeAparato(d)) : '',
+      /* La piel que salió del cofre: la maceta se pinta con esta paleta. */
+      ...(planta?.revelado ? { rareza: planta.rareza || 'comun' } : {}),
       nombre: planta?.nombre || '',
       ...(e ? {
         especie: {
@@ -635,12 +664,49 @@ export function crearApi({
     }];
   }
 
+  /* ------------------------------------------------------ el emulador --- */
+  /**
+   * Para probar la mascota sin esperar días: el emulador (y sólo él, que se
+   * presenta como placa "emulador") puede adelantar el reloj de SU planta:
+   * "tres-dias" hace como si hubieran pasado 3 días sin cuidados (aparece el
+   * polvo y baja la felicidad) y "gotas" suma tres gotas de rocío. No toca
+   * lecturas, días sanos ni nada que desbloquee algo.
+   */
+  function demo(cuerpo, headers) {
+    const t = reloj();
+    const d = db.dispositivo(String(cuerpo?.id || ''));
+    const token = bearer(headers);
+    if (!d || !/^[0-9a-f]{64}$/.test(token) || !igualesSeguro(d.token_hash, hash(token))) falla(401, 'aparato desconocido');
+    if (d.placa !== 'emulador') falla(403, 'Sólo el emulador puede adelantar el tiempo.');
+    const planta = d.planta ? db.planta(d.planta) : null;
+    if (!planta?.revelado) falla(409, 'Primero abrí el cofre en la app.');
+    let masc = normalizarMascota(planta.mascota, planta.revelada_en || t);
+    if (cuerpo?.accion === 'tres-dias') {
+      const salto = 3 * DIA + H;
+      masc = {
+        ...masc,
+        ultima_interaccion: Math.min(masc.ultima_interaccion, t - salto),
+        polvo_desde: Math.min(masc.polvo_desde, t - salto),
+        ultima_caricia: masc.ultima_caricia ? masc.ultima_caricia - salto : 0,
+        t_felicidad: masc.t_felicidad - salto,
+      };
+    } else if (cuerpo?.accion === 'gotas') {
+      masc = { ...masc, gotas: Math.min(GOTAS.maximo, masc.gotas + 3) };
+    } else {
+      falla(400, 'Acción desconocida');
+    }
+    planta.mascota = masc;
+    db.plantaGuardar(planta);
+    return [200, { ok: true, mascota: mascotaPublica(masc, t) }];
+  }
+
   /* -------------------------------------------------------------- rutas --- */
   async function manejar({ metodo, ruta, query = {}, cuerpo = null, headers = {}, ip = '' }) {
     const t = reloj();
     let m;
 
     if (metodo === 'POST' && ruta === '/api/d/sync') return sync(cuerpo, headers);
+    if (metodo === 'POST' && ruta === '/api/d/demo') return demo(cuerpo, headers);
 
     if (metodo === 'GET' && ruta === '/api/config') {
       return [200, {
@@ -774,8 +840,8 @@ export function crearApi({
         if (cuerpo?.paleta !== undefined) {
           const pal = paletaPorId(cuerpo.paleta || PALETA_POR_DEFECTO);
           if (!pal) falla(400, 'Esa paleta no existe.');
-          if (pal.rooti && !(c.coleccion || []).includes(pal.rooti)) {
-            falla(403, `La paleta ${pal.nombre} es de su Rooti: conseguilo en un cofre para usarla.`);
+          if (pal.rooti && !(c.coleccion || []).includes(pal.id)) {
+            falla(403, `La paleta ${pal.nombre} es una piel: sale del cofre de un ${modeloPorId(pal.rooti)?.nombre || 'Rooti'}.`);
           }
           /* Las cosméticas se ganan cuidando: el servidor lo verifica con
              lo que sabe (la colección y los días sanos de cada planta). */
@@ -849,6 +915,8 @@ export function crearApi({
         mio,
         planta: mio ? planta.id : null,
         estado: d?.estado || null,
+        /* Qué Rooti es: la app lo reconoce antes del cofre. */
+        persona: d ? (() => { const m = modeloPorId(personaDeAparato(d)); return { id: m.id, nombre: m.nombre, lema: m.lema }; })() : null,
       }];
     }
 
@@ -866,7 +934,7 @@ export function crearApi({
       }
       const p = {
         id: nuevoId('p'), cuenta: cuenta.id, dispositivo: d.id, epoca: d.epoca, creada: t,
-        persona: null, revelado: false, nombre: '', especie: null,
+        persona: personaDeAparato(d), rareza: 'comun', revelado: false, nombre: '', especie: null,
         pantalla: 'toque', brillo: 80, vinculo: vinculoInicial(),
       };
       db.transaccion(() => {
@@ -934,35 +1002,64 @@ export function crearApi({
       }
     }
 
-    if (metodo === 'POST' && (m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/cofre$/))) {
+    /* El cofre: sortea la PIEL del Rooti que ya se sabe cuál es. Una sola vez
+       por vínculo; abrirlo de nuevo devuelve lo que salió. */
+    const cofre = metodo !== 'POST' ? null
+      : ruta === '/api/cofre/abrir' ? [ruta, String(cuerpo?.planta || '')]
+        : ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/cofre$/);
+    if (cofre) {
       const cuenta = cuentaDe(headers);
-      const p = plantaMia(cuenta, m[1]);
+      const p = plantaMia(cuenta, cofre[1]);
       const d = db.dispositivo(p.dispositivo);
       let nuevo = false;
       let paleta = null;
       if (!p.revelado) {
-        const modelo = abrirCofre(d?.persona_fabrica, azar);
-        p.persona = modelo.id;
+        p.persona = p.persona || personaDeAparato(d);
+        p.rareza = sortearRareza(azar);
         p.revelado = true;
         p.revelada_en = t;
+        p.mascota = mascotaNueva(t);
         const coleccion = cuenta.coleccion || [];
-        if (!coleccion.includes(modelo.id)) {
-          coleccion.push(modelo.id);
+        const piel = idPiel(p.persona, p.rareza);
+        if (!coleccion.includes(piel)) {
+          coleccion.push(piel);
           nuevo = true;
         }
-        /* Un Rooti con paleta propia pinta la app con sus colores. */
-        paleta = paletaDeRooti(modelo.id)?.id || null;
+        /* La piel pinta la app con sus colores. */
+        paleta = paletaDeRooti(p.persona, p.rareza)?.id || null;
         db.transaccion(() => {
           db.plantaGuardar(p);
           db.cuentaActualizar(cuenta.id, { coleccion, ...(paleta ? { paleta } : {}) });
         });
       }
       const modelo = modeloPorId(p.persona);
+      const piel = modelo.pieles[p.rareza] || modelo.pieles.comun;
       return [200, {
-        ...modelo, nuevo, probabilidad: probabilidadDe(modelo),
-        de_fabrica: Boolean(d?.persona_fabrica), planta: nodoDe(p, t),
-        paleta: paletaDeRooti(modelo.id)?.id || null, pinta: Boolean(paleta),
+        id: modelo.id, nombre: modelo.nombre, lema: modelo.lema,
+        rareza: p.rareza, piel: { ...piel, id: idPiel(modelo.id, p.rareza) }, fondo: piel.fondo,
+        nuevo, probabilidad: probabilidadDe(p.rareza),
+        de_fabrica: Boolean(normalizarPersona(d?.persona_fabrica)), planta: nodoDe(p, t),
+        paleta: paletaDeRooti(modelo.id, p.rareza)?.id || null, pinta: Boolean(paleta),
       }];
+    }
+
+    /* --- la mascota -------------------------------------------------------- */
+    if (metodo === 'POST' && (m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/mascota$/))) {
+      const cuenta = cuentaDe(headers);
+      const p = plantaMia(cuenta, m[1]);
+      if (!p.revelado) falla(409, 'Primero abrí el cofre: todavía está dormido.');
+      const accion = String(cuerpo?.accion || '');
+      if (!ACCIONES.includes(accion)) falla(400, 'Ese gesto no existe.');
+      limitar(`mascota:${cuenta.id}`, 240, H);
+      const r = aplicarGesto(normalizarMascota(p.mascota, p.revelada_en || t), accion, t);
+      if (!r.ok) {
+        falla(409, r.motivo === 'sin-gotas'
+          ? 'No quedan gotas de rocío: se ganan con la planta cómoda.'
+          : 'No hay polvo que limpiar.');
+      }
+      p.mascota = r.mascota;
+      db.plantaGuardar(p);
+      return [200, { accion, suma: r.suma, motivo: r.motivo, mascota: mascotaPublica(r.mascota, t) }];
     }
 
     if (metodo === 'GET' && (m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/historial$/))) {
@@ -1052,7 +1149,7 @@ export function crearApi({
           await mandarA(db.suscripciones(c.cuenta), {
             titulo: `${quien} regó a ${p.nombre || 'tu planta'}`,
             cuerpo: 'Quedó anotado. Si el sensor no ve el agua en un par de horas, te aviso.',
-            icono: `caras/${p.persona || 'incognito'}-HAPPY.png`, url: `#planta/${p.id}`, tag: `${p.id}:cuidador`, urgente: false,
+            icono: `caras/${p.persona || 'brote'}-${p.rareza || 'comun'}-HAPPY.png`, url: `#planta/${p.id}`, tag: `${p.id}:cuidador`, urgente: false,
           });
         }
         return [201, { ok: true, t }];
@@ -1179,7 +1276,7 @@ export function crearApi({
         const r = await push.enviar(s, {
           titulo: p ? `${p.nombre || 'Tu planta'} te saluda` : 'ROOTLAB',
           cuerpo: 'Así te vamos a avisar cuando tu planta necesite algo.',
-          icono: p ? `caras/${p.persona}-HAPPY.png` : 'iconos/icono-192.png',
+          icono: p ? `caras/${p.persona}-${p.rareza || 'comun'}-HAPPY.png` : 'iconos/icono-192.png',
           url: './', tag: 'prueba',
         });
         if (r === 'vencida') db.suscripcionBorrar(s.endpoint);

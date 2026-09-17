@@ -131,44 +131,53 @@ describe('verificar el email', () => {
 });
 
 describe('paleta', () => {
-  test('arranca en Vibrant Tones y las de Rooties se desbloquean teniéndolos', async () => {
+  test('arranca en Vibrant Tones y cada piel se desbloquea abriendo su cofre', async () => {
     const esc = escenario();
     const token = await cuenta(esc);
     let [, yo] = await esc.llamar('GET', '/api/cuenta', { token });
     assert.equal(yo.paleta, 'vibrant');
-    const [c, r] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'chico-malo' } });
+    const [c, r] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'pinchito-comun' } });
     assert.equal(c, 403);
-    assert.match(r.error, /Chico Malo/);
+    assert.match(r.error, /Pinchito/);
     assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'inventada' } }))[0], 400);
 
-    const { cofre } = await conRooti(esc, { persona: 'chico-malo', token });
-    assert.equal(cofre.id, 'chico-malo');
-    assert.equal(cofre.paleta, 'chico-malo');
+    const { cofre } = await conRooti(esc, { persona: 'pinchito', token });
+    assert.equal(cofre.id, 'pinchito');
+    assert.equal(cofre.paleta, 'pinchito-comun');
     assert.equal(cofre.pinta, true, 'abrir el cofre pinta la app');
     [, yo] = await esc.llamar('GET', '/api/cuenta', { token });
-    assert.equal(yo.paleta, 'chico-malo', 'y queda en la cuenta, para todos sus teléfonos');
+    assert.equal(yo.paleta, 'pinchito-comun', 'y queda en la cuenta, para todos sus teléfonos');
 
     assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'vibrant' } }))[1].paleta, 'vibrant');
-    assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'chico-malo' } }))[1].paleta, 'chico-malo');
+    assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'pinchito-comun' } }))[1].paleta, 'pinchito-comun');
+    assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'pinchito-epico' } }))[0], 403, 'la épica no salió');
   });
 
-  test('un Rooti sin paleta propia no cambia la que eligió la persona', async () => {
+  test('cada cofre nuevo pinta con su piel; reabrir uno ya abierto no', async () => {
     const esc = escenario();
     const token = await cuenta(esc);
-    await conRooti(esc, { persona: 'chica-chill', token });
-    const { cofre } = await conRooti(esc, { persona: 'kawaii', token });
-    assert.equal(cofre.pinta, false);
-    const [, yo] = await esc.llamar('GET', '/api/cuenta', { token });
-    assert.equal(yo.paleta, 'chica-chill');
+    await conRooti(esc, { persona: 'musgo', token });
+    const { cofre, planta } = await conRooti(esc, { persona: 'brote', token });
+    assert.equal(cofre.pinta, true);
+    let [, yo] = await esc.llamar('GET', '/api/cuenta', { token });
+    assert.equal(yo.paleta, 'brote-comun');
+    await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'musgo-comun' } });
+    const [, otraVez] = await esc.llamar('POST', `/api/plantas/${planta.id}/cofre`, { token });
+    assert.equal(otraVez.pinta, false);
+    [, yo] = await esc.llamar('GET', '/api/cuenta', { token });
+    assert.equal(yo.paleta, 'musgo-comun', 'lo que eligió la persona se respeta');
   });
 
-  test('la colección dice qué Rooties tienen paleta', async () => {
+  test('la colección dice qué paleta pinta cada piel y cuánto sale', async () => {
     const esc = escenario();
-    const { token } = await conRooti(esc, { persona: 'kawaii' });
+    const { token } = await conRooti(esc, { persona: 'bulbo' });
     const [, col] = await esc.llamar('GET', '/api/coleccion', { token });
-    assert.equal(col.catalogo.find((m) => m.id === 'chica-chill').paleta, 'chica-chill');
-    assert.equal(col.catalogo.find((m) => m.id === 'kawaii').paleta, null);
-    assert.equal(col.total, 7, 'ocho Rooties, uno secreto');
+    const bulbo = col.catalogo.find((m) => m.id === 'bulbo');
+    assert.equal(bulbo.pieles.find((p) => p.rareza === 'raro').paleta, 'bulbo-raro');
+    assert.equal(bulbo.tengo, true);
+    assert.equal(col.catalogo.find((m) => m.id === 'champi').tengo, false);
+    assert.equal(col.total, 15, 'cinco Rooties por tres pieles');
+    assert.deepEqual(col.probabilidades, { comun: 700, raro: 250, epico: 50 });
     aparato(esc);
   });
 });

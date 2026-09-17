@@ -65,16 +65,17 @@ describe('la luz sobre la cara', () => {
 /* ================================================================ voz === */
 describe('la voz de cada Rooti', () => {
   test('los tres del carácter suenan como se pidió', () => {
-    const malo = VOCES['chico-malo'];
-    const chill = VOCES['chica-chill'];
-    const kawaii = VOCES.kawaii;
+    const malo = VOCES.champi;
+    const chill = VOCES.musgo;
+    const kawaii = VOCES.bulbo;
     assert.equal(malo.onda, 'sawtooth');
     assert.deepEqual([malo.fmin, malo.fmax], [130, 220]);
     assert.equal(chill.onda, 'sine');
     assert.deepEqual([chill.fmin, chill.fmax], [260, 380]);
-    assert.ok(chill.ataque > malo.ataque * 4, 'Chica Chill ataca suave');
-    assert.ok(malo.msPorLetra < chill.msPorLetra, 'Chico Malo habla más rápido');
-    assert.ok(chill.pausaPunto > malo.pausaPunto, 'y Chica Chill hace pausas más largas');
+    assert.ok(chill.ataque > malo.ataque * 4, 'el Musgo ataca suave');
+    assert.ok(malo.msPorLetra < chill.msPorLetra, 'el Champi habla más rápido');
+    assert.ok(chill.pausaPunto > malo.pausaPunto, 'y el Musgo hace pausas más largas');
+    assert.ok(VOCES.pinchito.msPorLetra <= malo.msPorLetra, 'el Pinchito es el más rápido de todos');
     assert.deepEqual([kawaii.fmin, kawaii.fmax], [500, 800]);
     assert.ok(Array.isArray(kawaii.escala) && kawaii.escala.length >= 4);
   });
@@ -96,12 +97,12 @@ describe('la voz de cada Rooti', () => {
         assert.ok(hz >= v.fmin && hz <= v.fmax, `${id}: ${letra} -> ${hz}`);
       }
     }
-    assert.equal(notaPara(VOCES['chico-malo'], 'a', 1), notaPara(VOCES['chico-malo'], 'a', 9));
-    assert.ok(notaPara(VOCES['chico-malo'], 'a') > notaPara(VOCES['chico-malo'], 'k'), 'las vocales van arriba');
+    assert.equal(notaPara(VOCES.champi, 'a', 1), notaPara(VOCES.champi, 'a', 9));
+    assert.ok(notaPara(VOCES.champi, 'a') > notaPara(VOCES.champi, 'k'), 'las vocales van arriba');
   });
 
-  test('Kawaii arpegia por la pentatónica, subiendo y bajando', () => {
-    const k = VOCES.kawaii;
+  test('el Bulbo arpegia por la pentatónica, subiendo y bajando', () => {
+    const k = VOCES.bulbo;
     const notas = [...Array(8)].map((_, i) => notaPara(k, 'x', i));
     for (const n of notas) assert.ok(k.escala.includes(n));
     assert.deepEqual(notas.slice(0, 4), k.escala, 'sube');
@@ -110,15 +111,15 @@ describe('la voz de cada Rooti', () => {
   });
 
   test('qué letras suenan', () => {
-    const todas = VOCES['chico-malo'];
-    const vocales = VOCES['chica-chill'];
+    const todas = VOCES.champi;
+    const vocales = VOCES.musgo;
     assert.ok(suena(todas, 'k') && suena(todas, 'a') && suena(todas, '7'));
     assert.ok(!suena(todas, ' ') && !suena(todas, '.') && !suena(todas, '¿'));
     assert.ok(suena(vocales, 'a') && suena(vocales, 'É') && !suena(vocales, 'k'));
   });
 
   test('las pausas: la coma respira, el punto descansa', () => {
-    const v = VOCES['chica-chill'];
+    const v = VOCES.musgo;
     assert.equal(duracionLetra(v, 'a'), v.msPorLetra);
     assert.ok(duracionLetra(v, ' ') > v.msPorLetra);
     assert.ok(duracionLetra(v, ',') > duracionLetra(v, ' '));

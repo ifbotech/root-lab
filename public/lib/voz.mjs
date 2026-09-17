@@ -10,12 +10,16 @@
  *
  * Una voz son unos pocos números: la onda, el rango de frecuencias, el
  * ataque, cuánto dura cada letra, qué letras suenan. Están todos en VOCES,
- * por modelo, para que la artista los afine sin tocar el sintetizador.
- * Los tres que definen el carácter:
+ * por Rooti, para que la artista los afine sin tocar el sintetizador:
  *
- *   Chico Malo    diente de sierra, grave (130–220 Hz), rápido y seco
- *   Chica Chill   senoidal, media (260–380 Hz), ataque suave, con pausas
- *   Kawaii        aguda (500–800 Hz), arpegios en la escala pentatónica
+ *   Brote      triangular, media-aguda, curiosa: sube al final de cada frase
+ *   Musgo      senoidal, media (260–380 Hz), ataque suave, con pausas
+ *   Pinchito   cuadrada, aguda y muy rápida: no para de saludar
+ *   Bulbo      aguda (500–800 Hz), arpegios en la escala pentatónica
+ *   Champi     diente de sierra, grave (130–220 Hz), rápido: habla comiendo
+ *
+ * Además de la voz hay tres sonidos de la mascota: el ronroneo de la
+ * caricia, las burbujas de la esponja y el bocado del snack.
  *
  * CUÁNDO SE CALLA
  *
@@ -43,50 +47,44 @@ export const VOZ_BASE = Object.freeze({
 });
 
 export const VOCES = {
-  'chico-malo': {
+  brote: {
     ...VOZ_BASE,
-    nota: 'Grave, rápido y seco: habla como quien no quiere.',
-    onda: 'sawtooth', fmin: 130, fmax: 220,
-    msPorLetra: 22, ataque: 0.004, caida: 0.060, ganancia: 0.045, filtro: 1400,
-    suenan: 'todas', pausaComa: 110, pausaPunto: 220,
+    nota: 'Curiosa: triangular, media-aguda, con letras cortas.',
+    onda: 'triangle', fmin: 380, fmax: 620,
+    msPorLetra: 30, ataque: 0.008, caida: 0.075, ganancia: 0.050, filtro: 3200,
+    suenan: 'todas', pausaComa: 150, pausaPunto: 280,
   },
-  'chica-chill': {
+  musgo: {
     ...VOZ_BASE,
     nota: 'Suave, sin apuro, con silencios: como si pensara cada frase.',
     onda: 'sine', fmin: 260, fmax: 380,
     msPorLetra: 46, ataque: 0.035, caida: 0.120, ganancia: 0.060, filtro: 3000,
     suenan: 'vocales', pausaComa: 260, pausaPunto: 520,
   },
-  kawaii: {
+  pinchito: {
+    ...VOZ_BASE,
+    nota: 'Cuadrada, aguda y rapidísima: hiperactiva.',
+    onda: 'square', fmin: 420, fmax: 700,
+    msPorLetra: 20, ataque: 0.003, caida: 0.045, ganancia: 0.030, filtro: 2600,
+    suenan: 'todas', pausaComa: 90, pausaPunto: 180,
+  },
+  bulbo: {
     ...VOZ_BASE,
     nota: 'Aguda y cantada: cada letra sube por una escala pentatónica.',
     onda: 'triangle', fmin: 500, fmax: 800,
     msPorLetra: 32, ataque: 0.008, caida: 0.090, ganancia: 0.050, filtro: 4000,
     suenan: 'todas', pausaComa: 160, pausaPunto: 300, escala: PENTATONICA,
   },
-  cresta: {
-    ...VOZ_BASE, nota: 'Cuadrada y cortante, medio enojada.',
-    onda: 'square', fmin: 180, fmax: 260, msPorLetra: 26, ganancia: 0.032, filtro: 1600,
-  },
-  visor: {
-    ...VOZ_BASE, nota: 'Casi monótona, de aparato.',
-    onda: 'square', fmin: 330, fmax: 370, msPorLetra: 30, ataque: 0.002, caida: 0.050, ganancia: 0.030, filtro: 2000,
-  },
-  ciclope: {
-    ...VOZ_BASE, nota: 'Redonda y lenta, de gigante bueno.',
-    onda: 'sine', fmin: 190, fmax: 280, msPorLetra: 42, ataque: 0.020, caida: 0.140, ganancia: 0.065,
-  },
-  hongo: {
-    ...VOZ_BASE, nota: 'Esponjosa, un poco más alta que la base.',
-    onda: 'triangle', fmin: 360, fmax: 520, msPorLetra: 36, ataque: 0.014,
-  },
-  glitch: {
-    ...VOZ_BASE, nota: 'Salta de grave a agudo sin avisar: mal sintonizada.',
-    onda: 'sawtooth', fmin: 240, fmax: 900, msPorLetra: 24, ataque: 0.002, caida: 0.045, ganancia: 0.040, filtro: 5000,
+  champi: {
+    ...VOZ_BASE,
+    nota: 'Grave y rápida, con la boca llena.',
+    onda: 'sawtooth', fmin: 130, fmax: 220,
+    msPorLetra: 22, ataque: 0.004, caida: 0.060, ganancia: 0.045, filtro: 1400,
+    suenan: 'todas', pausaComa: 110, pausaPunto: 220,
   },
 };
 
-/** La voz de un modelo; la base si no tiene una propia. */
+/** La voz de un Rooti; la base si no tiene una propia. */
 export const vozDe = (modelo) => VOCES[modelo] || VOZ_BASE;
 
 const VOCALES = /[aeiouáéíóúü]/i;
@@ -258,3 +256,33 @@ export function ronronear({ silenciado = estaSilenciado(), hora = new Date().get
     return () => {};
   }
 }
+
+/* Un sonido corto hecho de blips, para los gestos de la mascota. */
+function sonar(notas, { silenciado = estaSilenciado(), hora = new Date().getHours() } = {}) {
+  if (!puedeSonar({ silenciado, hora })) return false;
+  const ac = audio();
+  if (!ac) return false;
+  if (ac.state === 'suspended') ac.resume().catch(() => {});
+  try {
+    for (const [hz, retraso, voz] of notas) blip(ac, { ...VOZ_BASE, ...voz }, hz, ac.currentTime + retraso);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Las burbujas de la esponja: tres gotitas senoidales que suben. */
+export const BURBUJAS = Object.freeze([
+  [880, 0, { onda: 'sine', ataque: 0.004, caida: 0.07, ganancia: 0.04, filtro: 6000 }],
+  [1175, 0.06, { onda: 'sine', ataque: 0.004, caida: 0.06, ganancia: 0.035, filtro: 6000 }],
+  [1480, 0.12, { onda: 'sine', ataque: 0.004, caida: 0.05, ganancia: 0.03, filtro: 6000 }],
+]);
+
+/** El bocado del snack: un "ñam" grave y otro más agudo. */
+export const BOCADO = Object.freeze([
+  [220, 0, { onda: 'triangle', ataque: 0.006, caida: 0.09, ganancia: 0.06, filtro: 1800 }],
+  [330, 0.14, { onda: 'triangle', ataque: 0.006, caida: 0.12, ganancia: 0.06, filtro: 1800 }],
+]);
+
+export const burbujear = (opciones) => sonar(BURBUJAS, opciones);
+export const bocado = (opciones) => sonar(BOCADO, opciones);

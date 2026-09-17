@@ -1,7 +1,8 @@
 /* caras.mjs — las caras de las macetas, dibujadas por el firmware.
  *
  * El módulo WebAssembly de public/caras/ es rootkit/firmware compilado para
- * el navegador: art/face.c, gfx/aa.c y la tabla de personajes. Así la cara
+ * el navegador: art/face.c, gfx/aa.c y la tabla de los cinco Rooties con
+ * sus tres pieles (core/persona.c). Así la cara
  * que ves en el teléfono es exactamente la que pone la maceta, parpadeo y
  * respiración incluidos, y un cambio de la artista llega a los dos lados a
  * la vez.
@@ -11,7 +12,14 @@
  * Una cara que sale de la pantalla se da de baja sola.
  *
  * Mientras el módulo carga —o si el navegador no tiene WebAssembly— se
- * muestra la imagen fija de public/caras/<modelo>-<ANIMO>.png.
+ * muestra la imagen fija de public/caras/<rooti>-<rareza>-<ANIMO>.png (o
+ * <rooti>-dormido.png, la cara gris de antes del cofre).
+ *
+ * LA PIEL
+ *
+ * Cada cara se pinta con la piel que salió del cofre: `rareza` es 'comun',
+ * 'raro' o 'epico', los mismos ids que manda la nube en el sync. La figura
+ * define el Rooti (`persona`); la rareza, sólo los colores y los adornos.
  *
  * LA CARA NO SALTA DE ÁNIMO
  *
@@ -41,6 +49,7 @@
 
 import { enBase } from './base.mjs';
 import { iluminacion, faseEspecular } from './luz.mjs';
+import { RAREZAS } from './rooties.mjs';
 
 export const ANIMOS = [
   'UNKNOWN', 'OFFLINE', 'SLEEPING', 'HAPPY', 'THIRSTY', 'DROWNING',
@@ -82,6 +91,15 @@ export function cargarCaras(url = enBase('caras/rootkit_caras.wasm')) {
 }
 
 export const moduloCaras = () => modulo;
+
+/** El índice de una rareza para el módulo: 0 común, 1 rara, 2 épica. */
+export const indiceRareza = (r) => Math.max(0, RAREZAS.indexOf(r));
+
+/** La imagen fija de una cara, para mientras carga el módulo. */
+export function imagenCara({ persona = '', rareza = 'comun', animo = 'HAPPY', modo = 'cara' } = {}) {
+  if (modo !== 'cara' || !persona) return enBase(`caras/${persona || 'brote'}-dormido.png`);
+  return enBase(`caras/${persona}-${RAREZAS.includes(rareza) ? rareza : 'comun'}-${ANIMOS.includes(animo) ? animo : 'HAPPY'}.png`);
+}
 
 /** Escribe texto en el buffer de entrada del módulo. */
 export function escribirEntrada(s) {
@@ -190,12 +208,13 @@ function mimoActual(e, ahora) {
 function pintar(e, ahora) {
   const x = modulo.x;
   const idx = modulo.personas.get(e.persona) ?? 0;
+  const r = indiceRareza(e.rareza);
   const ms = Math.max(0, Math.floor(ahora - e.inicio));
   x.lienzo(e.px, e.px);
   if (e.modo === 'dormida' || !e.persona) {
-    x.dormida(ms);
+    x.dormida(idx, ms);
   } else if (e.modo === 'despertar') {
-    x.despertar(idx, ms);
+    x.despertar(idx, r, ms);
     if (ms >= modulo.despertarMs) {
       e.modo = 'cara';
       e.alTerminar?.();
@@ -207,16 +226,16 @@ function pintar(e, ahora) {
     e.mimoPct = mimo;
     const mir = miradaActual(e, performance.now());
     if (mimo > 0 && x.cara_mimo) {
-      x.cara_mimo(idx, animo, e.etapa || 0, mimo, ms);
+      x.cara_mimo(idx, r, animo, e.etapa || 0, mimo, ms);
       e.desde = undefined;
     } else if (pasado < modulo.transicionMs && x.cara_mezcla) {
-      x.cara_mezcla(idx, Math.max(0, ANIMOS.indexOf(e.desde)), animo, x.cara_anim_pct(Math.floor(pasado)), e.etapa || 0, 0, ms);
+      x.cara_mezcla(idx, r, Math.max(0, ANIMOS.indexOf(e.desde)), animo, x.cara_anim_pct(Math.floor(pasado)), e.etapa || 0, 0, ms);
     } else if (mir && (mir.mira_x || mir.mira_y || mir.preocupado) && x.cara_mirada) {
       e.desde = undefined;
-      x.cara_mirada(idx, animo, e.etapa || 0, mir.mira_x, mir.mira_y, mir.preocupado, ms);
+      x.cara_mirada(idx, r, animo, e.etapa || 0, mir.mira_x, mir.mira_y, mir.preocupado, ms);
     } else {
       e.desde = undefined;
-      x.cara(idx, animo, e.etapa || 0, ms);
+      x.cara(idx, r, animo, e.etapa || 0, ms);
     }
     if (mimo === 0 && !e.mimo) e.mimoT0 = undefined;
   }
@@ -273,7 +292,8 @@ const RECUERDO_MS = 120000;
 /**
  * Un lienzo con una cara viva.
  *
- *   persona   id del modelo ('kawaii'); vacío dibuja la cara dormida neutra
+ *   persona   id del Rooti ('brote'); vacío dibuja un Rooti dormido
+ *   rareza    la piel: 'comun' | 'raro' | 'epico'
  *   animo     uno de ANIMOS
  *   etapa     0..4, los adornos que ganó el vínculo
  *   modo      'cara' | 'dormida' | 'despertar'
@@ -286,7 +306,7 @@ const RECUERDO_MS = 120000;
  * ánimo, modo, persona o luz sin recrearlo, y `acariciar(si)` para el mimo.
  */
 export function cara({
-  persona = '', animo = 'HAPPY', etapa = 0, modo = 'cara', lado = 120,
+  persona = '', rareza = 'comun', animo = 'HAPPY', etapa = 0, modo = 'cara', lado = 120,
   clase = '', fps = 24, alTerminar = null, etiqueta = '', clave = '', lux = null,
 } = {}) {
   const c = document.createElement('canvas');
@@ -299,13 +319,13 @@ export function cara({
   c.style.height = `${lado}px`;
   c.setAttribute('role', 'img');
   c.setAttribute('aria-label', etiqueta || (persona ? `La cara de ${persona}` : 'Una cara dormida'));
-  if (persona && modo === 'cara') {
-    c.style.backgroundImage = `url(${enBase(`caras/${persona}-${animo}.png`)})`;
+  if (modo !== 'despertar') {
+    c.style.backgroundImage = `url(${imagenCara({ persona, rareza, animo, modo })})`;
     c.style.backgroundSize = 'cover';
   }
 
   const e = {
-    c, ctx: c.getContext('2d'), px, persona, animo, etapa, modo, fps, alTerminar, clave, lux,
+    c, ctx: c.getContext('2d'), px, persona, rareza, animo, etapa, modo, fps, alTerminar, clave, lux,
     inicio: Date.now(), ultimo: -1e9, creada: performance.now(), visto: false, oculta: false,
     mimo: false, mimoPct: 0, mimoDesde: 0,
   };
@@ -314,7 +334,7 @@ export function cara({
     if (previo && previo.animo !== animo && performance.now() - previo.t < RECUERDO_MS) {
       e.desde = previo.animo;
       e.transicion = performance.now();
-      c.style.backgroundImage = `url(${enBase(`caras/${persona}-${previo.animo}.png`)})`;
+      c.style.backgroundImage = `url(${imagenCara({ persona, rareza, animo: previo.animo })})`;
     }
     ultimoAnimo.set(clave, { animo, t: performance.now() });
   }

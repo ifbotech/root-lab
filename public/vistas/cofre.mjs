@@ -9,21 +9,36 @@
  * que la maceta se despierte antes que el cofre del teléfono, y el truco es
  * que pasen juntos.
  *
- * La cara que sale del cofre es la animación de despertar del firmware,
- * dibujada por el mismo código que corre en el Rooti.
+ * QUÉ SORTEA
  *
- * Si el Rooti tiene paleta propia (Chico Malo, Chica Chill...), apenas
- * aparece la app se pinta con sus colores: un círculo que crece desde el
- * cofre (`alPintar`, ver lib/tema.mjs).
+ * El cofre NO decide qué Rooti es: eso lo dice la figura (sale de fábrica
+ * con su personaje) y la app lo reconoce desde el QR, antes del cofre
+ * ("¡Conectaste a tu Brote!"). Lo que sortea es la PIEL: común (70 %),
+ * rara (25 %) o épica (5 %). La nube guarda la rareza y la manda en el
+ * sync; la maceta se pinta con esa paleta al abrir los ojos.
+ *
+ * Lo que sale es el Rooti entero (lib/cuerpo.mjs) con la animación de
+ * despertar del firmware en la ventana de su pantalla, y la app se pinta con
+ * los colores de la piel: un círculo que crece desde el cofre (`alPintar`,
+ * ver lib/tema.mjs).
  */
 import { h, render } from '../lib/ui.mjs';
-import { cara } from '../lib/caras.mjs';
+import { cuerpo } from '../lib/cuerpo.mjs';
+import { pielDe } from '../lib/rooties.mjs';
 
-const RAREZA = {
-  COMUN: { texto: 'COMÚN', clase: 'comun', colores: ['#7fd1ff', '#ffffff', '#58cc02', '#ffc800'] },
-  RARO: { texto: 'RARO', clase: 'raro', colores: ['#ffb020', '#ffd36b', '#ff7a00', '#ffffff'] },
-  SECRETO: { texto: 'SECRETO', clase: 'secreto', colores: ['#ff7ad9', '#ce82ff', '#7fd1ff', '#8dff9b', '#ffd36b'] },
+/* Cómo se festeja cada rareza. El confeti de la común y la rara usa los
+   colores de la piel que salió; la épica, además, oro. */
+export const RAREZA = {
+  comun: { texto: 'COMÚN', clase: 'comun', oro: false },
+  raro: { texto: 'RARA', clase: 'raro', oro: false },
+  epico: { texto: 'ÉPICA', clase: 'epico', oro: true },
 };
+
+/** Los colores del confeti para una piel. */
+export function coloresConfeti(piel, rareza) {
+  const base = [piel?.fondo, piel?.piel, piel?.rubor, piel?.ojos, '#ffffff'].filter(Boolean);
+  return RAREZA[rareza]?.oro ? [...base, '#ffd54f', '#ffb300', '#fff8e1'] : base;
+}
 
 function svgCofre() {
   const ns = 'http://www.w3.org/2000/svg';
@@ -102,21 +117,26 @@ function lanzarConfeti(colores) {
 }
 
 /**
- * La escena completa. `abrir()` hace el pedido y devuelve el modelo;
- * `alSeguir(modelo)` se llama cuando el usuario ya lo vio.
+ * La escena completa. `persona` es el Rooti que ya se sabe cuál es
+ * ({ id, nombre }), `abrir()` hace el pedido y devuelve lo que salió;
+ * `alSeguir(salida)` se llama cuando el usuario ya lo vio.
  */
-export function escenaCofre({ abrir, alSeguir, alPintar = null, probabilidades = null }) {
+export function escenaCofre({ abrir, alSeguir, alPintar = null, probabilidades = null, persona = null }) {
   const escena = h('div', { class: 'cofre-escena' });
   const rayos = h('div', { class: 'rayos', 'aria-hidden': 'true' });
   const toques = h('div', { class: 'cofre-toques', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'));
   const leyenda = h('p', { class: 'alta-texto' }, 'Tocalo tres veces');
   const boton = h('button', { class: 'cofre-boton', type: 'button', 'aria-label': 'Abrir el cofre' }, svgCofre());
-  const odds = probabilidades
-    ? h('div', { class: 'probabilidades', 'aria-label': 'Probabilidades del cofre' },
-        h('span', { class: 'chip' }, 'Común ', h('b', {}, `${Math.round(probabilidades.COMUN / 10)} %`)),
-        h('span', { class: 'chip' }, 'Raro ', h('b', {}, `${Math.round(probabilidades.RARO / 10)} %`)),
-        h('span', { class: 'chip' }, 'Secreto ', h('b', {}, `${Math.round(probabilidades.SECRETO / 10)} %`)))
+  const reconocido = persona
+    ? h('div', { class: 'cofre-reconocido' },
+        cuerpo({ persona: persona.id, dormido: true, lado: 72, estatico: true, etiqueta: `${persona.nombre}, dormido` }),
+        h('p', {}, h('b', {}, `¡Conectaste a tu ${persona.nombre}!`), h('span', {}, 'Su cofre guarda la piel con la que va a despertar.')))
     : null;
+  const p = probabilidades || { comun: 700, raro: 250, epico: 50 };
+  const odds = h('div', { class: 'probabilidades', 'aria-label': 'Probabilidades de la piel' },
+    h('span', { class: 'chip rar-comun' }, 'Común ', h('b', {}, `${Math.round(p.comun / 10)} %`)),
+    h('span', { class: 'chip rar-raro' }, 'Rara ', h('b', {}, `${Math.round(p.raro / 10)} %`)),
+    h('span', { class: 'chip rar-epico' }, 'Épica ', h('b', {}, `${Math.round(p.epico / 10)} %`)));
 
   let n = 0;
   let abriendo = false;
@@ -150,32 +170,33 @@ export function escenaCofre({ abrir, alSeguir, alPintar = null, probabilidades =
   });
 
   function revelar(m) {
-    const r = RAREZA[m.rareza] || RAREZA.COMUN;
-    const destello = h('div', { class: 'destello activo', 'aria-hidden': 'true' });
+    const r = RAREZA[m.rareza] || RAREZA.comun;
+    const piel = m.piel || pielDe(m.id, m.rareza);
+    const destello = h('div', { class: `destello activo${r.oro ? ' oro' : ''}`, 'aria-hidden': 'true' });
     document.body.append(destello);
     setTimeout(() => destello.remove(), 800);
-    escena.classList.add('abierto');
-    lanzarConfeti(r.colores);
+    escena.classList.add('abierto', `sale-${r.clase}`);
+    lanzarConfeti(coloresConfeti(piel, m.rareza));
 
-    const marco = h('div', { class: 'cara-marco', style: `background:${m.fondo}` },
-      cara({ persona: m.id, modo: 'despertar', lado: 200, etiqueta: `${m.nombre} despertando`, alTerminar: () => {} }));
+    const marco = h('div', { class: 'revelado-escena', style: piel ? `--piel-fondo:${piel.fondo}` : '' },
+      cuerpo({ persona: m.id, rareza: m.rareza, despertar: true, lado: 220, etiqueta: `${m.nombre} despertando con la piel ${piel?.nombre || ''}` }));
     setTimeout(() => {
       render(escena,
         rayos,
         h('div', { class: 'revelado' },
           marco,
-          h('span', { class: `rareza-cinta ${r.clase}` }, r.texto),
+          h('span', { class: `rareza-cinta ${r.clase}` }, `PIEL ${r.texto}`),
           h('h2', {}, m.nombre),
+          h('p', { class: 'revelado-piel' }, piel?.nombre || ''),
           h('p', {}, m.lema),
-          m.nuevo ? h('span', { class: 'nuevo' }, '¡NUEVO EN TU COLECCIÓN!') : null,
-          m.pinta ? h('p', { class: 'nota' }, `ROOTLAB se pintó con los colores de ${m.nombre}.`) : null,
-          h('p', { class: 'nota' }, 'Mirá tu Rooti: ya abrió los ojos.'),
-          h('button', { class: 'boton primario ancho', type: 'button', onClick: () => alSeguir(m) },
-            `¡Hola, ${m.nombre === '?????' ? 'misterio' : m.nombre}!`)));
+          m.nuevo ? h('span', { class: 'nuevo' }, '¡PIEL NUEVA EN TU COLECCIÓN!') : null,
+          m.pinta ? h('p', { class: 'nota' }, `ROOTLAB se pintó con los colores de ${piel?.nombre || m.nombre}.`) : null,
+          h('p', { class: 'nota' }, 'Mirá tu Rooti: ya abrió los ojos con estos colores.'),
+          h('button', { class: 'boton primario ancho', type: 'button', onClick: () => alSeguir(m) }, `¡Hola, ${m.nombre}!`)));
       if (m.pinta && alPintar) setTimeout(() => alPintar(m, marco), 650);
     }, 420);
   }
 
-  render(escena, rayos, boton, toques, leyenda, odds);
+  render(escena, rayos, reconocido, boton, toques, leyenda, odds);
   return escena;
 }

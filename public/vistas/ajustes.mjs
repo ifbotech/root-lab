@@ -83,7 +83,7 @@ export function vistaAjustes(ctx) {
   /* -------------------------------------------------------------- paleta --- */
   const actual = cuenta?.paleta || PALETA_POR_DEFECTO;
   const paletas = h('div', { class: 'paletas', role: 'radiogroup', 'aria-label': 'Paleta de colores' },
-    paletasDisponibles(cuenta?.coleccion || [], { secretos: progreso.secretos || 0, diasSanos }).map((p) => h('button', {
+    paletasDisponibles(cuenta?.coleccion || [], { diasSanos }).map((p) => h('button', {
       type: 'button',
       class: `paleta ${p.id === actual ? 'activa' : ''}`,
       role: 'radio',
@@ -91,7 +91,7 @@ export function vistaAjustes(ctx) {
       'aria-disabled': p.bloqueada ? 'true' : null,
       onClick: async (ev) => {
         if (p.bloqueada) {
-          avisar(p.rooti ? `La paleta ${p.nombre} se desbloquea cuando te toca su Rooti en un cofre.` : `La paleta ${p.nombre} se gana con ${p.desbloqueo}.`);
+          avisar(p.rooti ? `La paleta ${p.nombre} es una piel: sale del cofre de ese Rooti.` : `La paleta ${p.nombre} se gana con ${p.desbloqueo}.`);
           return;
         }
         if (p.id === actual) return;

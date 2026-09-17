@@ -37,7 +37,9 @@ import { aplicarCola } from './lib/cola.mjs';
 import { almacen } from './lib/almacen.mjs';
 import { tareasDelDia, contarEstados } from './lib/tareas.mjs';
 import { actualizarRacha } from './lib/gamificacion.mjs';
+import { firmaTablero } from './lib/model.mjs';
 import { cargarCaras } from './lib/caras.mjs';
+import { horaDePrueba, fijarHoraDePrueba, alCambiarHora } from './lib/reloj.mjs';
 import { enBase, rutaSinBase } from './lib/base.mjs';
 import { vistaAlta, PASOS, saltear } from './vistas/alta.mjs';
 import { vistaHoy } from './vistas/hoy.mjs';
@@ -238,8 +240,7 @@ async function entrarConCodigo(codigo) {
     if (v.mio && v.planta) {
       await recargar();
       const n = app.estado?.nodes.find((x) => x.id === v.planta);
-      const modelo = app.estado?.coleccion?.catalogo.find((m) => m.id === n?.modelo);
-      guardarAlta({ plantaId: v.planta, persona: n?.modelo || null, fondo: modelo?.fondo, nombre: n?.nombre || null });
+      guardarAlta({ plantaId: v.planta, persona: n?.modelo || null, rareza: n?.rareza || null, nombre: n?.nombre || null });
       const antes = PASOS.indexOf(app.alta.paso) < PASOS.indexOf('cofre');
       if (n && !n.revelado && antes) guardarAlta({ paso: 'cofre' });
       else if (n && n.revelado && !n.nombre && antes) guardarAlta({ paso: 'nombre' });
@@ -252,9 +253,8 @@ async function entrarConCodigo(codigo) {
 }
 
 function retomarAlta(n) {
-  const modelo = app.estado?.coleccion?.catalogo.find((m) => m.id === n.modelo);
   guardarAlta({
-    codigo: app.alta?.codigo || '', plantaId: n.id, persona: n.modelo, fondo: modelo?.fondo, nombre: n.nombre,
+    codigo: app.alta?.codigo || '', plantaId: n.id, persona: n.modelo, rareza: n.rareza || null, nombre: n.nombre,
     paso: !n.revelado ? 'cofre' : !n.nombre ? 'nombre' : 'foto',
   });
   irA('alta');
@@ -324,6 +324,11 @@ function pintar() {
     pintar();
     return;
   }
+  /* Un QR recién abierto arranca su alta aunque entrarConCodigo todavía no
+     haya contestado (con la sesión abierta, la vista se pinta antes). */
+  if (r.codigo && /^[0-9A-Z]{8}$/.test(r.codigo) && (!app.alta || app.alta.codigo !== r.codigo)) {
+    guardarAlta({ codigo: r.codigo, paso: 'hola', plantaId: null, persona: null, rareza: null, nombre: null });
+  }
   const ctx = contexto();
   let vista;
   let sinTabs = false;
@@ -386,7 +391,7 @@ function pintar() {
       ? h('span', { class: 'pildora fuego', title: 'Días seguidos sin urgencias' }, icono('llama', 18), String(app.racha.dias))
       : null);
 
-  app.firma = JSON.stringify(app.estado?.nodes || []);
+  app.firma = firmaTablero(app.estado?.nodes);
 }
 
 /* Refresco: sólo se repinta si cambió algo, para no pisar un formulario ni
@@ -399,7 +404,9 @@ async function refrescar() {
   const antes = app.firma;
   const sinRedAntes = app.sinRed;
   await recargar();
-  if (JSON.stringify(app.estado?.nodes || []) !== antes || app.sinRed !== sinRedAntes) pintar();
+  /* Tampoco en medio de un mimo: la caricia o la esponja se cortarían. */
+  if (document.querySelector('.cuerpo.mimo, .esponja-capa:not([hidden])')) return;
+  if (firmaTablero(app.estado?.nodes) !== antes || app.sinRed !== sinRedAntes) pintar();
 }
 
 /* -------------------------------------------------------------- inicio --- */
@@ -437,6 +444,18 @@ async function inicio() {
   }
   contarCola();
   alCambiarCola(() => pintar());
+  /* La hora de prueba del emulador (lib/reloj.mjs): se ve y se saca desde acá. */
+  const pildoraHora = () => {
+    document.querySelector('.pildora-demo')?.remove();
+    const hora = horaDePrueba();
+    if (hora === null) return;
+    document.body.append(h('button', {
+      class: 'pildora-demo', type: 'button', title: 'La puso el emulador. Tocá para volver a la hora real.',
+      onClick: () => { fijarHoraDePrueba(null); pildoraHora(); pintar(); },
+    }, `Hora de prueba: ${hora} h ✕`));
+  };
+  pildoraHora();
+  alCambiarHora(() => pildoraHora());
   window.addEventListener('online', async () => { await sincronizar(); await recargar(); pintar(); });
 
   app.config = await api('/api/config').catch(() => app.config);

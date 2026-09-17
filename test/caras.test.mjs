@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { cargarModulo, png, modelosDesdePersona } from '../tools/sincronizar-firmware.mjs';
-import { MODELOS, ANIMOS } from '../server/catalogo.mjs';
+import { MODELOS, RAREZAS, ANIMOS } from '../server/catalogo.mjs';
 import { codigoVinculo } from '../server/codigo.mjs';
 
 const WASM = new URL('../public/caras/rootkit_caras.wasm', import.meta.url);
@@ -27,42 +27,69 @@ describe('el módulo de caras', async () => {
     for (let i = 0; i < x.animos(); i++) assert.equal(texto(x.animo_id(i)), ANIMOS[i]);
   });
 
-  test('dibuja, y cada modelo se ve distinto', () => {
+  test('dibuja, y cada Rooti con cada piel se ve distinto', () => {
     assert.equal(x.lienzo(128, 128), 1);
     const vistos = new Set();
     for (let p = 0; p < x.personas(); p++) {
-      x.cara(p, 3, 0, 1200);
-      vistos.add(hashCuadro(128));
+      for (let r = 0; r < RAREZAS.length; r++) {
+        x.cara(p, r, 3, 0, 1200);
+        vistos.add(hashCuadro(128));
+      }
     }
-    assert.equal(vistos.size, MODELOS.length);
+    assert.equal(vistos.size, MODELOS.length * RAREZAS.length);
+    x.cara(0, 9, 3, 0, 1200);
+    const fuera = hashCuadro(128);
+    x.cara(0, 0, 3, 0, 1200);
+    assert.equal(fuera, hashCuadro(128), 'una rareza que no existe es la común');
     assert.equal(x.lienzo(9999, 9999), 0, 'un tamaño imposible se rechaza');
+  });
+
+  test('los colores de las pieles son los de rooties.mjs, en RGB565', () => {
+    const a565 = (hex) => {
+      const v = parseInt(hex.slice(1), 16);
+      return (((v >> 16) & 0xff) >> 3 << 11) | ((((v >> 8) & 0xff) >> 2) << 5) | ((v & 0xff) >> 3);
+    };
+    for (const m of MODELOS) {
+      RAREZAS.forEach((r, ri) => {
+        const piel = m.pieles[r];
+        ['fondo', 'ojos', 'piel', 'rubor'].forEach((campo, ci) => {
+          assert.equal(x.piel_color(m.idx, ri, ci), a565(piel[campo]), `${m.id}-${r}.${campo}`);
+        });
+      });
+    }
   });
 
   test('el despertar y la cara dormida son otra cosa', () => {
     x.lienzo(64, 64);
-    x.cara(0, 3, 0, 1200);
+    x.cara(0, 0, 3, 0, 1200);
     const cara = hashCuadro(64);
-    x.dormida(1200);
+    x.dormida(0, 1200);
     const dormida = hashCuadro(64);
-    x.despertar(0, 100);
+    x.dormida(1, 1200);
+    assert.notEqual(hashCuadro(64), dormida, 'dormido ya se ve qué Rooti es');
+    x.despertar(0, 0, 100);
     const negro = hashCuadro(64);
     assert.notEqual(cara, dormida);
     assert.notEqual(dormida, negro);
+    x.despertar(0, 2, x.despertar_ms() + 100);
+    const epica = hashCuadro(64);
+    x.despertar(0, 0, x.despertar_ms() + 100);
+    assert.notEqual(epica, hashCuadro(64), 'despierta con la piel que salió');
     assert.ok(x.despertar_ms() > 1000);
   });
 
   test('la caricia: ^ ^ sobre cualquier ánimo, y en 0 la cara de siempre', () => {
     x.lienzo(64, 64);
-    x.cara(1, 4, 0, 1200);
+    x.cara(1, 1, 4, 0, 1200);
     const sed = hashCuadro(64);
-    x.cara_mimo(1, 4, 0, 0, 1200);
+    x.cara_mimo(1, 1, 4, 0, 0, 1200);
     assert.equal(hashCuadro(64), sed, 'sin mimo es la cara del ánimo');
-    x.cara_mimo(1, 4, 0, 100, 1200);
+    x.cara_mimo(1, 1, 4, 0, 100, 1200);
     const mimo = hashCuadro(64);
     assert.notEqual(mimo, sed);
-    x.cara(1, 3, 0, 1200);
+    x.cara(1, 1, 3, 0, 1200);
     assert.notEqual(mimo, hashCuadro(64), 'tampoco es la de contento');
-    x.cara_mimo(1, 4, 0, 50, 1200);
+    x.cara_mimo(1, 1, 4, 0, 50, 1200);
     const medio = hashCuadro(64);
     assert.ok(medio !== sed && medio !== mimo, 'a medias, entre las dos');
   });
@@ -106,21 +133,38 @@ describe('herramientas', () => {
     assert.equal(p.readUInt32BE(16), 4);
   });
 
-  test('los modelos se leen de persona.c', () => {
-    const c = `{ "cresta", "Cresta", "c.stl", "Lema uno.", RK_RAR_COMUN, x, RK_RGB( 98, 197,  54), RK_RGB(1,2,3) },
-               { "glitch", "?????", "g.stl", "Lema dos.", RK_RAR_SECRETO, y, RK_RGB( 28,  28,  38) }`;
+  test('los Rooties y sus pieles se leen de persona.c', () => {
+    const piel = (n, a) => `{ "${n}", RK_HEX(0xE8F5E9), RK_HEX(0x1B5E20), RK_HEX(0xA5D6A7), RK_HEX(0xFF8A80), ${a} },`;
+    const c = `{
+    "brote", "Brote", "carcasas/brote.stl",
+    "Lema uno.",
+    /* comentario */
+    RK_OJOS_REDONDOS, RK_BRILLO_CACHORRO, 14, 15, 22, -4,
+    { ${piel('Hoja', '0u')} ${piel('Lavanda', 'RK_ADORNO_BRILLOS')} ${piel('Cerezo', 'RK_ADORNO_CORONA | RK_ADORNO_BRILLOS')} }
+},
+{
+    "musgo", "Musgo", "carcasas/musgo.stl", "Lema dos.", RK_OJOS_MEDIALUNA,
+    { ${piel('A', '0u')} ${piel('B', '0u')} ${piel('C', 'RK_ADORNO_AURA | RK_ADORNO_LUCES')} }
+},`;
     const m = modelosDesdePersona(c);
     assert.equal(m.length, 2);
-    assert.equal(m[0].fondo, '#62c536');
-    assert.equal(m[1].rareza, 'SECRETO');
+    assert.equal(m[0].id, 'brote');
+    assert.equal(m[0].lema, 'Lema uno.');
+    assert.equal(m[0].pieles.comun.fondo, '#e8f5e9');
+    assert.deepEqual(m[0].pieles.epico.adornos, ['corona', 'brillos']);
+    assert.equal(m[1].idx, 1);
+    assert.deepEqual(m[1].pieles.epico.adornos, ['aura', 'luces']);
+    assert.throws(() => modelosDesdePersona('{ "x", "X", "x.stl", "L", { } }'), /pieles/);
   });
 
-  test('hay una imagen por modelo y ánimo para las notificaciones', () => {
+  test('hay una imagen por Rooti, piel y ánimo para las notificaciones, y una dormida', () => {
     for (const mo of MODELOS) {
-      for (const a of ANIMOS) {
-        assert.ok(existsSync(new URL(`../public/caras/${mo.id}-${a}.png`, import.meta.url)), `${mo.id}-${a}`);
+      for (const r of RAREZAS) {
+        for (const a of ANIMOS) {
+          assert.ok(existsSync(new URL(`../public/caras/${mo.id}-${r}-${a}.png`, import.meta.url)), `${mo.id}-${r}-${a}`);
+        }
       }
+      assert.ok(readFileSync(new URL(`../public/caras/${mo.id}-dormido.png`, import.meta.url)).length > 100);
     }
-    assert.ok(readFileSync(new URL('../public/caras/incognito.png', import.meta.url)).length > 100);
   });
 });

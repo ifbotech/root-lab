@@ -3,8 +3,8 @@
  * Unos pocos elementos que flotan, giran y se desvanecen con la Web
  * Animations API y se sacan solos al terminar. Sin canvas ni bucle propio:
  * el navegador los compone en la GPU y la cara sigue dibujándose a su
- * ritmo. Los colores son de la paleta (tokens); las formas, dos: corazón y
- * hoja. Con "menos movimiento" activado no aparecen.
+ * ritmo. Los colores son de la paleta (tokens); las formas, tres: corazón,
+ * hoja y la burbuja de la esponja (un círculo de CSS). Con "menos movimiento" activado no aparecen.
  */
 import { icono } from './ui.mjs';
 
@@ -38,16 +38,22 @@ export function trayectoria(al = Math.random) {
  * Suelta `cantidad` partículas desde (x, y), relativas al `contenedor`
  * (que tiene que tener position: relative o fixed).
  */
-export function soltarParticulas(contenedor, { x, y, cantidad = 5, al = Math.random } = {}) {
+export function soltarParticulas(contenedor, { x, y, cantidad = 5, al = Math.random, formas = FORMAS } = {}) {
   if (!contenedor || menosMovimiento()) return 0;
   for (let i = 0; i < cantidad; i++) {
-    const forma = FORMAS[Math.floor(al() * FORMAS.length)];
+    const forma = formas[Math.floor(al() * formas.length)];
     const el = document.createElement('span');
-    el.className = 'particula';
+    el.className = forma === 'burbuja' ? 'particula burbuja' : 'particula';
     el.style.left = `${Math.round(x + (al() - 0.5) * 30)}px`;
     el.style.top = `${Math.round(y + (al() - 0.5) * 20)}px`;
     el.style.color = COLORES[Math.floor(al() * COLORES.length)];
-    el.append(icono(forma, 18 + Math.round(al() * 12)));
+    if (forma === 'burbuja') {
+      const lado = 8 + Math.round(al() * 12);
+      el.style.width = `${lado}px`;
+      el.style.height = `${lado}px`;
+    } else {
+      el.append(icono(forma, 18 + Math.round(al() * 12)));
+    }
     contenedor.append(el);
     const { cuadros, duracion } = trayectoria(al);
     if (typeof el.animate === 'function') {

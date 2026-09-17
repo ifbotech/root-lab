@@ -166,16 +166,16 @@ export const LOGROS = [
   },
   {
     id: 'coleccion',
-    nombre: 'Colección completa',
-    detalle: 'Tener todos los Rooties a la vista',
-    /* No da XP: tenerlas demuestra que compraste cajas, no que sepas regar. */
-    cumple: (e) => (e.coleccion?.completa === true),
+    nombre: 'Los cinco',
+    detalle: 'Tener a Brote, Musgo, Pinchito, Bulbo y Champi',
+    /* No da XP: tenerlos demuestra que compraste figuras, no que sepas regar. */
+    cumple: (e) => (e.coleccion?.rooties || 0) >= 5,
   },
   {
-    id: 'secreto',
-    nombre: 'El secreto',
-    detalle: 'Que te salga el Rooti que no está en la caja',
-    cumple: (e) => (e.coleccion?.secretos || 0) >= 1,
+    id: 'epica',
+    nombre: 'Piel épica',
+    detalle: 'Que un cofre te dé una piel épica (5 %)',
+    cumple: (e) => (e.coleccion?.epicas || 0) >= 1,
   },
 ];
 

@@ -12,6 +12,7 @@
  */
 import { h, render, icono } from '../lib/ui.mjs';
 import { cara } from '../lib/caras.mjs';
+import { pielDe } from '../lib/rooties.mjs';
 import { tareasDe, URGENCIA_ES } from '../lib/tareas.mjs';
 import { formatEdad } from '../lib/model.mjs';
 
@@ -72,8 +73,8 @@ export function vistaSitter(ctx) {
         h('p', { class: 'nota' }, [dueno ? `de ${dueno}` : null, `hasta el ${fecha(vence)}`].filter(Boolean).join(' · '))),
 
       h('section', { class: `heroe sev-${{ URGENT: 'urgente', WATCH: 'atencion' }[p.severity] || 'bien'}` },
-        h('div', { class: 'cara-marco' }, cara({
-          persona: p.revelado ? p.modelo : '', modo: p.revelado ? 'cara' : 'dormida', animo: p.mood,
+        h('div', { class: 'cara-marco', style: p.revelado && pielDe(p.modelo, p.rareza) ? `background:${pielDe(p.modelo, p.rareza).fondo}` : '' }, cara({
+          persona: p.modelo || '', rareza: p.rareza || 'comun', modo: p.revelado ? 'cara' : 'dormida', animo: p.mood,
           lado: 150, fps: 20, clave: `sitter:${token}`, lux: p.tel?.lux ?? null,
           etiqueta: `${nombre}: ${p.reason || ''}`,
         })),
