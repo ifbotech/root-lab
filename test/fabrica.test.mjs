@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 
 import { tokenApi, hash } from '../server/codigo.mjs';
-import { EMULADOR_OCIOSO_MS } from '../server/api.mjs';
+import { EMULADOR_OCIOSO_MS, SYNC_MAX, SYNC_VENTANA_MS, SYNC_MAL_MAX } from '../server/api.mjs';
 import { escenario, aparato, cuenta } from './ayudas.mjs';
 
 const ADMIN = 'una-clave-de-administracion-bien-larga';
@@ -51,6 +51,32 @@ describe('confianza al primer uso, por modos', () => {
       [ultimo] = await aparato(esc, { id: `EE00000000${String(i).padStart(2, '0')}`, placa: 'emulador' }).sync();
     }
     assert.equal(ultimo, 429, 'veinte por día por IP');
+  });
+
+  test('un aparato en bucle se corta solo, y el de al lado sigue andando', async () => {
+    const esc = escenario();
+    const loco = aparato(esc, { id: 'FA0000000001' });
+    const sano = aparato(esc, { id: 'FA0000000002' });
+    let ultimo = 200;
+    for (let i = 0; i < SYNC_MAX + 1; i++) [ultimo] = await loco.sync();
+    assert.equal(ultimo, 429, `${SYNC_MAX} en cinco minutos es de sobra para calibrar`);
+    assert.equal((await sano.sync())[0], 200, 'el límite es por aparato, no del servidor entero');
+
+    /* Pasada la ventana vuelve a hablar: no queda castigado para siempre. */
+    esc.reloj.t += SYNC_VENTANA_MS + 1000;
+    assert.equal((await loco.sync())[0], 200);
+  });
+
+  test('probar tokens desde una IP se corta', async () => {
+    const esc = escenario({ opciones: { tofu: false } });
+    let ultimo = 200;
+    for (let i = 0; i < SYNC_MAL_MAX + 1; i++) {
+      [ultimo] = await esc.llamar('POST', '/api/d/sync', {
+        token: randomBytes(32).toString('hex'),
+        cuerpo: { id: 'AB0000000001', fw: '0.6.0', placa: 'c3-supermini', epoca: 0, reloj: i, lecturas: [] },
+      });
+    }
+    assert.equal(ultimo, 429, 'cada intento cuesta un hash y una consulta');
   });
 });
 

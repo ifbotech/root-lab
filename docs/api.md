@@ -39,6 +39,15 @@ Lo que hace el servidor con cada pedido:
    y, si hay una versión nueva para su placa y su canal, el manifiesto
    `firmware: { version, url, sha256, firma, tamano }`.
 
+**Cuánto puede hablar.** Un aparato sano sincroniza cada 15 minutos, o cada 5
+segundos mientras la app calibra (10 minutos como mucho). Por encima de **120
+pedidos en 5 minutos** se le contesta `429` hasta que se calme: un firmware en
+bucle o alguien con un token ajeno no se lleva puesto el servidor, y el de al
+lado sigue andando. Perder un sync no pierde lecturas: el aparato las reenvía
+hasta que el servidor las acepta. Equivocarse de token desde una misma IP más
+de 60 veces en 10 minutos también corta: adivinarlo es imposible, pero cada
+intento cuesta un hash y una consulta.
+
 ### `GET /api/d/firmware/:id`
 
 El binario de una actualización, con el token del aparato (no es público:

@@ -104,6 +104,14 @@ const MIMES_FOTO = ['image/jpeg', 'image/png', 'image/webp'];
 export const RIEGO_RECIENTE_MS = 48 * H;
 /* Un emulador que nadie vinculó ni usó en este tiempo se borra solo. */
 export const EMULADOR_OCIOSO_MS = 30 * DIA;
+/* Cuánto puede hablar un aparato. Sano habla cada 15 minutos, o cada 5
+   segundos mientras la app calibra (10 minutos como mucho): 120 en cinco
+   minutos es el doble de lo más rápido que puede ir con razón. */
+export const SYNC_MAX = 120;
+export const SYNC_VENTANA_MS = 5 * MIN;
+/* Y cuántas veces puede fallar el token desde una IP: adivinarlo es imposible
+   (256 bits), pero cada intento cuesta un hash y una consulta. */
+export const SYNC_MAL_MAX = 60;
 /* Lo que la app puede contar (POST /api/evento): pasos del alta y pantallas.
    Son contadores anónimos por día: ni cuenta ni planta. */
 export const EVENTOS_ALTA = ['hola', 'instalar', 'cuenta', 'avisos', 'wifi', 'vincular', 'cofre', 'nombre', 'foto', 'listo'];
@@ -643,16 +651,26 @@ export function crearApi({
          id registra su token. En producción los registra la estación de
          fábrica y esto se apaga con ROOTLAB_TOFU=0 (docs/api.md). */
       const esEmulador = texto(cuerpo.placa, 24) === 'emulador';
-      if (!tofu || (tofu === 'emulador' && !esEmulador)) falla(401, 'aparato no registrado');
+      if (!tofu || (tofu === 'emulador' && !esEmulador)) {
+        limitar(`sync-mal:${ip}`, SYNC_MAL_MAX, 10 * MIN);
+        falla(401, 'aparato no registrado');
+      }
       if (tofu === 'emulador') limitar(`emulador-nuevo:${ip}`, 20, DIA);
       d = {
         id: idDisp, token_hash: hash(token), creado: t, ultimo_reloj: -1, arranques: 0, planta: null,
         origen: esEmulador ? 'emulador' : 'tofu', canal: 'estable',
       };
     } else if (!igualesSeguro(d.token_hash, hash(token))) {
+      limitar(`sync-mal:${ip}`, SYNC_MAL_MAX, 10 * MIN);
       falla(401, 'token inválido');
     }
     if (d.deshabilitado) falla(403, 'aparato deshabilitado');
+    /* Un aparato sano habla cada quince minutos, o cada cinco segundos
+       mientras la app calibra. Muy por encima de eso es un firmware en bucle
+       o alguien con un token ajeno: se le corta hasta que se calme. Perder un
+       sync no pierde lecturas —el aparato las reenvía— y una maceta no se
+       queda sin actualizar por esto. */
+    limitar(`sync:${d.id}`, SYNC_MAX, SYNC_VENTANA_MS);
 
     const epoca = Math.max(0, entero(cuerpo.epoca));
     let planta = d.planta ? db.planta(d.planta) : null;
