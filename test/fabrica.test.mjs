@@ -105,6 +105,28 @@ describe('la estación de fábrica', () => {
     assert.equal((await admin(esc, 'PATCH', '/api/admin/aparatos/FFFFFFFFFFFF', { canal: 'beta' }))[0], 404);
   });
 
+  test('dar de baja: sólo un aparato que nunca fue de nadie', async () => {
+    const esc = escenario({ opciones: { adminClave: ADMIN } });
+    const suelto = aparato(esc, { id: 'DE0000000001' });
+    const deAlguien = aparato(esc, { id: 'DE0000000002' });
+    const huerfano = aparato(esc, { id: 'DE0000000003' });
+    for (const a of [suelto, deAlguien, huerfano]) await a.sync();
+    const t = await cuenta(esc);
+    await esc.llamar('POST', '/api/vinculo', { token: t, cuerpo: { codigo: deAlguien.codigo } });
+    const [, planta] = await esc.llamar('POST', '/api/vinculo', { token: t, cuerpo: { codigo: huerfano.codigo } });
+    assert.equal((await esc.llamar('DELETE', `/api/plantas/${planta.id}`, { token: t }))[0], 204);
+
+    assert.equal((await esc.llamar('DELETE', '/api/admin/aparatos/DE0000000001'))[0], 401, 'sin la clave, nada');
+    assert.equal((await admin(esc, 'DELETE', '/api/admin/aparatos/de0000000001'))[0], 204);
+    assert.equal((await admin(esc, 'DELETE', '/api/admin/aparatos/DE0000000001'))[0], 404, 'ya no está');
+    assert.equal((await admin(esc, 'DELETE', '/api/admin/aparatos/DE0000000002'))[0], 409, 'el de alguien no se borra');
+    const [c, r] = await admin(esc, 'DELETE', '/api/admin/aparatos/DE0000000003');
+    assert.equal(c, 409, 'el que tuvo planta tampoco: su historia lo nombra');
+    assert.match(r.error, /deshabilita/);
+    const ids = (await admin(esc, 'GET', '/api/admin/aparatos'))[1].aparatos.map((a) => a.id).sort();
+    assert.deepEqual(ids, ['DE0000000002', 'DE0000000003']);
+  });
+
   test('los emuladores que nadie vinculó ni usó en un mes se borran solos; los vinculados y las placas, nunca', async () => {
     const esc = escenario({ opciones: { adminClave: ADMIN } });
     const suelto = aparato(esc, { id: 'EE0000000001', placa: 'emulador' });

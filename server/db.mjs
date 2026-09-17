@@ -534,6 +534,12 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
       return q(`SELECT id, creado, visto, fw, placa, pantalla, estado, persona_fabrica, planta, canal, ota, lote, origen,
                   deshabilitado, bat_mv, usb, rssi FROM dispositivos ORDER BY creado DESC`).all().map(filaDispositivo);
     },
+    /** Dar de baja un aparato que nunca fue de nadie. Uno que tuvo planta no se
+     *  borra (su historia lo nombra): se deshabilita. */
+    dispositivoBorrar(id) {
+      return Number(q(`DELETE FROM dispositivos WHERE id = ? AND planta IS NULL
+                         AND NOT EXISTS (SELECT 1 FROM plantas WHERE dispositivo = ?)`).run(id, id).changes) > 0;
+    },
     /** Los emuladores que nadie usa hace rato (no son de nadie y nadie los vio). */
     dispositivosBorrarOciosos(origen, antesDe) {
       return Number(q('DELETE FROM dispositivos WHERE origen = ? AND planta IS NULL AND COALESCE(visto, creado) < ?')

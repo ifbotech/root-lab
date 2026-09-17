@@ -29,10 +29,24 @@ sudo grep ROOTLAB_ADMIN_CLAVE /etc/root-lab.env
 | `GET /api/admin/aparatos` | todos los aparatos, sin el hash del token |
 | `POST /api/admin/aparatos` | la estación de fábrica registra uno: `{ id, token_hash \| token, persona, lote?, canal?, reemplazar? }` |
 | `PATCH /api/admin/aparatos/:id` | `{ canal?, deshabilitado?, lote? }` |
+| `DELETE /api/admin/aparatos/:id` | da de baja uno que **nunca se vinculó** (un registro equivocado, o lo que entró cuando la confianza al primer uso estaba abierta). Si tiene o tuvo planta: `409`, se deshabilita |
 | `PATCH /api/admin/lotes/:lote` | lo mismo para un lote entero (una partida fallada) |
 | `GET /api/admin/firmware` | lo publicado |
 | `POST /api/admin/firmware` | publica: `{ version, placa, canal, notas?, sha256?, firma, contenido_b64 }` |
 | `DELETE /api/admin/firmware/:id` | retira una publicación |
+
+**Las placas de antes de la fábrica.** Mientras la confianza al primer uso
+estuvo abierta, cualquiera que se presentara quedaba registrado (`origen:
+"tofu"`). Al pasar a `emulador` esos registros siguen valiendo —una placa de
+desarrollo ya conocida sigue entrando—, así que conviene mirar la lista una
+vez y dar de baja lo que no se reconozca:
+
+```bash
+B=https://ifbotech.com/rootkit
+curl -s -H "Authorization: Bearer $ROOTLAB_ADMIN_CLAVE" $B/api/admin/aparatos \
+  | jq -r '.aparatos[] | select(.origen=="tofu") | [.id, .placa, .fw, .vinculado, .visto] | @tsv'
+curl -s -X DELETE -H "Authorization: Bearer $ROOTLAB_ADMIN_CLAVE" $B/api/admin/aparatos/A1B2C3D4E5F6
+```
 
 ## Actualizaciones por aire
 

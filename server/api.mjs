@@ -894,6 +894,14 @@ export function crearApi({
       db.dispositivoGuardar(d);
       return [200, aparatoAdmin(d)];
     }
+    /* Dar de baja uno que nunca se vinculó: un registro de fábrica equivocado,
+       o lo que dejó entrar la confianza al primer uso cuando estaba abierta. */
+    if (metodo === 'DELETE' && (m = ruta.match(/^\/api\/admin\/aparatos\/([0-9A-Fa-f]{12})$/))) {
+      const id = m[1].toUpperCase();
+      if (!db.dispositivo(id)) falla(404, 'No existe ese aparato');
+      if (!db.dispositivoBorrar(id)) falla(409, 'Ese aparato tiene o tuvo una planta: no se borra, se deshabilita.');
+      return [204, null];
+    }
     /* Un lote entero: cambiarlo de canal o deshabilitarlo (una partida fallada). */
     if (metodo === 'PATCH' && (m = ruta.match(/^\/api\/admin\/lotes\/([0-9A-Za-z-]{1,12})$/))) {
       const delLote = db.dispositivos().filter((d) => d.lote === m[1]);
