@@ -1,0 +1,12 @@
+# El primer día de cada mes, a las 5:30: probar que el respaldo se restaura.
+
+[Unit]
+Description=root-lab: prueba mensual de restauración del respaldo
+
+[Timer]
+OnCalendar=*-*-01 05:30:00
+RandomizedDelaySec=20m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

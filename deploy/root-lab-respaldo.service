@@ -20,5 +20,7 @@ ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/root-lab
 CapabilityBoundingSet=
-RestrictAddressFamilies=AF_UNIX
+# Red: sólo para mandar la copia cifrada afuera (rclone o scp), si se configuró
+# ROOTLAB_RESPALDO_DESTINO. La configuración de rclone va en RCLONE_CONFIG.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 UMask=0027

@@ -43,6 +43,11 @@
  *   riegos          riegos anotados a mano: hoy, los del cuidador
  *   fotos           el álbum de cada planta: los bytes de cada foto (JPEG,
  *                   hasta 450 KB, hasta 60 por planta), con su fecha
+ *   firmware        las versiones publicadas para los aparatos: placa, canal,
+ *                   SHA-256, firma y el binario (server/firmware.mjs)
+ *   eventos         contadores anónimos por día (cuántos llegan a cada paso
+ *                   del alta, cuánto se usa cada pantalla): sin cuenta ni
+ *                   planta, sólo el nombre del evento y cuántas veces
  *   meta            versión del esquema y marcas sueltas
  *
  * Cada lectura se guarda con la PLANTA vigente al medirla. Así el historial de
@@ -62,7 +67,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { crearCripto } from './cripto.mjs';
 import { LEGADO } from './cofre.mjs';
 
-export const VERSION_ESQUEMA = 6;
+export const VERSION_ESQUEMA = 7;
 
 export const normalizarEmail = (e) => String(e || '').trim().toLowerCase();
 
@@ -99,7 +104,12 @@ CREATE TABLE IF NOT EXISTS dispositivos (
   planta          TEXT,
   animo           TEXT,
   sev             TEXT,
-  ultima          TEXT
+  ultima          TEXT,
+  canal           TEXT NOT NULL DEFAULT 'estable',
+  ota             TEXT,
+  lote            TEXT,
+  origen          TEXT NOT NULL DEFAULT 'tofu',
+  deshabilitado   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS dispositivos_codigo ON dispositivos(codigo);
 
@@ -172,7 +182,10 @@ CREATE TABLE IF NOT EXISTS plantas (
   prompt         TEXT,
   identificacion TEXT,
   rareza         TEXT NOT NULL DEFAULT 'comun',
-  mascota        TEXT
+  mascota        TEXT,
+  calibracion    TEXT,
+  maceta         TEXT,
+  calibrando     INTEGER
 );
 CREATE INDEX IF NOT EXISTS plantas_cuenta ON plantas(cuenta);
 `;
@@ -259,6 +272,30 @@ CREATE TABLE IF NOT EXISTS fotos (
 CREATE INDEX IF NOT EXISTS fotos_planta_t ON fotos(planta, t);
 `;
 
+const NUEVAS_V7 = `
+CREATE TABLE IF NOT EXISTS firmware (
+  id         INTEGER PRIMARY KEY,
+  version    TEXT NOT NULL,
+  placa      TEXT NOT NULL,
+  canal      TEXT NOT NULL,
+  sha256     TEXT NOT NULL,
+  firma      TEXT NOT NULL,
+  tamano     INTEGER NOT NULL,
+  notas      TEXT NOT NULL DEFAULT '',
+  publicado  INTEGER NOT NULL,
+  retirado   INTEGER,
+  contenido  BLOB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS firmware_placa_canal ON firmware(placa, canal, publicado);
+
+CREATE TABLE IF NOT EXISTS eventos (
+  dia     TEXT NOT NULL,
+  evento  TEXT NOT NULL,
+  n       INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (dia, evento)
+);
+`;
+
 const json = (s, def = null) => {
   if (s === null || s === undefined) return def;
   try { return JSON.parse(s); } catch { return def; }
@@ -267,7 +304,10 @@ const nulo = (v) => (v === undefined ? null : v);
 const bool = (v) => (v ? 1 : 0);
 
 function filaDispositivo(f) {
-  return f ? { ...f, usb: Boolean(f.usb), ultima: json(f.ultima) } : null;
+  return f ? {
+    ...f, usb: Boolean(f.usb), ultima: json(f.ultima), ota: json(f.ota),
+    canal: f.canal || 'estable', origen: f.origen || 'tofu', deshabilitado: Boolean(f.deshabilitado),
+  } : null;
 }
 
 function filaPlanta(f) {
@@ -280,6 +320,9 @@ function filaPlanta(f) {
     identificacion: json(f.identificacion),
     rareza: f.rareza || 'comun',
     mascota: json(f.mascota),
+    calibracion: json(f.calibracion),
+    maceta: json(f.maceta),
+    calibrando: f.calibrando || null,
   } : null;
 }
 
@@ -460,25 +503,41 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
 
     /* ------------------------------------------------------- dispositivos */
     dispositivo(id) { return filaDispositivo(q('SELECT * FROM dispositivos WHERE id = ?').get(id)); },
+    /** El aparato dueño de este token (para bajar su firmware). */
+    dispositivoPorToken(tokenHash) { return filaDispositivo(q('SELECT * FROM dispositivos WHERE token_hash = ?').get(tokenHash)); },
     /** El aparato que muestra hoy este código (el de su época actual). */
     dispositivoPorCodigo(codigo) {
       return filaDispositivo(q('SELECT * FROM dispositivos WHERE codigo = ? AND codigo_epoca = epoca').get(codigo));
     },
     dispositivoGuardar(d) {
       q(`INSERT INTO dispositivos (id, token_hash, creado, visto, fw, placa, pantalla, estado, epoca, rssi, usb,
-           bat_mv, persona_fabrica, codigo, codigo_epoca, ultimo_reloj, arranques, planta, animo, sev, ultima)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           bat_mv, persona_fabrica, codigo, codigo_epoca, ultimo_reloj, arranques, planta, animo, sev, ultima,
+           canal, ota, lote, origen, deshabilitado)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            token_hash = excluded.token_hash, visto = excluded.visto, fw = excluded.fw, placa = excluded.placa,
            pantalla = excluded.pantalla, estado = excluded.estado, epoca = excluded.epoca, rssi = excluded.rssi,
            usb = excluded.usb, bat_mv = excluded.bat_mv, persona_fabrica = excluded.persona_fabrica,
            codigo = excluded.codigo, codigo_epoca = excluded.codigo_epoca, ultimo_reloj = excluded.ultimo_reloj,
            arranques = excluded.arranques, planta = excluded.planta, animo = excluded.animo, sev = excluded.sev,
-           ultima = excluded.ultima`)
+           ultima = excluded.ultima, canal = excluded.canal, ota = excluded.ota, lote = excluded.lote,
+           origen = excluded.origen, deshabilitado = excluded.deshabilitado`)
         .run(d.id, d.token_hash, d.creado, nulo(d.visto), nulo(d.fw), nulo(d.placa), nulo(d.pantalla),
           nulo(d.estado), d.epoca ?? 0, nulo(d.rssi), bool(d.usb), d.bat_mv ?? 0, nulo(d.persona_fabrica),
           nulo(d.codigo), nulo(d.codigo_epoca), d.ultimo_reloj ?? -1, d.arranques ?? 0, nulo(d.planta),
-          nulo(d.animo), nulo(d.sev), d.ultima ? JSON.stringify(d.ultima) : null);
+          nulo(d.animo), nulo(d.sev), d.ultima ? JSON.stringify(d.ultima) : null,
+          d.canal || 'estable', d.ota ? JSON.stringify(d.ota) : null, nulo(d.lote), d.origen || 'tofu',
+          bool(d.deshabilitado));
+    },
+    /** Todos los aparatos, para la administración (sin el hash del token). */
+    dispositivos() {
+      return q(`SELECT id, creado, visto, fw, placa, pantalla, estado, persona_fabrica, planta, canal, ota, lote, origen,
+                  deshabilitado, bat_mv, usb, rssi FROM dispositivos ORDER BY creado DESC`).all().map(filaDispositivo);
+    },
+    /** Los emuladores que nadie usa hace rato (no son de nadie y nadie los vio). */
+    dispositivosBorrarOciosos(origen, antesDe) {
+      return Number(q('DELETE FROM dispositivos WHERE origen = ? AND planta IS NULL AND COALESCE(visto, creado) < ?')
+        .run(origen, antesDe).changes);
     },
 
     /* ------------------------------------------------------------ plantas */
@@ -503,12 +562,14 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
     },
     plantaGuardar(p) {
       q(`UPDATE plantas SET persona = ?, revelado = ?, revelada_en = ?, nombre = ?, especie = ?, pantalla = ?,
-           brillo = ?, vinculo = ?, ficha = ?, prompt = ?, identificacion = ?, rareza = ?, mascota = ? WHERE id = ?`)
+           brillo = ?, vinculo = ?, ficha = ?, prompt = ?, identificacion = ?, rareza = ?, mascota = ?,
+           calibracion = ?, maceta = ?, calibrando = ? WHERE id = ?`)
         .run(nulo(p.persona), bool(p.revelado), nulo(p.revelada_en), p.nombre || '',
           p.especie ? JSON.stringify(p.especie) : null, p.pantalla || 'toque', p.brillo ?? 80,
           JSON.stringify(p.vinculo || {}), p.ficha ? JSON.stringify(p.ficha) : null, nulo(p.prompt),
           p.identificacion ? JSON.stringify(p.identificacion) : null, p.rareza || 'comun',
-          p.mascota ? JSON.stringify(p.mascota) : null, p.id);
+          p.mascota ? JSON.stringify(p.mascota) : null, p.calibracion ? JSON.stringify(p.calibracion) : null,
+          p.maceta ? JSON.stringify(p.maceta) : null, nulo(p.calibrando), p.id);
     },
     /** Desvincula sin borrar: la planta y sus lecturas quedan guardadas. */
     plantaDesvincular(id, t) {
@@ -651,6 +712,26 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
       return q('SELECT t, origen, quien FROM riegos WHERE planta = ? AND t >= ? ORDER BY t DESC LIMIT 20').all(planta, desde);
     },
 
+    /* ----------------------------------------------------------- firmware */
+    firmwarePublicar(f) {
+      const r = q(`INSERT INTO firmware (version, placa, canal, sha256, firma, tamano, notas, publicado, contenido)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(f.version, f.placa, f.canal, f.sha256, f.firma, f.tamano, f.notas || '', f.publicado, f.contenido);
+      return Number(r.lastInsertRowid);
+    },
+    /** Lo publicado, sin los binarios, de lo más nuevo a lo más viejo. */
+    firmwareLista() {
+      return q('SELECT id, version, placa, canal, sha256, firma, tamano, notas, publicado, retirado FROM firmware ORDER BY publicado DESC, id DESC').all();
+    },
+    firmwareContenido(id) { return q('SELECT contenido FROM firmware WHERE id = ? AND retirado IS NULL').get(id)?.contenido || null; },
+    firmwareRetirar(id, t) { return Number(q('UPDATE firmware SET retirado = ? WHERE id = ? AND retirado IS NULL').run(t, id).changes); },
+
+    /* ------------------------------------------------------------ eventos */
+    eventoContar(dia, evento, n = 1) {
+      q('INSERT INTO eventos (dia, evento, n) VALUES (?, ?, ?) ON CONFLICT(dia, evento) DO UPDATE SET n = n + excluded.n').run(dia, evento, n);
+    },
+    eventosDesde(dia) { return q('SELECT dia, evento, n FROM eventos WHERE dia >= ? ORDER BY dia, evento').all(dia); },
+
     /* -------------------------------------------------------------- fotos */
     fotoGuardar(f) {
       const r = q(`INSERT INTO fotos (planta, cuenta, t, mime, bytes, ancho, alto, nota, origen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
@@ -679,7 +760,7 @@ function migrar(db, cripto) {
   const hayCuentas = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cuentas'").get();
   if (!hayCuentas) {
     /* Base nueva: el esquema actual de una. */
-    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} COMMIT;`);
+    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} ${NUEVAS_V7} COMMIT;`);
     db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', ?)").run(String(VERSION_ESQUEMA));
     return;
   }
@@ -687,11 +768,43 @@ function migrar(db, cripto) {
   if (v > VERSION_ESQUEMA) throw new Error(`la base es de una versión más nueva (${v}) que este servidor (${VERSION_ESQUEMA})`);
   if (v < 2) migrarV1aV2(db, cripto);
   /* Idempotente: una base vieja o incompleta recibe las tablas que le falten. */
-  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5}`);
+  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} ${NUEVAS_V7}`);
   if (v < 3) migrarV2aV3(db);
   if (v < 4) migrarV3aV4(db);
   if (v < 5) db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '5')").run();   /* v5: la tabla fotos, creada arriba */
   if (v < 6) migrarV5aV6(db);
+  if (v < 7) migrarV6aV7(db);
+}
+
+/* v6 -> v7: actualizaciones por aire, fábrica, calibración y métricas.
+ *
+ * Los aparatos ganan canal (estable/beta), el estado de su última
+ * actualización, el lote y el origen (fabrica, tofu o emulador) y se pueden
+ * deshabilitar. Las plantas, la calibración del sensor de tierra, la maceta
+ * y la ventana de calibración. Las tablas nuevas (firmware, eventos) ya se
+ * crearon arriba. Los aparatos que se presentaron como "emulador" quedan
+ * marcados como tales. */
+function migrarV6aV7(db) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const columnas = (tabla) => db.prepare(`PRAGMA table_info(${tabla})`).all().map((c) => c.name);
+    const dis = columnas('dispositivos');
+    if (!dis.includes('canal')) db.exec("ALTER TABLE dispositivos ADD COLUMN canal TEXT NOT NULL DEFAULT 'estable'");
+    if (!dis.includes('ota')) db.exec('ALTER TABLE dispositivos ADD COLUMN ota TEXT');
+    if (!dis.includes('lote')) db.exec('ALTER TABLE dispositivos ADD COLUMN lote TEXT');
+    if (!dis.includes('origen')) db.exec("ALTER TABLE dispositivos ADD COLUMN origen TEXT NOT NULL DEFAULT 'tofu'");
+    if (!dis.includes('deshabilitado')) db.exec('ALTER TABLE dispositivos ADD COLUMN deshabilitado INTEGER NOT NULL DEFAULT 0');
+    const pla = columnas('plantas');
+    if (!pla.includes('calibracion')) db.exec('ALTER TABLE plantas ADD COLUMN calibracion TEXT');
+    if (!pla.includes('maceta')) db.exec('ALTER TABLE plantas ADD COLUMN maceta TEXT');
+    if (!pla.includes('calibrando')) db.exec('ALTER TABLE plantas ADD COLUMN calibrando INTEGER');
+    db.prepare("UPDATE dispositivos SET origen = 'emulador' WHERE placa = 'emulador'").run();
+    db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '7')").run();
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
 }
 
 /* v5 -> v6: los cinco Rooties botánicos y la piel del cofre.

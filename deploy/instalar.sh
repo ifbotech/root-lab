@@ -118,9 +118,11 @@ ROOTLAB_HOST=127.0.0.1
 ROOTLAB_BASE=$BASE
 ROOTLAB_URL_PUBLICA=$PUBLICA
 ROOTLAB_DATOS=$DATOS
-ROOTLAB_TOFU=1
+# Sólo los emuladores se registran solos; las placas las registra la fábrica.
+ROOTLAB_TOFU=emulador
 
-# IA (docs/ia.md). Sin clave, simulada.
+# IA (docs/ia.md). Sin clave válida, la app esconde las funciones de IA.
+# ROOTLAB_IA_DEMO=1
 # ANTHROPIC_API_KEY=
 # ROOTLAB_IA_MODELO=claude-opus-5
 # ROOTLAB_IA_MODELO_CHAT=claude-sonnet-5
@@ -146,6 +148,31 @@ if ! grep -qE '^ROOTLAB_SECRETO=.{40,}' "$ENV_FILE"; then
   printf '\n\033[1;33m!!\033[0m Clave maestra nueva en %s (no se muestra: no tiene que quedar en ningún log).\n   Guardá una copia fuera del servidor, en un gestor de contraseñas:\n     sudo grep ROOTLAB_SECRETO %s\n   Sin ella, los emails y las contraseñas de la base no se recuperan.\n\n' "$ENV_FILE" "$ENV_FILE"
   unset SECRETO
 fi
+# Claves que se generan solas si faltan. Ninguna se muestra: no tienen que
+# quedar en ningún log. Se leen con: sudo grep NOMBRE /etc/root-lab.env
+generar_clave() {   # nombre, bytes, comentario
+  if ! grep -qE "^$1=.{24,}" "$ENV_FILE"; then
+    printf '
+# %s
+%s=%s
+' "$3" "$1" "$(head -c "$2" /dev/urandom | base64 | tr -d '
+/+=' )" >> "$ENV_FILE"
+    printf '[1;33m!![0m %s nueva en %s. Guardá una copia fuera del servidor:
+     sudo grep %s %s
+' "$1" "$ENV_FILE" "$1" "$ENV_FILE"
+  fi
+}
+generar_clave ROOTLAB_ADMIN_CLAVE 36 'Administración (/api/admin/*): fábrica, firmware y métricas. docs/operacion.md'
+generar_clave ROOTLAB_RESPALDO_CLAVE 36 'Cifra los respaldos que salen del servidor. Sin ella no se pueden abrir. docs/operacion.md'
+# La confianza al primer uso abierta a cualquiera era del prototipo: desde que
+# existe la estación de fábrica, sólo los emuladores se registran solos.
+if grep -qE '^ROOTLAB_TOFU=1$' "$ENV_FILE"; then
+  sed -i 's/^ROOTLAB_TOFU=1$/ROOTLAB_TOFU=emulador/' "$ENV_FILE"
+  echo "ROOTLAB_TOFU pasó a 'emulador': las placas nuevas las registra la fábrica (tools/fabrica.py en root-kit)"
+fi
+if grep -qE '^ROOTLAB_RESPALDO_DESTINO=.+' "$ENV_FILE" && ! command -v rclone >/dev/null 2>&1; then
+  apt-get install -y -qq rclone || echo "no pude instalar rclone: los respaldos quedan sólo en el servidor"
+fi
 chmod 640 "$ENV_FILE"
 chgrp rootlab "$ENV_FILE"
 
@@ -153,9 +180,12 @@ paso "Servicio y respaldo diario"
 install -m 644 "$DIR/deploy/root-lab.service" /etc/systemd/system/root-lab.service
 install -m 644 "$DIR/deploy/root-lab-respaldo.service" /etc/systemd/system/root-lab-respaldo.service
 install -m 644 "$DIR/deploy/root-lab-respaldo.timer" /etc/systemd/system/root-lab-respaldo.timer
+install -m 644 "$DIR/deploy/root-lab-verificar-respaldo.service" /etc/systemd/system/root-lab-verificar-respaldo.service
+install -m 644 "$DIR/deploy/root-lab-verificar-respaldo.timer" /etc/systemd/system/root-lab-verificar-respaldo.timer
 systemctl daemon-reload
 systemctl enable --quiet root-lab
 systemctl enable --quiet --now root-lab-respaldo.timer
+systemctl enable --quiet --now root-lab-verificar-respaldo.timer
 systemctl restart root-lab
 
 paso "Salud"

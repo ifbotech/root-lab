@@ -133,3 +133,47 @@ Para cambiar el tope: ROOTLAB_IA_TOPE_MES_USD / ROOTLAB_IA_TOPE_DIA_USD en /etc/
   });
   return { asunto, texto, html };
 }
+
+/** A quien opera el servicio: muchos Rooties se callaron a la vez. */
+export function alertaOperacion({ activos = 0, callados = 0, juntos = 0, desde = null } = {}) {
+  const cuando = desde ? new Date(desde).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : 'hace un rato';
+  const asunto = `ROOTLAB: ${callados} de ${activos} Rooties dejaron de reportar a la vez`;
+  const texto = `${callados} de los ${activos} Rooties activos no reportan hace más de 45 minutos, y ${juntos} se callaron casi juntos (desde ${cuando}).
+
+Eso no suelen ser ${juntos} casas sin wifi: revisá el servidor, el dominio y el certificado.
+
+  systemctl status root-lab
+  journalctl -u root-lab -n 100
+  node tools/verificar-despliegue.mjs <url>
+
+Este aviso no se repite antes de 6 horas.`;
+  const html = marco({
+    paleta: PALETA_POR_DEFECTO,
+    titulo: `${callados} de ${activos} Rooties se callaron a la vez`,
+    parrafos: [`${juntos} dejaron de reportar casi juntos, desde <b>${cuando}</b>.`,
+      'Eso no suelen ser muchas casas sin wifi: revisá el servidor, el dominio y el certificado.',
+      '<code>systemctl status root-lab</code> · <code>node tools/verificar-despliegue.mjs</code>'],
+    boton: null,
+    pie: 'Aviso automático de ROOTLAB para quien administra el servidor. No se repite antes de 6 horas.',
+  });
+  return { asunto, texto, html };
+}
+
+/** A quien opera el servicio: cómo salió la prueba de restauración del respaldo. */
+export function informeRespaldo({ ok, archivo = '', detalle = '', conteo = null } = {}) {
+  const asunto = ok ? 'ROOTLAB: el respaldo se restaura bien' : 'ROOTLAB: EL RESPALDO NO SE PUDO RESTAURAR';
+  const lineas = [
+    ok ? `La prueba de restauración del respaldo salió bien.` : `La prueba de restauración del respaldo FALLÓ.`,
+    archivo ? `Archivo: ${archivo}` : '',
+    conteo ? `Adentro: ${conteo.cuentas} cuentas, ${conteo.plantas} plantas, ${conteo.lecturas} lecturas (esquema ${conteo.esquema}).` : '',
+    detalle,
+  ].filter(Boolean);
+  const html = marco({
+    paleta: PALETA_POR_DEFECTO,
+    titulo: ok ? 'El respaldo se restaura bien' : 'El respaldo NO se pudo restaurar',
+    parrafos: lineas.slice(1).map((l) => l.replace(/&/g, '&amp;').replace(/</g, '&lt;')),
+    boton: null,
+    pie: 'Prueba automática de ROOTLAB (tools/restaurar.mjs --verificar).',
+  });
+  return { asunto, texto: lineas.join('\n'), html };
+}

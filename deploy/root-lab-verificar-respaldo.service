@@ -1,0 +1,29 @@
+# Prueba de restauración del respaldo (la dispara root-lab-verificar-respaldo.timer).
+# Descifra el respaldo más nuevo, lo abre, verifica su integridad, cuenta lo que
+# tiene y manda el resultado a ROOTLAB_ADMIN_EMAIL. Un respaldo que nunca se
+# probó no es un respaldo.
+#
+#   systemctl start root-lab-verificar-respaldo     probar ya
+#   journalctl -u root-lab-verificar-respaldo -n 20
+
+[Unit]
+Description=root-lab: prueba de restauración del respaldo
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=rootlab
+Group=rootlab
+WorkingDirectory=/opt/root-lab
+EnvironmentFile=/etc/root-lab.env
+ExecStart=/opt/root-lab-node/bin/node --disable-warning=ExperimentalWarning tools/restaurar.mjs --verificar --avisar --datos /var/lib/root-lab
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/root-lab
+CapabilityBoundingSet=
+# Necesita red sólo para mandar el email con el resultado.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0027

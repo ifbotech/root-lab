@@ -30,7 +30,7 @@ import { cargarSecreto, crearCripto, enmascararEmail } from './cripto.mjs';
 import { crearClaves } from './claves.mjs';
 import { configCorreoDesdeEntorno, crearCorreo } from './correo.mjs';
 import { crearPresupuesto, LIMITES_POR_DEFECTO, PRECIOS_POR_DEFECTO } from './presupuesto.mjs';
-import { alertaGasto } from './plantillas-correo.mjs';
+import { alertaGasto, alertaOperacion } from './plantillas-correo.mjs';
 import { crearPush } from './push.mjs';
 import { crearClima } from './clima.mjs';
 import { crearServidorHttp, normalizarBase } from './http.mjs';
@@ -114,11 +114,31 @@ try {
 }
 /* El pronóstico: Open-Meteo, sin clave. Sólo sale la ciudad de la cuenta. */
 const clima = crearClima({ activo: process.env.ROOTLAB_CLIMA !== '0' });
+
+/* Quién puede registrarse solo: todos (desarrollo), sólo los emuladores
+   (producción: las placas las registra la fábrica) o nadie. */
+const TOFU = { 0: false, no: false, emulador: 'emulador' }[String(process.env.ROOTLAB_TOFU ?? '1').toLowerCase()] ?? true;
+/* La pública con la que se verifica cada firmware que se publica. */
+function leerPublica() {
+  const ruta = process.env.ROOTLAB_FIRMWARE_PUBLICA || join(RAIZ, 'deploy', 'firmware-publica.pem');
+  try { return readFileSync(ruta, 'utf8'); } catch { return ''; }
+}
+const ADMIN_CLAVE = process.env.ROOTLAB_ADMIN_CLAVE || '';
+if (ADMIN_CLAVE && ADMIN_CLAVE.length < 24) {
+  console.error('ROOTLAB_ADMIN_CLAVE es muy corta (mínimo 24 caracteres): la administración queda apagada.');
+}
 const api = crearApi({
   db, ia, push, correo, claves, presupuesto, clima,
-  tofu: process.env.ROOTLAB_TOFU !== '0',
+  tofu: TOFU,
   urlPublica: () => URL_PUBLICA,
   version: VERSION,
+  adminClave: ADMIN_CLAVE.length >= 24 ? ADMIN_CLAVE : '',
+  firmwarePublica: leerPublica(),
+  iaDemo: process.env.ROOTLAB_IA_DEMO === '1',
+  alAlerta: (a) => {
+    console.warn(`vigía: ${a.tipo} (${a.callados} de ${a.activos} Rooties callados a la vez)`);
+    if (ADMIN) correo.enviar({ tipo: 'alerta-operacion', para: ADMIN, ...alertaOperacion(a) });
+  },
 });
 
 const servidor = crearServidorHttp({ api, raiz: RAIZ, base: BASE });
@@ -134,11 +154,23 @@ servidor.listen(PUERTO, HOST, () => {
   console.log(`  correo     ${correo.transporte}${correo.transporte === 'archivo' ? ` (${join(DATOS, 'correos')})` : ''}, remitente ${correo.remitente}${ADMIN ? `, alertas a ${enmascararEmail(ADMIN)}` : ''}`);
   console.log(`  avisos     ${push ? 'web push listo' : 'desactivados'}`);
   console.log(`  clima      ${clima.activo ? 'Open-Meteo (sólo la ciudad de cada cuenta)' : 'apagado'}`);
+  console.log(`  aparatos   se registran solos: ${TOFU === true ? 'todos (desarrollo)' : TOFU === 'emulador' ? 'sólo emuladores; las placas, por fábrica' : 'ninguno'}`);
+  console.log(`  admin      ${ADMIN_CLAVE.length >= 24 ? '/api/admin/* con ROOTLAB_ADMIN_CLAVE' : 'apagada (sin ROOTLAB_ADMIN_CLAVE)'}; firmware ${leerPublica() ? 'con clave pública' : 'SIN clave pública: no se puede publicar'}`);
   console.log(`  base       ${join(DATOS, 'rootkit.db')} (esquema ${db.version()}, datos personales cifrados)\n`);
 });
 
 const temporizador = setInterval(() => { api.revisar().catch(() => {}); }, 10 * 60 * 1000);
 temporizador.unref();
+
+/* El latido: cada cinco minutos, un GET a una URL que espera oírlo (un
+   "dead man's switch" tipo healthchecks.io, o uno propio). Si el servidor se
+   cae, el que deja de oír avisa. No lleva ningún dato. */
+const LATIDO = process.env.ROOTLAB_LATIDO_URL || '';
+if (/^https:\/\//.test(LATIDO)) {
+  const latir = () => fetch(LATIDO, { signal: AbortSignal.timeout(8000) }).catch(() => {});
+  latir();
+  setInterval(latir, 5 * 60 * 1000).unref();
+}
 
 if (correo.transporte === 'smtp') {
   correo.verificar()

@@ -24,7 +24,7 @@ export const FOTO = 'x'.repeat(4000);
 /* Argon2id liviano en los tests: el formato y la lógica son los mismos. */
 const ARGON_TEST = { memoria: 1024, pasadas: 1, hilos: 1, largo: 32 };
 
-export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, argon = ARGON_TEST, url = 'https://rootlab.test', clima, azar = () => 0 } = {}) {
+export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, argon = ARGON_TEST, url = 'https://rootlab.test', clima, azar = () => 0, opciones = {} } = {}) {
   const reloj = { t: T0 };
   const db = abrirBase();
   const push = crearPushDePrueba();
@@ -41,6 +41,8 @@ export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, arg
     azar,
     urlPublica: () => url,
     ...(clima ? { clima } : {}),
+    /* adminClave, firmwarePublica, tofu, iaDemo, alAlerta... */
+    ...opciones,
   });
   const llamar = (metodo, ruta, { cuerpo = null, token = null, query = {}, ip = '1.2.3.4' } = {}) =>
     api.manejar({
@@ -51,10 +53,10 @@ export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, arg
 }
 
 /* Un Rooti de mentira que habla igual que el de verdad. */
-export function aparato(esc, { persona = 'brote', id = 'A1B2C3D4E5F6' } = {}) {
+export function aparato(esc, { persona = 'brote', id = 'A1B2C3D4E5F6', placa = 'c3-supermini', fw = '0.5.0' } = {}) {
   const secreto = randomBytes(16);
   const yo = {
-    id, secreto, token: tokenApi(secreto), epoca: 0, reloj: 1000, arranques: 1,
+    id, secreto, token: tokenApi(secreto), epoca: 0, reloj: 1000, arranques: 1, fw,
     vinculado: false, pendientes: [],
     get codigo() { return codigoVinculo(secreto, this.epoca); },
   };
@@ -63,7 +65,7 @@ export function aparato(esc, { persona = 'brote', id = 'A1B2C3D4E5F6' } = {}) {
   };
   yo.sync = async (extra = {}) => {
     const cuerpo = {
-      id: yo.id, fw: '0.5.0', placa: 'c3-supermini', pantalla: 'ili9341-240x320',
+      id: yo.id, fw: yo.fw, placa, pantalla: 'st7735-128',
       persona, estado: yo.vinculado ? 'ACTIVO' : 'SIN_VINCULO', epoca: yo.epoca,
       ...(yo.vinculado ? {} : { codigo: yo.codigo }),
       reloj: yo.reloj, rssi: -60, usb: false, bat_mv: 3900, arranques: yo.arranques,

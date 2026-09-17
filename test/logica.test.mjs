@@ -16,7 +16,7 @@ import {
   interpretar, diagnosticar, zona, HALLAZGOS,
 } from '../public/lib/diagnostico.mjs';
 import {
-  xpTotal, nivelDe, actualizarRacha, evaluarLogros, saludo, NIVELES, XP,
+  actualizarRacha, evaluarLogros, saludo, LOGROS,
 } from '../public/lib/gamificacion.mjs';
 
 const MONSTERA = {
@@ -279,49 +279,11 @@ describe('diagnóstico por foto', () => {
 
 /* ====================================================== gamificación === */
 describe('gamificación', () => {
-  test('la XP sale de días sanos, no de usar la app', () => {
-    const sinNada = xpTotal([nodo({ bond: { dias_sanos: 0, mejor_racha: 0 } })]);
-    assert.equal(sinNada, 0, 'tener una planta sin cuidarla no da XP');
-
-    const conDias = xpTotal([nodo({ bond: { dias_sanos: 10, mejor_racha: 0 } })]);
-    assert.equal(conDias, 10 * XP.DIA_SANO + XP.ETAPA,
-      'diez días sanos pasan el umbral de 7, así que suman una etapa');
-  });
-
-  test('la XP crece de forma monótona con el cuidado', () => {
-    let anterior = -1;
-    for (let d = 0; d <= 200; d += 1) {
-      const xp = xpTotal([nodo({ bond: { dias_sanos: d, mejor_racha: d } })]);
-      assert.ok(xp >= anterior, `bajó en ${d} días`);
-      anterior = xp;
-    }
-  });
-
-  test('no se puede llegar al último nivel en poco tiempo', () => {
-    /* La lentitud es la característica: alguien con tres plantas necesita
-       meses de cuidado sostenido. Si esto se pudiera acelerar, el número
-       mediría entusiasmo en vez de jardinería. */
-    const tres = [30, 30, 30].map((d) => nodo({ bond: { dias_sanos: d, mejor_racha: d } }));
-    const n = nivelDe(xpTotal(tres));
-    assert.ok(n.nivel < NIVELES.length,
-      'un mes con tres plantas no puede dar el nivel máximo');
-  });
-
-  test('el nivel reporta progreso y cuánto falta', () => {
-    const n = nivelDe(0);
-    assert.equal(n.nivel, 1);
-    assert.equal(n.progreso, 0);
-    assert.ok(n.faltan > 0);
-
-    const tope = nivelDe(999999);
-    assert.equal(tope.nivel, NIVELES.length);
-    assert.equal(tope.progreso, 100);
-    assert.equal(tope.faltan, 0);
-    assert.equal(tope.siguiente, null);
-
-    for (const xp of [-5, NaN, undefined]) {
-      assert.equal(nivelDe(xp).nivel, 1, `${xp} debería caer en el nivel 1`);
-    }
+  test('una sola progresión: no hay XP ni niveles, y nada se premia por usar la app', async () => {
+    const g = await import('../public/lib/gamificacion.mjs');
+    for (const viejo of ['xpTotal', 'nivelDe', 'NIVELES', 'XP']) assert.equal(g[viejo], undefined, `${viejo} se fue`);
+    /* Cada logro sale de plantas, de la racha o de la colección: ninguno de "abrir la app". */
+    for (const l of LOGROS) assert.ok(!/abrir|entrar|visitar/i.test(l.detalle), l.id);
   });
 
   test('la racha suma un día por día y se corta con una urgencia', () => {
@@ -359,11 +321,10 @@ describe('gamificación', () => {
     assert.ok(ultimoCumplido < primerPendiente);
   });
 
-  test('tener la colección completa no da XP', () => {
-    /* Demuestra que compraste cajas, no que sepas regar. */
-    const sinColeccion = xpTotal([nodo({ bond: { dias_sanos: 5, mejor_racha: 0 } })]);
-    const conColeccion = xpTotal([nodo({ bond: { dias_sanos: 5, mejor_racha: 0 } })]);
-    assert.equal(sinColeccion, conColeccion);
+  test('el logro del mes de vínculo no se llama como un Rooti', () => {
+    assert.ok(LOGROS.every((l) => l.id !== 'brote'), 'Brote es un Rooti: el logro es "raiz"');
+    const mes = evaluarLogros({ nodos: [nodo({ bond: { dias_sanos: 30 } })] });
+    assert.ok(mes.find((l) => l.id === 'raiz').cumplido);
   });
 
   test('el saludo no felicita cuando hay algo urgente', () => {
@@ -373,8 +334,6 @@ describe('gamificación', () => {
   });
 
   test('nada explota con datos vacíos', () => {
-    assert.equal(xpTotal(null), 0);
-    assert.equal(nivelDe(null).nivel, 1);
     assert.ok(Array.isArray(evaluarLogros(null)));
     assert.equal(actualizarRacha(null, false, 'x').dias, 1);
   });

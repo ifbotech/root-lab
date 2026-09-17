@@ -47,7 +47,7 @@ const basePath = new URL(BASE).pathname.replace(/\/+$/, '');
 
 const salud = await json('/api/salud').catch((e) => [0, { error: e.message }]);
 ok('responde /api/salud', salud[0] === 200 && salud[1]?.ok, JSON.stringify(salud));
-ok('base de datos en el esquema 6 (pieles y mascota; datos personales cifrados)', salud[1]?.esquema === 6, `esquema ${salud[1]?.esquema}`);
+ok('base de datos en el esquema 7 (firmware, fábrica, calibración; datos personales cifrados)', salud[1]?.esquema === 7, `esquema ${salud[1]?.esquema}`);
 if (salud[1]?.version) console.log(`    versión ${salud[1].version}, ${salud[1].cuentas} cuentas, ${salud[1].plantas} plantas, ${salud[1].dispositivos} aparatos`);
 
 const pagina = await pedir('/');
@@ -104,7 +104,7 @@ if (FLUJO) {
   const tokenDisp = tokenApi(secreto);
   const codigo = codigoVinculo(secreto, 0);
   const disp = (cuerpo) => json('/api/d/sync', { method: 'POST', headers: { authorization: `Bearer ${tokenDisp}` }, body: {
-    id, fw: 'verificacion', placa: 'prueba', pantalla: 'ninguna', persona: 'musgo', epoca: 0, rssi: -50, usb: true, bat_mv: 0, arranques: 1, ...cuerpo,
+    id, fw: '0.0.1', placa: 'emulador', pantalla: 'ninguna', persona: 'musgo', epoca: 0, rssi: -50, usb: true, bat_mv: 0, arranques: 1, ...cuerpo,
   } });
 
   const clave = randomBytes(12).toString('hex');
@@ -113,7 +113,7 @@ if (FLUJO) {
   } });
   const [cc, cuenta] = await registrar('a');
   ok('crear cuenta', cc === 201 && cuenta?.token);
-  ok('arranca con Vibrant Tones y sin verificar el email', cuenta?.cuenta?.paleta === 'vibrant' && cuenta?.cuenta?.email_verificado === false);
+  ok('arranca con la paleta ROOTLAB y sin verificar el email', cuenta?.cuenta?.paleta === 'rootlab' && cuenta?.cuenta?.email_verificado === false);
   const auth = { authorization: `Bearer ${cuenta?.token}` };
 
   const [cs] = await json('/api/estado');
@@ -134,10 +134,19 @@ if (FLUJO) {
   ok('la paleta de una piel que no tenés está bloqueada', cpal === 403);
 
   const [cia] = await json('/api/identificar', { method: 'POST', headers: auth, body: { image_b64: 'x'.repeat(200) } });
-  ok('sin Rooti no hay reconocimiento de plantas', cia === 403);
+  ok(cfg[1]?.ia_visible ? 'sin Rooti no hay reconocimiento de plantas' : 'sin una IA de verdad, el reconocimiento por foto se esconde', cia === (cfg[1]?.ia_visible ? 403 : 503), `respondió ${cia}`);
 
   const [c1, r1] = await disp({ estado: 'SIN_VINCULO', codigo, reloj: 10, lecturas: [] });
-  ok('el aparato se presenta', c1 === 200 && r1?.ok && r1.vinculado === false);
+  ok('el aparato (un emulador) se presenta', c1 === 200 && r1?.ok && r1.vinculado === false);
+
+  /* Una placa de verdad que no pasó por fábrica no se registra sola. */
+  const intruso = randomBytes(16);
+  const [ci] = await json('/api/d/sync', { method: 'POST', headers: { authorization: `Bearer ${tokenApi(intruso)}` }, body: {
+    id: randomBytes(6).toString('hex').toUpperCase(), fw: '0.0.1', placa: 'c3-supermini', epoca: 0, reloj: 1, lecturas: [],
+  } });
+  ok('una placa que no registró la fábrica no entra (ROOTLAB_TOFU=emulador)', ci === 401, `respondió ${ci}: en producción tiene que ser 401`);
+  const [cadm] = await json('/api/admin/estado');
+  ok('la administración no se abre sin su clave', cadm === 401 || cadm === 404);
 
   const [cv, planta] = await json('/api/vinculo', { method: 'POST', headers: auth, body: { codigo } });
   ok('vincular: la app reconoce al Musgo de la figura', cv === 201 && planta?.id && planta?.modelo === 'musgo' && planta?.rareza === null);
@@ -149,22 +158,24 @@ if (FLUJO) {
   ok('la cuenta quedó con la paleta de esa piel', yo?.paleta === `musgo-${cofre?.rareza}`);
 
   const [cp, p] = await json(`/api/plantas/${planta?.id}`, { method: 'PATCH', headers: auth, body: { nombre: 'Verificación', especie: 'monstera' } });
-  ok('nombre y especie, con su ficha de cuidados', cp === 200 && p?.ficha?.cuidados?.riego && p?.chat === true);
+  ok('nombre y especie, con su ficha de cuidados', cp === 200 && p?.ficha?.cuidados?.riego && p?.chat === Boolean(cfg[1]?.ia_visible));
 
   const [c2, r2] = await disp({ estado: 'ACTIVO', reloj: 20, lecturas: [{ hace: 1, suelo: 12, temp: 230, hr: 55, lux: 4000, animo: 'THIRSTY', sev: 'URGENT' }] });
   ok('el aparato recibe cofre, piel y especie', c2 === 200 && r2?.revelado && r2?.rareza === cofre?.rareza && r2?.especie?.id === 'monstera' && r2?.aceptadas === 1);
 
   const [cmi, mimo] = await json(`/api/plantas/${planta?.id}/mascota`, { method: 'POST', headers: auth, body: { accion: 'caricia' } });
   ok('la mascota: una caricia suma felicidad', cmi === 200 && mimo?.suma === 5 && mimo?.mascota?.felicidad === 65);
-  const [cdemo] = await json('/api/d/demo', { method: 'POST', headers: { authorization: `Bearer ${tokenDisp}` }, body: { id, accion: 'gotas' } });
-  ok('sólo el emulador adelanta el tiempo de la mascota', cdemo === 403);
+  const [ccal, cal] = await json(`/api/plantas/${planta?.id}`, { method: 'PATCH', headers: auth, body: { calibracion: { seco: 3000, mojado: 1300 }, maceta: { diametro_cm: 14 } } });
+  const [, r3] = await disp({ estado: 'ACTIVO', reloj: 30, lecturas: [] });
+  ok('la calibración del sensor llega al aparato, y la maceta dice cuánta agua', ccal === 200 && r3?.calibracion?.seco === 3000 && cal?.agua_ml > 0, `${ccal} ${JSON.stringify(r3?.calibracion)} ${cal?.agua_ml}`);
 
   const [ce, estado] = await json('/api/estado', { headers: auth });
   const n = estado?.nodes?.[0];
   ok('el tablero muestra la sed', ce === 200 && n?.mood === 'THIRSTY' && n?.tel?.soil_pct === 12);
 
   const [cch, chat] = await json(`/api/plantas/${planta?.id}/chat`, { headers: auth });
-  ok('el chat está disponible y muestra la cuota', cch === 200 && chat?.disponible === true && chat?.cuota?.limite > 0);
+  ok(cfg[1]?.ia_visible ? 'el chat está disponible y muestra la cuota' : 'sin una IA de verdad, el chat se esconde',
+    cch === 200 && chat?.disponible === Boolean(cfg[1]?.ia_visible) && chat?.cuota?.limite > 0);
   if (IA) {
     const [cm, m] = await json(`/api/plantas/${planta?.id}/chat`, { method: 'POST', headers: auth, body: { texto: '¿Cómo estás? ¿Necesitás agua?' } });
     ok('la planta contesta', cm === 200 && m?.mensajes?.[1]?.texto?.length > 0, JSON.stringify(m));

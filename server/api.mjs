@@ -12,6 +12,11 @@
  *                sortea la piel), bautiza, reconoce la especie, charla con la
  *                planta y la cuida como mascota.
  *
+ *   LA ADMINISTRACIÓN  /api/admin/*, con la clave ROOTLAB_ADMIN_CLAVE: la
+ *                estación de fábrica registra aparatos, quien publica sube
+ *                firmware firmado, y se leen métricas y estado. Sin la clave
+ *                configurada esas rutas no existen.
+ *
  * `manejar()` recibe un pedido ya parseado y devuelve [código, cuerpo]. Así
  * los tests recorren el flujo completo —de la primera consulta del aparato
  * a la notificación de sed— sin abrir un socket.
@@ -46,6 +51,13 @@ import {
   mascotaNueva, normalizar as normalizarMascota, aplicar as aplicarGesto, publico as mascotaPublica,
   acumularOptimo, saludBiologica, ACCIONES, GOTAS,
 } from '../public/lib/mascota.mjs';
+import {
+  aguaParaRegar, normalizarCalibracion, errorDeCalibracion, normalizarMaceta, CALIBRANDO_MS,
+} from '../public/lib/riego.mjs';
+import {
+  elegirFirmware, firmaValida, sha256Hex, versionValida, CANALES, RE_PLACA, FIRMWARE_MAX_BYTES,
+} from './firmware.mjs';
+import { detectarCaidaMasiva, VIGIA } from './vigia.mjs';
 import { avisosPendientes } from './avisos.mjs';
 import {
   crearClima, tasaSecado, mediaReciente, factorClima, prevision as previsionDe, resumenPronostico,
@@ -86,6 +98,13 @@ export const FOTO_BYTES_MAX = 450 * 1024;
 const MIMES_FOTO = ['image/jpeg', 'image/png', 'image/webp'];
 /* Un riego anotado a mano cuenta como reciente durante este tiempo. */
 export const RIEGO_RECIENTE_MS = 48 * H;
+/* Un emulador que nadie vinculó ni usó en este tiempo se borra solo. */
+export const EMULADOR_OCIOSO_MS = 30 * DIA;
+/* Lo que la app puede contar (POST /api/evento): pasos del alta y pantallas.
+   Son contadores anónimos por día: ni cuenta ni planta. */
+export const EVENTOS_ALTA = ['hola', 'instalar', 'cuenta', 'avisos', 'wifi', 'vincular', 'cofre', 'nombre', 'foto', 'listo'];
+export const EVENTOS_VISTA = ['pasaporte', 'album', 'gif', 'desk', 'invernadero', 'coleccion', 'botanica', 'chat', 'diagnostico', 'calibrar', 'sitter'];
+const ESTADOS_OTA = ['bajando', 'verificando', 'ok', 'fallo'];
 
 class ErrorApi extends Error {
   constructor(codigo, mensaje) { super(mensaje); this.codigo = codigo; }
@@ -123,12 +142,35 @@ export function crearApi({
   reloj = () => Date.now(),
   presupuesto = crearPresupuesto({ db, reloj }),
   azar,
+  /* Confianza al primer uso: true (desarrollo: cualquier aparato se registra
+     solo), 'emulador' (producción: sólo los emuladores; las placas de verdad
+     las registra la fábrica) o false (nadie). */
   tofu = true,
   urlPublica = () => '',
   version = '0.1.0',
   clima = crearClima(),
+  /* La clave de /api/admin/*. Vacía: esas rutas no existen. */
+  adminClave = '',
+  /* La pública con la que se verifica cada firmware que se publica (PEM). */
+  firmwarePublica = '',
+  /* Mostrar las funciones de IA aunque sea simulada (desarrollo y tests). En
+     producción, sin una IA de verdad, se esconden: una planta que contesta
+     frases de prueba es peor que una que todavía no habla. */
+  iaDemo = true,
+  /* A quien opera el servicio: ({ tipo, ... }) => void. */
+  alAlerta = null,
 } = {}) {
   const limites = new Map();
+  const iaVisible = () => ia?.proveedor === 'claude' || Boolean(iaDemo);
+
+  /* Lo publicado cambia poco y se consulta en cada sync: medio minuto de caché. */
+  let cacheFirmware = null;
+  function firmwarePublicado() {
+    const t = reloj();
+    if (!cacheFirmware || t - cacheFirmware.t > 30000 || t < cacheFirmware.t) cacheFirmware = { t, lista: db.firmwareLista() };
+    return cacheFirmware.lista;
+  }
+  const contar = (evento) => { try { db.eventoContar(new Date(reloj()).toISOString().slice(0, 10), evento); } catch { /* una métrica nunca rompe un pedido */ } };
 
   /* ----------------------------------------------------------- ayudas --- */
   function limitar(clave, max, ventanaMs) {
@@ -149,6 +191,31 @@ export function crearApi({
     const a = headers?.authorization || headers?.Authorization || '';
     return a.startsWith('Bearer ') ? a.slice(7).trim() : '';
   };
+
+  /* La administración: una clave larga en el entorno del servidor. Sin ella,
+     las rutas no existen (404, igual que cualquier ruta inventada). */
+  function exigirAdmin(headers, ip) {
+    if (!adminClave) falla(404, 'Ruta desconocida');
+    limitar(`admin:${ip}`, 120, MIN);
+    const token = bearer(headers);
+    if (!token || !igualesSeguro(hash(token), hash(adminClave))) {
+      limitar(`admin-mal:${ip}`, 10, 10 * MIN);
+      falla(401, 'Clave de administración inválida');
+    }
+  }
+
+  /** Qué le pasa al firmware de un aparato: qué corre, qué hay, cómo le fue. */
+  function actualizacionDe(d) {
+    if (!d) return null;
+    const oferta = elegirFirmware(firmwarePublicado(), { placa: d.placa, canal: d.canal, version: d.fw });
+    return {
+      version: d.fw || '',
+      canal: d.canal || 'estable',
+      disponible: oferta?.version || null,
+      estado: d.ota?.estado || null,
+      intento: d.ota?.version || null,
+    };
+  }
 
   function cuentaDe(headers, obligatoria = true) {
     const token = bearer(headers);
@@ -227,7 +294,7 @@ export function crearApi({
       especie: p.especie?.id || null,
       especie_info: p.especie || null,
       ficha: p.ficha ? { cuidados: p.ficha.cuidados, dificultad: p.ficha.dificultad, fuente: p.ficha.fuente } : null,
-      chat: Boolean(p.especie && p.nombre),
+      chat: Boolean(p.especie && p.nombre) && iaVisible(),
       link,
       mood: moodVisible,
       severity: link === 'CAIDO' ? 'WATCH' : (d?.sev || 'OK'),
@@ -242,6 +309,8 @@ export function crearApi({
         usb: Boolean(d?.usb),
         age_s: u ? Math.max(0, Math.floor((t - u.t) / 1000)) : null,
         escurre: Boolean(u?.escurre),
+        /* El número crudo del capacitivo: lo que mira la calibración. */
+        suelo_raw: u?.crudo ?? null,
       },
       nodo: d ? {
         id: d.id,
@@ -253,6 +322,7 @@ export function crearApi({
         pantalla: d.pantalla || '',
         estado: d.estado || '',
         en_linea: Boolean(d.visto && t - d.visto < EN_LINEA_MS),
+        actualizacion: actualizacionDe(d),
       } : null,
       bond: vinculoPublico(p.vinculo),
       pantalla: p.pantalla || 'toque',
@@ -260,6 +330,11 @@ export function crearApi({
       creada: p.creada,
       riego: riegoRecienteDe(p.id, t),
       mascota: p.revelado ? mascotaPublica(normalizarMascota(p.mascota, p.revelada_en || t), t) : null,
+      /* La calibración del sensor de tierra y la maceta (lib/riego.mjs). */
+      calibracion: p.calibracion || null,
+      calibrando: Boolean(p.calibrando && p.calibrando > t),
+      maceta: p.maceta || null,
+      agua_ml: aguaParaRegar({ suelo: u?.suelo, soil_min: p.especie?.soil_min, soil_max: p.especie?.soil_max, maceta: p.maceta }),
     };
     nodo.salud = saludBiologica(nodo);
     return nodo;
@@ -528,11 +603,30 @@ export function crearApi({
       if (d) n += await enviarAvisos(p, d);
     }
     n += await previsiones();
+    vigilar();
     return n;
   }
 
+  /** Lo que no es de ninguna planta: caídas masivas y emuladores olvidados. */
+  function vigilar() {
+    const t = reloj();
+    try {
+      const v = detectarCaidaMasiva(db.dispositivos(), t);
+      if (v.alarma && alAlerta) {
+        const ultima = Number(db.metaLeer('vigia:caida') || 0);
+        if (t - ultima > VIGIA.esperaMs) {
+          db.metaEscribir('vigia:caida', String(t));
+          alAlerta({ tipo: 'caida', ...v });
+        }
+      }
+      db.dispositivosBorrarOciosos('emulador', t - EMULADOR_OCIOSO_MS);
+    } catch (e) {
+      console.error('vigía:', e.message);
+    }
+  }
+
   /* ----------------------------------------------------------- aparato --- */
-  async function sync(cuerpo, headers) {
+  async function sync(cuerpo, headers, ip = '') {
     const t = reloj();
     const idDisp = String(cuerpo?.id || '');
     if (!/^[0-9A-F]{12}$/.test(idDisp)) falla(400, 'id inválido');
@@ -544,11 +638,17 @@ export function crearApi({
       /* Confianza al primer uso: el primer aparato que se presenta con este
          id registra su token. En producción los registra la estación de
          fábrica y esto se apaga con ROOTLAB_TOFU=0 (docs/api.md). */
-      if (!tofu) falla(401, 'aparato no registrado');
-      d = { id: idDisp, token_hash: hash(token), creado: t, ultimo_reloj: -1, arranques: 0, planta: null };
+      const esEmulador = texto(cuerpo.placa, 24) === 'emulador';
+      if (!tofu || (tofu === 'emulador' && !esEmulador)) falla(401, 'aparato no registrado');
+      if (tofu === 'emulador') limitar(`emulador-nuevo:${ip}`, 20, DIA);
+      d = {
+        id: idDisp, token_hash: hash(token), creado: t, ultimo_reloj: -1, arranques: 0, planta: null,
+        origen: esEmulador ? 'emulador' : 'tofu', canal: 'estable',
+      };
     } else if (!igualesSeguro(d.token_hash, hash(token))) {
       falla(401, 'token inválido');
     }
+    if (d.deshabilitado) falla(403, 'aparato deshabilitado');
 
     const epoca = Math.max(0, entero(cuerpo.epoca));
     let planta = d.planta ? db.planta(d.planta) : null;
@@ -573,8 +673,17 @@ export function crearApi({
       rssi: Number.isFinite(Number(cuerpo.rssi)) ? entero(cuerpo.rssi) : null,
       usb: Boolean(cuerpo.usb),
       bat_mv: Math.max(0, entero(cuerpo.bat_mv)),
-      persona_fabrica: persona || d.persona_fabrica || null,
+      /* Lo que grabó la fábrica manda sobre lo que diga el aparato. */
+      persona_fabrica: d.origen === 'fabrica' ? (d.persona_fabrica || persona || null) : (persona || d.persona_fabrica || null),
     });
+    if (d.origen !== 'fabrica' && cuerpo.lote) d.lote = texto(cuerpo.lote, 12).replace(/[^0-9A-Za-z-]/g, '') || null;
+    if (cuerpo.ota && ESTADOS_OTA.includes(cuerpo.ota.estado)) {
+      const version = texto(cuerpo.ota.version, 15);
+      if (!d.ota || d.ota.estado !== cuerpo.ota.estado || d.ota.version !== version) {
+        d.ota = { version, estado: cuerpo.ota.estado, t };
+        if (versionValida(version)) contar(`ota:${cuerpo.ota.estado}`);
+      }
+    }
     if (planta && !planta.persona) planta.persona = personaDeAparato(d);
     const codigo = normalizarCodigo(cuerpo.codigo);
     if (codigo) {
@@ -637,6 +746,8 @@ export function crearApi({
     if (planta) await enviarAvisos(planta, d);
 
     const e = planta?.especie || null;
+    const oferta = elegirFirmware(firmwarePublicado(), { placa: d.placa, canal: d.canal, version: d.fw });
+    const calibrando = Boolean(planta?.calibrando && planta.calibrando > t);
     return [200, {
       ok: true,
       vinculado: Boolean(planta),
@@ -656,6 +767,17 @@ export function crearApi({
         },
       } : {}),
       ...(planta?.revelado ? { vinculo: vinculoPublico(planta.vinculo) } : {}),
+      /* La calibración del capacitivo que se hizo desde la app, y si la app
+         la está haciendo ahora (el aparato mide y cuenta seguido). */
+      ...(planta?.calibracion ? { calibracion: { seco: planta.calibracion.seco, mojado: planta.calibracion.mojado } } : {}),
+      ...(calibrando ? { calibrando: true } : {}),
+      /* Una versión nueva para esta placa y este canal (server/firmware.mjs). */
+      ...(oferta ? {
+        firmware: {
+          version: oferta.version, url: `${urlPublica()}/api/d/firmware/${oferta.id}`,
+          sha256: oferta.sha256, firma: oferta.firma, tamano: oferta.tamano,
+        },
+      } : {}),
       intervalo_s: INTERVALO_S,
       aceptadas: lecturas.length,
       hora: Math.floor(t / 1000),
@@ -700,18 +822,159 @@ export function crearApi({
     return [200, { ok: true, mascota: mascotaPublica(masc, t) }];
   }
 
+  /* ------------------------------------------------------ administración --- */
+  const aparatoAdmin = (d) => ({
+    id: d.id, origen: d.origen, lote: d.lote || null, persona: d.persona_fabrica || null, canal: d.canal,
+    deshabilitado: d.deshabilitado, fw: d.fw || '', placa: d.placa || '', estado: d.estado || '',
+    creado: d.creado, visto: d.visto || null, vinculado: Boolean(d.planta), ota: d.ota || null,
+  });
+  const firmwareAdmin = ({ contenido: _c, ...f }) => ({ ...f, retirado: f.retirado || null });
+
+  function administrar({ metodo, ruta, query, cuerpo, headers, ip }) {
+    exigirAdmin(headers, ip);
+    const t = reloj();
+    let m;
+
+    if (metodo === 'GET' && ruta === '/api/admin/estado') {
+      const aparatos = db.dispositivos();
+      const reales = aparatos.filter((d) => d.origen !== 'emulador');
+      const versiones = {};
+      for (const d of reales) versiones[d.fw || '?'] = (versiones[d.fw || '?'] || 0) + 1;
+      return [200, {
+        version, esquema: db.version(), ...db.contar(),
+        aparatos: { reales: reales.length, emuladores: aparatos.length - reales.length, de_fabrica: reales.filter((d) => d.origen === 'fabrica').length, deshabilitados: reales.filter((d) => d.deshabilitado).length },
+        firmware: versiones,
+        ia: { proveedor: ia?.proveedor || 'ninguna', visible: iaVisible(), ...presupuesto.estado() },
+        tofu: tofu === true ? 'todos' : tofu || 'nadie',
+        vigia: detectarCaidaMasiva(aparatos, t),
+      }];
+    }
+
+    if (metodo === 'GET' && ruta === '/api/admin/metricas') {
+      const dias = Math.min(366, Math.max(1, entero(query?.dias, 30)));
+      const desde = new Date(t - (dias - 1) * DIA).toISOString().slice(0, 10);
+      const eventos = db.eventosDesde(desde);
+      const totales = {};
+      for (const e of eventos) totales[e.evento] = (totales[e.evento] || 0) + e.n;
+      return [200, { desde, dias, totales, eventos }];
+    }
+
+    /* --- aparatos: la estación de fábrica y el día a día ------------------ */
+    if (metodo === 'GET' && ruta === '/api/admin/aparatos') {
+      return [200, { aparatos: db.dispositivos().map(aparatoAdmin) }];
+    }
+    if (metodo === 'POST' && ruta === '/api/admin/aparatos') {
+      const id = String(cuerpo?.id || '').toUpperCase();
+      if (!/^[0-9A-F]{12}$/.test(id)) falla(400, 'id inválido (la MAC en 12 hexadecimales)');
+      const tokenHash = /^[0-9a-f]{64}$/.test(String(cuerpo?.token || '')) ? hash(cuerpo.token) : String(cuerpo?.token_hash || '');
+      if (!/^[0-9a-f]{64}$/.test(tokenHash)) falla(400, 'falta token_hash (SHA-256 del token, en hexadecimal)');
+      const persona = normalizarPersona(texto(cuerpo?.persona, 15));
+      if (!persona) falla(400, 'persona desconocida');
+      const lote = texto(cuerpo?.lote, 12).replace(/[^0-9A-Za-z-]/g, '');
+      const canal = CANALES.includes(cuerpo?.canal) ? cuerpo.canal : 'estable';
+      const previo = db.dispositivo(id);
+      if (previo?.planta) falla(409, 'Ese aparato ya es de alguien: no se vuelve a registrar.');
+      if (previo && previo.origen === 'fabrica' && !cuerpo?.reemplazar) falla(409, 'Ese aparato ya está registrado (mandá reemplazar: true para regrabarlo).');
+      db.dispositivoGuardar({
+        ...(previo || { id, creado: t, ultimo_reloj: -1, arranques: 0, planta: null }),
+        token_hash: tokenHash, persona_fabrica: persona, lote: lote || null, origen: 'fabrica', canal, deshabilitado: false,
+      });
+      contar('fabrica');
+      return [previo ? 200 : 201, aparatoAdmin(db.dispositivo(id))];
+    }
+    if (metodo === 'PATCH' && (m = ruta.match(/^\/api\/admin\/aparatos\/([0-9A-Fa-f]{12})$/))) {
+      const d = db.dispositivo(m[1].toUpperCase());
+      if (!d) falla(404, 'No existe ese aparato');
+      if (cuerpo?.canal !== undefined) {
+        if (!CANALES.includes(cuerpo.canal)) falla(400, `canal: ${CANALES.join(' o ')}`);
+        d.canal = cuerpo.canal;
+      }
+      if (cuerpo?.deshabilitado !== undefined) d.deshabilitado = Boolean(cuerpo.deshabilitado);
+      if (cuerpo?.lote !== undefined) d.lote = texto(cuerpo.lote, 12).replace(/[^0-9A-Za-z-]/g, '') || null;
+      db.dispositivoGuardar(d);
+      return [200, aparatoAdmin(d)];
+    }
+    /* Un lote entero: cambiarlo de canal o deshabilitarlo (una partida fallada). */
+    if (metodo === 'PATCH' && (m = ruta.match(/^\/api\/admin\/lotes\/([0-9A-Za-z-]{1,12})$/))) {
+      const delLote = db.dispositivos().filter((d) => d.lote === m[1]);
+      if (!delLote.length) falla(404, 'No hay aparatos de ese lote');
+      if (cuerpo?.canal !== undefined && !CANALES.includes(cuerpo.canal)) falla(400, `canal: ${CANALES.join(' o ')}`);
+      for (const resumen of delLote) {
+        const d = db.dispositivo(resumen.id);
+        if (cuerpo?.canal !== undefined) d.canal = cuerpo.canal;
+        if (cuerpo?.deshabilitado !== undefined) d.deshabilitado = Boolean(cuerpo.deshabilitado);
+        db.dispositivoGuardar(d);
+      }
+      return [200, { lote: m[1], aparatos: delLote.length }];
+    }
+
+    /* --- firmware ---------------------------------------------------------- */
+    if (metodo === 'GET' && ruta === '/api/admin/firmware') {
+      return [200, { firmware: db.firmwareLista().map(firmwareAdmin) }];
+    }
+    if (metodo === 'POST' && ruta === '/api/admin/firmware') {
+      if (!firmwarePublica) falla(503, 'El servidor no tiene la clave pública del firmware (deploy/firmware-publica.pem).');
+      const f = {
+        version: texto(cuerpo?.version, 16), placa: texto(cuerpo?.placa, 24), canal: texto(cuerpo?.canal, 8),
+        notas: texto(cuerpo?.notas, 200), firma: texto(cuerpo?.firma, 128),
+      };
+      if (!versionValida(f.version)) falla(400, 'versión inválida (X.Y.Z)');
+      if (!RE_PLACA.test(f.placa)) falla(400, 'placa inválida');
+      if (!CANALES.includes(f.canal)) falla(400, `canal: ${CANALES.join(' o ')}`);
+      let contenido;
+      try { contenido = Buffer.from(String(cuerpo?.contenido_b64 || ''), 'base64'); } catch { contenido = Buffer.alloc(0); }
+      if (contenido.length < 16 || contenido.length > FIRMWARE_MAX_BYTES) falla(400, `el binario tiene que medir entre 16 y ${FIRMWARE_MAX_BYTES} bytes`);
+      const sha256 = sha256Hex(contenido);
+      if (cuerpo?.sha256 && String(cuerpo.sha256).toLowerCase() !== sha256) falla(400, 'el SHA-256 no coincide con el binario: ¿se cortó la subida?');
+      /* La prueba que importa: sin la firma de quien tiene la privada, no entra. */
+      if (!firmaValida(contenido, f.firma, firmwarePublica)) falla(403, 'La firma no es válida para este binario.');
+      const id = db.firmwarePublicar({ ...f, sha256, tamano: contenido.length, publicado: t, contenido });
+      cacheFirmware = null;
+      return [201, { id, version: f.version, placa: f.placa, canal: f.canal, sha256, tamano: contenido.length, publicado: t }];
+    }
+    if (metodo === 'DELETE' && (m = ruta.match(/^\/api\/admin\/firmware\/(\d{1,9})$/))) {
+      if (!db.firmwareRetirar(Number(m[1]), t)) falla(404, 'No existe esa publicación (o ya estaba retirada)');
+      cacheFirmware = null;
+      return [204, null];
+    }
+
+    falla(404, 'Ruta desconocida');
+    return [404, null];
+  }
+
   /* -------------------------------------------------------------- rutas --- */
   async function manejar({ metodo, ruta, query = {}, cuerpo = null, headers = {}, ip = '' }) {
     const t = reloj();
     let m;
 
-    if (metodo === 'POST' && ruta === '/api/d/sync') return sync(cuerpo, headers);
+    if (metodo === 'POST' && ruta === '/api/d/sync') return sync(cuerpo, headers, ip);
     if (metodo === 'POST' && ruta === '/api/d/demo') return demo(cuerpo, headers);
+
+    /* El binario de una actualización, para el aparato que se presenta con
+       su token. No es público: sin token de aparato no se baja nada. */
+    if (metodo === 'GET' && (m = ruta.match(/^\/api\/d\/firmware\/(\d{1,9})$/))) {
+      const token = bearer(headers);
+      if (!/^[0-9a-f]{64}$/.test(token)) falla(401, 'falta el token');
+      const d = db.dispositivoPorToken(hash(token));
+      if (!d || d.deshabilitado) falla(401, 'aparato desconocido');
+      limitar(`firmware:${d.id}`, 12, H);
+      const contenido = db.firmwareContenido(Number(m[1]));
+      if (!contenido) falla(404, 'Esa versión ya no está publicada');
+      contar('ota:descarga');
+      return [200, { binario: Buffer.from(contenido), mime: 'application/octet-stream', cache: 'private, no-store' }];
+    }
+
+    if (ruta.startsWith('/api/admin/')) return administrar({ metodo, ruta, query, cuerpo, headers, ip });
 
     if (metodo === 'GET' && ruta === '/api/config') {
       return [200, {
         version,
         ia: ia?.proveedor || 'ninguna',
+        /* Si las funciones de IA se muestran: con una IA de verdad, o en
+           desarrollo con la simulada. */
+        ia_visible: iaVisible(),
+        /* Para que el emulador verifique las actualizaciones como la placa. */
+        firmware_publica: firmwarePublica || null,
         push: Boolean(push),
         url_publica: urlPublica(),
         probabilidades: PROBABILIDADES,
@@ -896,6 +1159,16 @@ export function crearApi({
       return [204, null];
     }
 
+    /* --- métricas: contadores anónimos por día ---------------------------- */
+    if (metodo === 'POST' && ruta === '/api/evento') {
+      limitar(`evento:${ip}`, 240, H);
+      const [tipo, nombre] = String(cuerpo?.evento || '').split(':');
+      const valido = (tipo === 'alta' && EVENTOS_ALTA.includes(nombre)) || (tipo === 'vista' && EVENTOS_VISTA.includes(nombre));
+      if (!valido) falla(400, 'Evento desconocido');
+      contar(`${tipo}:${nombre}`);
+      return [204, null];
+    }
+
     /* --- vínculo ---------------------------------------------------------- */
     if (metodo === 'GET' && (m = ruta.match(/^\/api\/vinculo\/([^/]+)$/))) {
       limitar(`vinculo:${ip}`, 90, MIN);
@@ -941,6 +1214,7 @@ export function crearApi({
         db.plantaCrear(p);
         db.dispositivoGuardar({ ...d, planta: p.id });
       });
+      contar('vinculo');
       return [201, nodoDe(db.planta(p.id), t)];
     }
 
@@ -992,6 +1266,27 @@ export function crearApi({
         if (cuerpo?.brillo !== undefined) {
           p.brillo = Math.min(100, Math.max(10, entero(cuerpo.brillo, 80)));
         }
+        /* La calibración del sensor de tierra: null vuelve a la de fábrica. */
+        if (cuerpo?.calibracion !== undefined) {
+          if (cuerpo.calibracion === null) {
+            p.calibracion = null;
+          } else {
+            const error = errorDeCalibracion(cuerpo.calibracion);
+            if (error) falla(400, error);
+            p.calibracion = { ...normalizarCalibracion(cuerpo.calibracion), t };
+            contar('calibracion');
+          }
+          p.calibrando = null;
+        }
+        if (cuerpo?.maceta !== undefined) {
+          if (cuerpo.maceta === null) {
+            p.maceta = null;
+          } else {
+            const maceta = normalizarMaceta(cuerpo.maceta);
+            if (!maceta) falla(400, 'El diámetro de la maceta va en centímetros, entre 5 y 80.');
+            p.maceta = maceta;
+          }
+        }
         if (cuerpo?.nombre !== undefined || cuerpo?.especie !== undefined) prepararPrompt(p);
         db.plantaGuardar(p);
         return [200, nodoDe(p, t)];
@@ -1000,6 +1295,17 @@ export function crearApi({
         db.plantaDesvincular(p.id, t);
         return [204, null];
       }
+    }
+
+    /* Calibrando: durante diez minutos el Rooti mide y cuenta cada pocos
+       segundos, para que la app muestre el número crudo en vivo. */
+    if (metodo === 'POST' && (m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/calibrar$/))) {
+      const cuenta = cuentaDe(headers);
+      const p = plantaMia(cuenta, m[1]);
+      limitar(`calibrar:${cuenta.id}`, 30, H);
+      p.calibrando = cuerpo?.activo === false ? null : t + CALIBRANDO_MS;
+      db.plantaGuardar(p);
+      return [200, nodoDe(p, t)];
     }
 
     /* El cofre: sortea la PIEL del Rooti que ya se sabe cuál es. Una sola vez
@@ -1025,6 +1331,7 @@ export function crearApi({
           coleccion.push(piel);
           nuevo = true;
         }
+        contar(`cofre:${p.rareza}`);
         /* La piel pinta la app con sus colores. */
         paleta = paletaDeRooti(p.persona, p.rareza)?.id || null;
         db.transaccion(() => {
@@ -1059,6 +1366,7 @@ export function crearApi({
       }
       p.mascota = r.mascota;
       db.plantaGuardar(p);
+      contar(`mascota:${accion}`);
       return [200, { accion, suma: r.suma, motivo: r.motivo, mascota: mascotaPublica(r.mascota, t) }];
     }
 
@@ -1121,6 +1429,7 @@ export function crearApi({
         const nombre = texto(cuerpo?.nombre, 30);
         const vence = t + dias * DIA;
         db.cuidadorCrear({ token_hash: hash(token), planta: p.id, cuenta: cuenta.id, nombre, creado: t, vence });
+        contar('cuidador');
         return [201, { url: `${urlPublica().replace(/\/+$/, '')}/sitter/${token}`, vence, dias, nombre }];
       }
       if (metodo === 'DELETE') {
@@ -1160,10 +1469,11 @@ export function crearApi({
     if ((m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)\/chat$/)) && (metodo === 'GET' || metodo === 'POST')) {
       const cuenta = cuentaDe(headers);
       const p = plantaMia(cuenta, m[1]);
-      const disponible = Boolean(p.especie && p.nombre && p.revelado);
+      const disponible = Boolean(p.especie && p.nombre && p.revelado) && iaVisible();
       if (metodo === 'GET') {
         return [200, {
           disponible,
+          ...(iaVisible() ? {} : { motivo: 'ia' }),
           mensajes: db.chatDe(p.id, 60),
           cuota: presupuesto.cuota(cuenta, 'chat'),
           plan: cuenta.plan,
@@ -1171,6 +1481,7 @@ export function crearApi({
         }];
       }
       limitar(`chat:${cuenta.id}`, 12, MIN);
+      if (!iaVisible()) falla(503, 'La charla con la planta todavía no está disponible en este servidor.');
       if (!disponible) falla(409, 'Para charlar, tu planta necesita nombre y especie. Sacale una foto primero.');
       const mensaje = texto(cuerpo?.texto, CHAT_MAX + 1);
       if (!mensaje) falla(400, 'Escribí algo.');
@@ -1198,6 +1509,7 @@ export function crearApi({
         db.chatAgregar({ planta: p.id, cuenta: cuenta.id, ...tuyo });
         db.chatAgregar({ planta: p.id, cuenta: cuenta.id, ...suyo });
       });
+      contar('chat');
       return [200, { mensajes: [tuyo, suyo], cuota: presupuesto.cuota(cuenta, 'chat'), fuente: r.fuente }];
     }
 
@@ -1205,6 +1517,7 @@ export function crearApi({
     if (metodo === 'POST' && ruta === '/api/identificar') {
       const cuenta = cuentaDe(headers);
       limitar(`ia:${cuenta.id}`, 30, H);
+      if (!iaVisible()) falla(503, 'El reconocimiento por foto todavía no está disponible: elegí la especie de la lista.');
       if (!cuerpo?.planta) falla(403, 'Para reconocer una planta primero registrá un Rooti.');
       const p = plantaMia(cuenta, String(cuerpo.planta));
       if (!p.revelado) falla(409, 'Abrí el cofre de tu Rooti antes de reconocer la planta.');
@@ -1219,6 +1532,7 @@ export function crearApi({
       p.identificacion = { especie: r.especie, cuidados: r.cuidados || null, t, fuente: r.fuente };
       db.plantaGuardar(p);
       guardarFotoSilenciosa(cuenta, p, foto, t, 'reconocimiento');
+      contar('identificar');
       const { uso: _u, modelo: _m, cuidados: _c, ...publico } = r;
       return [200, { ...publico, cuota: presupuesto.cuota(cuenta, 'identificar', p.id) }];
     }
@@ -1226,6 +1540,7 @@ export function crearApi({
     if (metodo === 'POST' && ruta === '/api/diagnosticar') {
       const cuenta = cuentaDe(headers);
       limitar(`ia:${cuenta.id}`, 30, H);
+      if (!iaVisible()) falla(503, 'El diagnóstico por foto todavía no está disponible en este servidor.');
       const p = plantaMia(cuenta, String(cuerpo?.planta || ''));
       const foto = { image_b64: cuerpo?.image_b64, mime: cuerpo?.mime };
       const error = validarFoto(foto);
@@ -1237,6 +1552,7 @@ export function crearApi({
         llamada: () => ia.diagnosticar(foto, { tel: d?.ultima || null, especie: p.especie }),
       });
       guardarFotoSilenciosa(cuenta, p, foto, t, 'diagnostico');
+      contar('diagnosticar');
       const { uso: _u, modelo: _m, ...publico } = r;
       return [200, { planta: p.id, ...publico, cuota: presupuesto.cuota(cuenta, 'diagnosticar', p.id) }];
     }

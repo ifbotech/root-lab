@@ -204,8 +204,8 @@ describe('vinculo y crecimiento', () => {
   test('los dias sanos deciden la etapa', () => {
     assert.equal(etapaDe(0), 'ESPORA');
     assert.equal(etapaDe(6), 'ESPORA');
-    assert.equal(etapaDe(7), 'BROTE');
-    assert.equal(etapaDe(29), 'BROTE');
+    assert.equal(etapaDe(7), 'RETONO', 'no BROTE: Brote es un Rooti');
+    assert.equal(etapaDe(29), 'RETONO');
     assert.equal(etapaDe(30), 'JOVEN');
     assert.equal(etapaDe(90), 'MADURO');
     assert.equal(etapaDe(180), 'ANCESTRAL');
@@ -230,7 +230,7 @@ describe('vinculo y crecimiento', () => {
 
   test('el progreso va de 0 a 100 dentro de cada etapa', () => {
     assert.equal(progresoEtapa(0), 0);
-    assert.equal(progresoEtapa(7), 0);          // recien entro en BROTE
+    assert.equal(progresoEtapa(7), 0);          // recien entro en RETONO
     assert.equal(progresoEtapa(18), 48);        // a mitad de camino a JOVEN
     assert.equal(progresoEtapa(29), 96);
     assert.equal(progresoEtapa(180), 100);      // ultima etapa: siempre lleno

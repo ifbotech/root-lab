@@ -131,11 +131,11 @@ describe('verificar el email', () => {
 });
 
 describe('paleta', () => {
-  test('arranca en Vibrant Tones y cada piel se desbloquea abriendo su cofre', async () => {
+  test('arranca en la paleta ROOTLAB y cada piel se desbloquea abriendo su cofre', async () => {
     const esc = escenario();
     const token = await cuenta(esc);
     let [, yo] = await esc.llamar('GET', '/api/cuenta', { token });
-    assert.equal(yo.paleta, 'vibrant');
+    assert.equal(yo.paleta, 'rootlab');
     const [c, r] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'pinchito-comun' } });
     assert.equal(c, 403);
     assert.match(r.error, /Pinchito/);

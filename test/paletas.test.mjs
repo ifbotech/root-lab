@@ -6,8 +6,9 @@ import assert from 'node:assert/strict';
 
 import {
   PALETAS, PALETA_POR_DEFECTO, paletaPorId, paletaDeRooti, paletasDisponibles, cumpleRequisito,
-  temaDesdePaleta, contraste, mezclar, asegurarContraste, luminancia, declaraciones,
+  temaDesdePaleta, temaNocheDePaleta, contraste, mezclar, asegurarContraste, luminancia, declaraciones,
 } from '../public/lib/paletas.mjs';
+import { esModoNoche, MODOS, MODO_ES, MODO_POR_DEFECTO } from '../public/lib/reloj.mjs';
 import { MODELOS, RAREZAS } from '../server/catalogo.mjs';
 import { escenario, conRooti } from './ayudas.mjs';
 
@@ -34,10 +35,15 @@ describe('color', () => {
 });
 
 describe('paletas', () => {
-  test('la de ROOTLAB es Vibrant Tones con sus diez colores', () => {
-    const v = paletaPorId(PALETA_POR_DEFECTO);
-    assert.equal(v.nombre, 'Vibrant Tones');
+  test('la de ROOTLAB es clara, de libro de cuentos; Vibrant Tones queda como cosmética libre', () => {
+    const r = paletaPorId(PALETA_POR_DEFECTO);
+    assert.equal(r.id, 'rootlab');
+    assert.equal(r.claro, true);
+    assert.ok(luminancia(temaDesdePaleta(r).fondo) > 0.8, 'papel');
+    assert.ok(r.noche, 'con su versión de noche');
+    const v = paletaPorId('vibrant');
     assert.deepEqual(v.colores.map((c) => c.hex), ['#f94144', '#f3722c', '#f8961e', '#f9844a', '#f9c74f', '#90be6d', '#43aa8b', '#4d908e', '#577590', '#277da1']);
+    assert.equal(paletasDisponibles([]).find((p) => p.id === 'vibrant').bloqueada, false);
   });
 
   test('cada piel de cada Rooti es una paleta clara, con los cuatro colores del firmware', () => {
@@ -107,7 +113,39 @@ describe('paletas', () => {
       assert.ok(contraste(t['sobre-globo'], t.globo) >= 7, 'lo que dice el globo se lee');
       assert.ok(declaraciones(t).every(([n]) => n.startsWith('--')));
     });
+
+    test(`${paleta.nombre}, de noche: oscura y todo el texto se lee (WCAG AA)`, () => {
+      const t = temaNocheDePaleta(paleta);
+      assert.deepEqual(Object.keys(t).sort(), Object.keys(temaDesdePaleta(paleta)).sort(), 'los mismos tokens que de día');
+      assert.ok(luminancia(t.fondo) < 0.05, 'fondo profundo');
+      for (const s of ['fondo', 'fondo-alto', 'panel', 'panel-alto']) {
+        assert.ok(contraste(t.tinta, t[s]) >= 7, `tinta sobre ${s}`);
+        for (const k of ['tinta-2', 'tinta-3', 'primario-texto', 'secundario-texto', 'destacado-texto', 'acento-texto', 'bien-texto', 'atencion-texto', 'urgente-texto']) {
+          assert.ok(contraste(t[k], t[s]) >= 4.5, `${k} sobre ${s}: ${contraste(t[k], t[s]).toFixed(2)}`);
+        }
+      }
+      for (const k of ['primario', 'secundario', 'destacado', 'acento', 'bien', 'atencion', 'urgente']) {
+        assert.ok(contraste(t[`sobre-${k}`], t[k]) >= 4.5, `texto sobre ${k}`);
+      }
+      assert.ok(contraste(t['sobre-globo'], t.globo) >= 7);
+      if (!paleta.claro) assert.deepEqual(t, temaDesdePaleta(paleta), 'una paleta oscura es igual a toda hora');
+    });
   }
+
+  test('de día o de noche: el modo decide', () => {
+    assert.deepEqual(MODOS, ['auto', 'sistema', 'dia', 'noche']);
+    assert.equal(MODO_POR_DEFECTO, 'auto');
+    for (const m of MODOS) assert.ok(MODO_ES[m]);
+    assert.equal(esModoNoche('auto', 23), true, 'como el Rooti: de 22 a 8');
+    assert.equal(esModoNoche('auto', 7), true);
+    assert.equal(esModoNoche('auto', 8), false);
+    assert.equal(esModoNoche('auto', 21, true), false, 'en auto no mira el sistema');
+    assert.equal(esModoNoche('sistema', 12, true), true);
+    assert.equal(esModoNoche('sistema', 23, false), false);
+    assert.equal(esModoNoche('dia', 3, true), false);
+    assert.equal(esModoNoche('noche', 12, false), true);
+    assert.equal(esModoNoche('inventado', 23), true, 'un modo desconocido es auto');
+  });
 });
 
 describe('las cosméticas por la API', () => {
