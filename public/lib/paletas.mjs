@@ -416,6 +416,25 @@ export function temaNocheDePaleta(paleta) {
 }
 
 const ROLES_LLENOS = ['primario', 'secundario', 'destacado', 'acento', 'bien', 'atencion', 'urgente'];
+const ESTADOS = ['bien', 'atencion', 'urgente'];
+/* Cuánto tiñe el chip de estado a su panel. Tiene que coincidir con el que
+   usa `.chip-estado` en style.css: es la superficie sobre la que se lee. */
+const TINTE_CHIP = 0.14;
+
+/**
+ * Los chips de estado ("bien", "con sed") son texto de color sobre un fondo
+ * teñido con ese mismo color: una superficie más, que no es ninguna de las
+ * cuatro contra las que se garantizó el texto. Acá se calcula el fondo y se
+ * vuelve a asegurar el texto contra él, así el chip cumple AA en las veinte
+ * paletas y no sólo en las que zafaban.
+ */
+function chipsDeEstado(t, r, superficies, hacia) {
+  for (const nombre of ESTADOS) {
+    const chip = mezclar(t.panel, r[nombre], TINTE_CHIP);
+    t[`${nombre}-chip`] = chip;
+    t[`${nombre}-texto`] = asegurarContraste(r[nombre], [...superficies, chip], 4.5, hacia);
+  }
+}
 
 /* El tema claro de las pieles: fondo pastel, paneles casi blancos, tinta de
  * los ojos oscurecida. Todo texto se asegura contra las cuatro superficies
@@ -443,6 +462,7 @@ function temaClaro(r) {
     t[`${nombre}-canto`] = mezclar(l.color, '#000000', 0.22);
     t[`${nombre}-texto`] = asegurarContraste(r[nombre], superficies, 4.5, '#000000');
   }
+  chipsDeEstado(t, r, superficies, '#000000');
 
   const datos = r.datos || {};
   t['dato-tierra'] = asegurarContraste(datos.tierra || r.primario, [t.panel], 3, '#000000');
@@ -484,6 +504,7 @@ function temaOscuro(r) {
     /* La versión para usar como TEXTO sobre las superficies. */
     t[`${nombre}-texto`] = asegurarContraste(valor, superficies, 4.5);
   }
+  chipsDeEstado(t, r, superficies);
 
   const datos = r.datos || {};
   t['dato-tierra'] = asegurarContraste(datos.tierra || r.secundario, [t.panel], 3);

@@ -108,6 +108,12 @@ describe('paletas', () => {
       for (const k of ['dato-tierra', 'dato-temperatura', 'dato-luz', 'dato-humedad']) {
         assert.ok(contraste(t[k], t.panel) >= 3, `${k} sobre panel`);
       }
+      /* El chip de estado es su color sobre un fondo teñido con ese mismo
+         color: una superficie más, que hay que mirar aparte. */
+      for (const k of ['bien', 'atencion', 'urgente']) {
+        assert.ok(contraste(t[`${k}-texto`], t[`${k}-chip`]) >= 4.5,
+          `chip ${k}: ${contraste(t[`${k}-texto`], t[`${k}-chip`]).toFixed(2)}`);
+      }
       if (paleta.claro) assert.ok(luminancia(t.fondo) > 0.6, 'tema claro, pastel');
       else assert.ok(luminancia(t.fondo) < 0.05, 'tema oscuro');
       assert.ok(contraste(t['sobre-globo'], t.globo) >= 7, 'lo que dice el globo se lee');
@@ -118,6 +124,10 @@ describe('paletas', () => {
       const t = temaNocheDePaleta(paleta);
       assert.deepEqual(Object.keys(t).sort(), Object.keys(temaDesdePaleta(paleta)).sort(), 'los mismos tokens que de día');
       assert.ok(luminancia(t.fondo) < 0.05, 'fondo profundo');
+      for (const k of ['bien', 'atencion', 'urgente']) {
+        assert.ok(contraste(t[`${k}-texto`], t[`${k}-chip`]) >= 4.5,
+          `chip ${k} de noche: ${contraste(t[`${k}-texto`], t[`${k}-chip`]).toFixed(2)}`);
+      }
       for (const s of ['fondo', 'fondo-alto', 'panel', 'panel-alto']) {
         assert.ok(contraste(t.tinta, t[s]) >= 7, `tinta sobre ${s}`);
         for (const k of ['tinta-2', 'tinta-3', 'primario-texto', 'secundario-texto', 'destacado-texto', 'acento-texto', 'bien-texto', 'atencion-texto', 'urgente-texto']) {

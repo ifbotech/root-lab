@@ -128,7 +128,7 @@ exigen HTTPS. Ver [docs/despliegue.md](docs/despliegue.md).
 ## Pruebas
 
 ```bash
-npm test          # 440 pruebas
+npm test          # 451 pruebas
 ```
 
 Flujo completo con un Rooti virtual, cuentas y aislamiento entre cuentas,
@@ -206,6 +206,7 @@ docs/
 | [riego.md](docs/riego.md) | Calibrar el sensor de tierra y decir cuánta agua |
 | [operacion.md](docs/operacion.md) | Administración, firmware firmado, fábrica, respaldos que se prueban, vigía y métricas |
 | [paletas.md](docs/paletas.md) | Las paletas de las pieles, las cosméticas y el motor de contraste |
+| [accesibilidad.md](docs/accesibilidad.md) | WCAG AA: qué se garantiza, qué se arregló y cómo se audita |
 | [notificaciones.md](docs/notificaciones.md) | Cuándo se avisa y cuándo no |
 | [sensorial.md](docs/sensorial.md) | La cara en el teléfono: luz, caricias, voz y modo escritorio |
 | [clima.md](docs/clima.md) | Regar antes con el pronóstico; VPD y DLI |

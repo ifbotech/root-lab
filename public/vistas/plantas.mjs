@@ -81,8 +81,11 @@ const dato = (ico, texto, mal = false) => h('span', { class: `dato ${mal ? 'mal'
 function fila(n, esp, alAbrir) {
   const bat = bateriaDe(n);
   const t = n.tel || {};
-  return h('li', {
+  /* La fila entera se toca, pero el <li> tiene que seguir siendo un ítem de
+     la lista: lo que hace de botón es el bloque de adentro. */
+  return h('li', {}, h('div', {
     class: `planta sev-${SEV_CLASE[n.severity] || 'bien'}`, tabindex: '0', role: 'button',
+    'aria-label': `${n.nombre || 'Sin nombre'}, ${n.revelado ? (MOOD_ES[n.mood] || n.mood) : 'dormido'}`,
     onClick: () => alAbrir(n.id),
     onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alAbrir(n.id); } },
   },
@@ -99,7 +102,7 @@ function fila(n, esp, alAbrir) {
         t.usb ? dato('enchufe', t.batt_mv > 0 ? 'cargando' : 'enchufado') : bat !== null ? dato('pila', `${bat} %`, bat < 15) : null),
       h('div', { class: 'planta-pie' },
         h('span', { class: `enlace-${(n.link || '').toLowerCase()}` }, LINK_ES[n.link] || '—'),
-        h('span', {}, formatEdad(t.age_s)))));
+        h('span', {}, formatEdad(t.age_s))))));
 }
 
 export function vistaPlantas(ctx) {
@@ -343,7 +346,7 @@ export function vistaDetalle(ctx) {
   render(cont,
     h('header', { class: 'vista-cab' },
       botonVolver(volver),
-      h('h2', {}, ''),
+      h('h2', { class: 'oculto-visual' }, n.nombre || 'Tu planta'),
       h('button', { class: 'boton chico', type: 'button', onClick: renombrar }, 'Renombrar')),
 
     heroe,

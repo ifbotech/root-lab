@@ -41,12 +41,12 @@ export function caraDeNodo(n, lado, extra = {}) {
 }
 
 function ronda(nodos, alAbrir, alAgregar) {
-  return h('div', { class: 'ronda', role: 'list' },
-    nodos.map((n) => h('button', {
-      class: 'ronda-item', type: 'button', role: 'listitem', onClick: () => alAbrir(n.id),
-    }, caraDeNodo(n, 88, { fps: 12 }), h('b', {}, n.nombre || 'Sin nombre'))),
-    h('button', { class: 'ronda-item', type: 'button', onClick: alAgregar, 'aria-label': 'Agregar un Rooti' },
-      h('span', { class: 'ronda-agregar' }, icono('mas', 34)), h('b', {}, 'Agregar')));
+  return h('ul', { class: 'ronda' },
+    nodos.map((n) => h('li', {}, h('button', {
+      class: 'ronda-item', type: 'button', onClick: () => alAbrir(n.id),
+    }, caraDeNodo(n, 88, { fps: 12 }), h('b', {}, n.nombre || 'Sin nombre')))),
+    h('li', {}, h('button', { class: 'ronda-item', type: 'button', onClick: alAgregar, 'aria-label': 'Agregar un Rooti' },
+      h('span', { class: 'ronda-agregar' }, icono('mas', 34)), h('b', {}, 'Agregar'))));
 }
 
 function tarjetaTarea(t, alHacer, alIr) {

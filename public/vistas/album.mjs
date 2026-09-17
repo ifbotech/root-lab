@@ -107,8 +107,11 @@ export function vistaAlbum(ctx) {
         h('button', { class: 'boton primario camara-disparo', type: 'button', onClick: disparar, 'aria-label': 'Sacar la foto' }, icono('camara', 26))));
     document.body.append(modal);
   }
+  /* Escondido: lo dispara el botón "Sacar una foto". Igual lleva su nombre,
+     porque para un lector de pantalla sigue estando. */
   const elegir = h('input', {
     type: 'file', accept: 'image/*', capture: 'environment', class: 'oculto',
+    'aria-label': 'Elegir o sacar una foto de la planta',
     onChange: async (ev) => {
       const f = ev.target.files?.[0];
       if (!f) return;

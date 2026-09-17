@@ -54,7 +54,7 @@ export function vistaInvernadero(ctx) {
       botonVolver(volver),
       h('h2', {}, 'El invernadero')),
     h('div', { class: 'estante-marco' },
-      h('div', { class: 'estante', role: 'list' }, macetas),
+      h('ul', { class: 'estante' }, macetas.map((m) => h('li', {}, m))),
       h('div', { class: 'estante-tabla' })),
     h('p', { class: 'nota' }, preocupados.length
       ? `Los Rooties miran a ${preocupados.map((n) => n.nombre || 'uno').join(' y ')}: ${preocupados.length === 1 ? 'necesita' : 'necesitan'} algo.`
