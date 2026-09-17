@@ -32,6 +32,26 @@ export function fijarHoraDePrueba(hora, almacen = globalThis.localStorage) {
   } catch { /* navegación privada: no queda */ }
 }
 
+/* Cómo se decide si la app se ve de noche (lib/tema.mjs y tema.js). */
+export const MODOS = ['auto', 'sistema', 'dia', 'noche'];
+export const MODO_POR_DEFECTO = 'auto';
+export const MODO_ES = {
+  auto: 'Con tu Rooti: de noche de 22 a 8',
+  sistema: 'Como el teléfono',
+  dia: 'Siempre de día',
+  noche: 'Siempre de noche',
+};
+
+/** ¿Se ve de noche? Puro: recibe el modo, la hora y lo que dice el sistema. */
+export function esModoNoche(modo, hora, oscuroDelSistema = false) {
+  switch (modo) {
+    case 'noche': return true;
+    case 'dia': return false;
+    case 'sistema': return Boolean(oscuroDelSistema);
+    default: return hora >= 22 || hora < 8;
+  }
+}
+
 /** La hora que usa la escena. */
 export const horaLocal = (ahora = new Date(), almacen = globalThis.localStorage) => horaDePrueba(almacen) ?? ahora.getHours();
 

@@ -7,12 +7,15 @@
  *      las mismas que están poniendo los Rooties en este momento
  *   2. las TAREAS, porque son lo único accionable
  *   3. los CONTADORES, para el que tiene muchas plantas
- *   4. el NIVEL, porque es recompensa y la recompensa va después del trabajo
+ *   4. el VÍNCULO, porque es recompensa y la recompensa va después del
+ *      trabajo: la etapa de cada planta (días sanos), la racha de la casa y
+ *      el último logro. No hay XP ni niveles: salían de los mismos días
+ *      sanos y eran dos barras para lo mismo (lib/gamificacion.mjs)
  */
 import { h, render, icono, progreso } from '../lib/ui.mjs';
 import { tareasDelDia, resumenDeTareas, contarEstados, URGENCIA_ES } from '../lib/tareas.mjs';
-import { xpTotal, nivelDe, saludo, evaluarLogros } from '../lib/gamificacion.mjs';
-import { ETAPAS, etapaDe, progresoColeccion } from '../lib/model.mjs';
+import { saludo, evaluarLogros } from '../lib/gamificacion.mjs';
+import { ETAPAS, ETAPA_ES, ETAPA_DIAS, etapaDe, progresoEtapa, progresoColeccion } from '../lib/model.mjs';
 import { cara } from '../lib/caras.mjs';
 import { pielDe } from '../lib/rooties.mjs';
 
@@ -73,24 +76,35 @@ function bloqueContadores(c) {
     celda(c.bien, c.bien === 1 ? 'cómoda' : 'cómodas', 'contador-bien'));
 }
 
-function bloqueNivel(nivel, racha, logros) {
+/* El vínculo de cada planta: en qué etapa está y cuánto le falta. */
+function bloqueVinculo(nodos, racha, logros, alAbrir) {
   const cumplidos = logros.filter((l) => l.cumplido);
   const ultimo = cumplidos[cumplidos.length - 1];
-  return h('section', { class: 'panel panel-nivel' },
+  const reveladas = nodos.filter((n) => n.revelado);
+  if (!reveladas.length) return null;
+  return h('section', { class: 'panel panel-vinculo' },
     h('div', { class: 'nivel-cab' },
-      h('div', {},
-        h('span', { class: 'nivel-num' }, `Nivel ${nivel.nivel}`),
-        h('h3', {}, nivel.titulo)),
+      h('h3', { class: 'panel-tit', style: 'margin:0' }, 'El vínculo'),
       racha.dias > 0
-        ? h('div', { class: 'racha', title: `Mejor racha: ${racha.mejor} días` },
+        ? h('div', { class: 'racha', title: `Días seguidos sin ninguna urgencia en casa. Mejor racha: ${racha.mejor}` },
             icono('llama', 20), h('b', {}, String(racha.dias)),
             h('span', {}, racha.dias === 1 ? 'día' : 'días'))
         : null),
-    progreso(nivel.progreso, 'progreso-nivel'),
-    h('p', { class: 'nivel-pie' },
-      nivel.siguiente ? `${nivel.faltan} XP para ${nivel.siguiente.titulo}` : 'Llegaste al último nivel'),
+    h('ul', { class: 'vinculos' }, reveladas.map((n) => {
+      const sanos = n.bond?.dias_sanos ?? 0;
+      const etapa = etapaDe(sanos);
+      const i = ETAPAS.indexOf(etapa);
+      const proxima = ETAPAS[i + 1];
+      return h('li', {},
+        h('button', { class: 'vinculo-fila', type: 'button', onClick: () => alAbrir(n.id) },
+          h('span', { class: 'vinculo-nombre' }, h('b', {}, n.nombre || 'Sin nombre'), h('span', { class: 'etapa-chip' }, ETAPA_ES[etapa] || etapa)),
+          progreso(progresoEtapa(sanos), 'progreso-nivel'),
+          h('small', {}, proxima
+            ? `${sanos} días sanos · faltan ${ETAPA_DIAS[i + 1] - sanos} para ${ETAPA_ES[proxima]}`
+            : `${sanos} días sanos · llegó a la última etapa`)));
+    })),
     ultimo ? h('p', { class: 'logro-ultimo' }, icono('trofeo', 16), ` ${ultimo.nombre}`) : null,
-    h('p', { class: 'nivel-nota' }, 'La XP sale de días sanos de tus plantas. Abrir la app no suma.'));
+    h('p', { class: 'nivel-nota' }, 'Un día sano es un día sin nada urgente. Cada etapa le suma un adorno a la cara de tu Rooti. Abrir la app no suma.'));
 }
 
 export function vistaHoy(ctx) {
@@ -99,7 +113,6 @@ export function vistaHoy(ctx) {
   const tareas = tareasDelDia(nodos, especies, hechas);
   const resumen = resumenDeTareas(tareas);
   const cuenta = contarEstados(nodos);
-  const nivel = nivelDe(xpTotal(nodos));
   const logros = evaluarLogros({ nodos, racha, coleccion: progresoColeccion(coleccion?.catalogo, coleccion?.tengo) });
   const hayUrgentes = tareas.some((t) => t.urgencia === 'urgente');
   const cont = h('div', { class: 'vista' });
@@ -134,7 +147,7 @@ export function vistaHoy(ctx) {
           h('p', {}, 'Nada pendiente. Tus plantas están cómodas.')),
 
     nodos.length > 1 ? bloqueContadores(cuenta) : null,
-    bloqueNivel(nivel, racha, logros));
+    bloqueVinculo(nodos, racha, logros, alAbrir));
 
   return cont;
 }

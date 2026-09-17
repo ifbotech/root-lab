@@ -17,8 +17,8 @@
 
 <main class="banco">
   <section class="maceta-zona" aria-label="El aparato">
-    <div class="carcasa" id="carcasa">
-      <div class="bisel"><canvas id="pantalla" width="240" height="320" aria-label="Pantalla del Rooti"></canvas></div>
+    <div class="carcasa chica" id="carcasa">
+      <div class="bisel"><canvas id="pantalla" width="128" height="128" aria-label="Pantalla del Rooti (TFT de 1,44 pulgadas)"></canvas></div>
       <button type="button" class="boton-fisico" id="boton" aria-label="Botón: tocar, o mantener 10 segundos para reiniciar"></button>
     </div>
     <div class="maceta" aria-hidden="true"></div>
@@ -34,6 +34,8 @@
         <div><dt>Red del portal</dt><dd id="d-ssid" class="mono">—</dd></div>
         <div><dt>Época</dt><dd id="d-epoca">—</dd></div>
         <div><dt>Piel</dt><dd id="d-piel">—</dd></div>
+        <div><dt>Firmware</dt><dd id="d-fw">—</dd></div>
+        <div><dt>Calibración</dt><dd id="d-cal">—</dd></div>
       </dl>
       <p class="qr-destino">El QR lleva a <a id="d-url" target="_blank" rel="noopener">—</a></p>
       <div class="fila">
@@ -42,9 +44,6 @@
       </div>
       <div class="fila">
         <label class="caja"><input type="checkbox" id="c-cortar"> Cortar internet</label>
-        <label class="caja">Pantalla
-          <select id="s-panel"><option value="240">2,2" 240x320</option><option value="128">1,44" 128x128</option></select>
-        </label>
       </div>
     </div>
 
@@ -58,6 +57,7 @@
       <div class="fila">
         <label class="caja"><input type="checkbox" id="c-usb"> USB</label>
         <label class="caja"><input type="checkbox" id="c-falla-aire"> AHT20 roto</label>
+        <label class="caja" title="El capacitivo da un crudo corrido, como uno real en otra tierra: calibralo desde la ficha de la planta"><input type="checkbox" id="c-sin-calibrar"> Sensor sin calibrar</label>
       </div>
       <div class="fila">
         <button type="button" class="btn" id="b-medir">Medir ahora</button>
@@ -118,6 +118,8 @@
         <button type="button" class="btn" id="b-tres-dias">3 días sin mimos</button>
         <button type="button" class="btn" id="b-gotas">+3 gotas de rocío</button>
       </div>
+      <h3>Calibrar y actualizar</h3>
+      <p class="nota">Calibrar: tildá “Sensor sin calibrar”, abrí la ficha → <i>Sensor de tierra y maceta</i> → Calibrar, poné la tierra en 0 % para el paso seco y en 100 % para el mojado. Actualizar por aire: publicá un firmware para la placa <code>emulador</code> (<code>tools/publicar-firmware.mjs</code>) y este aparato lo baja, verifica la firma y “reinicia” solo.</p>
       <h3>Ir a</h3>
       <nav class="fila enlaces" aria-label="Pantallas de la app">
         <a data-ir="planta" data-planta="1" target="rootlab">Ficha y mimos</a>

@@ -5,17 +5,18 @@
  * Las caras de los Rooties son ilustración plana del tipo Duolingo, así que
  * la app habla el mismo idioma: tipografía redonda y pesada (Nunito),
  * botones gruesos con canto (se hunden al tocarlos), bordes de 2 px y
- * esquinas generosas. De los juegos de colección toma el resto: fondo
- * nocturno profundo para que los colores brillen, rarezas con color propio,
- * y un cofre que se abre con luz.
+ * esquinas generosas. De día es un libro de cuentos: papel claro y pasteles;
+ * de noche (lib/tema.mjs) el mismo libro con la luz apagada, fondo profundo
+ * para que los colores brillen. De los juegos de colección toma el resto:
+ * rarezas con color propio y un cofre que se abre con luz.
  *
  * COLORES: PALETA DINÁMICA
  *
  * Ningún color de la interfaz está escrito acá. Todos son TOKENS que arma
- * public/lib/paletas.mjs a partir de la paleta de la cuenta (Vibrant Tones
+ * public/lib/paletas.mjs a partir de la paleta de la cuenta (ROOTLAB
  * por defecto; la de tu Rooti cuando sale del cofre) y que tema.js aplica
- * antes de la primera pintada. Los valores de abajo son los de Vibrant
- * Tones, para que la app se vea bien aunque el JavaScript no cargue.
+ * antes de la primera pintada. Los valores de abajo son los de la paleta
+ * ROOTLAB de día, para que la app se vea bien aunque el JavaScript no cargue.
  *
  * Cada token de color tiene su familia:
  *
@@ -32,49 +33,51 @@
  */
 
 :root {
-  --fondo: #0c1217;
-  --fondo-alto: #141c24;
-  --panel: #1c2731;
-  --panel-alto: #23313c;
-  --borde: #2e3e4d;
-  --borde-alto: #3a4e61;
-  --tinta: #f8f9fa;
-  --tinta-2: #bcc9d4;
-  --tinta-3: #9badbe;
-  --primario: #90be6d;
-  --sobre-primario: #0b0f14;
-  --primario-canto: #5b7944;
-  --primario-texto: #90be6d;
-  --secundario: #277da1;
+  --fondo: #f5f8ee;
+  --fondo-alto: #eff5e6;
+  --panel: #fbfcf9;
+  --panel-alto: #fefefd;
+  --borde: #ddebd0;
+  --borde-alto: #a0c495;
+  --tinta: #0f3414;
+  --tinta-2: #205b28;
+  --tinta-3: #49774b;
+  --primario: #2f7d3a;
+  --sobre-primario: #ffffff;
+  --primario-canto: #1f5827;
+  --primario-texto: #2f7d3a;
+  --secundario: #2b6f9e;
   --sobre-secundario: #ffffff;
-  --secundario-canto: #154e66;
-  --secundario-texto: #6aa1bb;
-  --destacado: #f9c74f;
+  --secundario-canto: #1c4e70;
+  --secundario-texto: #2b6f9e;
+  --destacado: #e0a526;
   --sobre-destacado: #0b0f14;
-  --destacado-canto: #a07f30;
-  --destacado-texto: #f9c74f;
-  --acento: #f9844a;
+  --destacado-canto: #a07518;
+  --destacado-texto: #856112;
+  --acento: #e2718a;
   --sobre-acento: #0b0f14;
-  --acento-canto: #a0532c;
-  --acento-texto: #f9844a;
-  --bien: #43aa8b;
-  --sobre-bien: #0b0f14;
-  --bien-canto: #286c57;
-  --bien-texto: #43aa8b;
-  --atencion: #f8961e;
+  --acento-canto: #a24f61;
+  --acento-texto: #a85265;
+  --bien: #2e7d32;
+  --sobre-bien: #ffffff;
+  --bien-canto: #1e5821;
+  --bien-texto: #2e7d32;
+  --atencion: #e65100;
   --sobre-atencion: #0b0f14;
-  --atencion-canto: #a05f0f;
-  --atencion-texto: #f8961e;
-  --urgente: #f94144;
-  --sobre-urgente: #0b0f14;
-  --urgente-canto: #a02628;
-  --urgente-texto: #ff6963;
-  --dato-tierra: #277da1;
-  --dato-temperatura: #f3722c;
-  --dato-luz: #f9c74f;
-  --dato-humedad: #4d908e;
-  --resplandor: #293846;
-  --fondo-rgb: 12, 18, 23;
+  --atencion-canto: #a53800;
+  --atencion-texto: #c24300;
+  --urgente: #c62828;
+  --sobre-urgente: #ffffff;
+  --urgente-canto: #8d1a1a;
+  --urgente-texto: #c62828;
+  --dato-tierra: #2b6f9e;
+  --dato-temperatura: #e65100;
+  --dato-luz: #b1821c;
+  --dato-humedad: #2f7d3a;
+  --resplandor: #e0ecd3;
+  --fondo-rgb: 245, 248, 238;
+  --globo: #ffffff;
+  --sobre-globo: #0f3414;
 
   /* Rarezas del cofre: fijas. */
   --comun:       #7fd1ff;
@@ -207,7 +210,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .errores { color: var(--urgente-texto); font-weight: 700; }
 
-input[type=text], input[type=search], input[type=email], input[type=password], select {
+input[type=text], input[type=search], input[type=email], input[type=password], input[type=number], select {
   width: 100%; min-height: 52px; padding: 12px 14px;
   background: var(--fondo-alto); border: 2px solid var(--borde); border-radius: 14px;
   font-weight: 700; font-size: 17px; color: var(--tinta);
@@ -914,6 +917,23 @@ body.desk .contenido { max-width: none; padding: 0; }
 .desk.noche .desk-nombre { opacity: .3; }
 .desk.noche .desk-noche { opacity: .6; }
 .desk .panel.vacio { margin: 16px; }
+
+/* El vínculo en Hoy: una fila por planta, con su etapa. */
+.panel-vinculo { display: flex; flex-direction: column; gap: 10px; }
+.vinculos { display: flex; flex-direction: column; gap: 10px; }
+.vinculo-fila { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.vinculo-nombre { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.vinculo-fila small { color: var(--tinta-3); font-size: 13px; }
+.etapa-chip { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: var(--destacado-texto); }
+
+/* Calibrar el sensor y la maceta (vistas/calibrar.mjs). */
+.calibrar { display: flex; flex-direction: column; gap: 10px; }
+.calibrar-paso { font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: var(--secundario-texto); }
+.calibrar-crudo { display: flex; align-items: baseline; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--fondo-alto); border: 2px solid var(--borde); }
+.calibrar-crudo b { font-size: 34px; font-variant-numeric: tabular-nums; }
+.calibrar-crudo small { color: var(--tinta-3); }
+.selector-modo { display: grid; grid-template-columns: repeat(4, 1fr); }
+.datos .dato-ancho { grid-column: 1 / -1; }
 
 /* ============================================================== CUERPO === */
 /* El Rooti entero (lib/cuerpo.mjs): capas del mismo viewBox apiladas; la

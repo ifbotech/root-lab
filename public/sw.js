@@ -10,7 +10,7 @@
  */
 
 /* Subir la versión invalida el caché entero. */
-const CACHE = 'rootlab-v14';
+const CACHE = 'rootlab-v15';
 
 /* La app puede estar montada en una subruta (/rootkit/): todo se resuelve
    contra el alcance del service worker, nunca contra la raíz del dominio. */
@@ -33,8 +33,10 @@ const ARMAZON = [
   'lib/cuerpo.mjs',
   'lib/mascota.mjs',
   'lib/reloj.mjs',
+  'lib/riego.mjs',
   'lib/rooties.mjs',
   'vistas/mascota.mjs',
+  'vistas/calibrar.mjs',
   'vistas/album.mjs',
   'vistas/invernadero.mjs',
   'vistas/pasaporte.mjs',

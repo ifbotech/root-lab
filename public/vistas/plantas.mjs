@@ -18,6 +18,22 @@ import { caraDeNodo } from './hoy.mjs';
 import { token } from '../lib/tema.mjs';
 import { heroeMascota } from './mascota.mjs';
 import { panelBotanica } from './botanica.mjs';
+import { panelSensor } from './calibrar.mjs';
+
+/* Qué decir del firmware del Rooti (server/firmware.mjs, root-kit/docs/ota.md). */
+export function textoFirmware(nodo) {
+  const a = nodo?.actualizacion;
+  const version = nodo?.fw || a?.version || '';
+  if (!version) return '—';
+  if (a?.estado === 'bajando') return `${version} · bajando la ${a.intento || a.disponible || 'nueva'}…`;
+  if (a?.estado === 'verificando') return `${version} · recién instalada, probándose`;
+  if (a?.disponible) {
+    return a.estado === 'fallo' && a.intento === a.disponible
+      ? `${version} · la ${a.disponible} no se pudo instalar: reintenta sola`
+      : `${version} · hay una nueva (${a.disponible}): se instala sola${nodo.usb ? '' : ', con batería de sobra o enchufado'}`;
+  }
+  return `${version} · al día`;
+}
 
 const CUIDADO_ES = {
   riego: 'Riego', luz: 'Luz', temperatura: 'Temperatura', humedad: 'Humedad', sustrato: 'Sustrato',
@@ -243,6 +259,8 @@ export function vistaDetalle(ctx) {
   const etapa = etapaDe(sanos);
   const bat = bateriaDe(n);
   const modelo = (coleccion?.catalogo || []).find((m) => m.id === n.modelo);
+  /* Sin una IA de verdad, charlar, reconocer y diagnosticar no se ofrecen. */
+  const conIA = ctx.config?.ia_visible !== false;
 
   /* historial */
   let horas = 48;
@@ -336,9 +354,14 @@ export function vistaDetalle(ctx) {
       : n.chat
         ? h('button', { class: 'boton primario ancho', type: 'button', onClick: () => ctx.alChat(n.id) },
             icono('chat', 20), `Hablar con ${n.nombre}`)
-        : h('section', { class: 'panel' },
-            h('p', { class: 'nota', style: 'margin-bottom:10px' }, `Para charlar con ${n.nombre || 'tu planta'}, primero reconozcamos su especie.`),
-            h('button', { class: 'boton azul ancho', type: 'button', onClick: () => alCambiarEspecie(n.id) }, icono('camara', 20), 'Sacarle una foto')),
+        : !esp
+          ? h('section', { class: 'panel' },
+              h('p', { class: 'nota', style: 'margin-bottom:10px' }, conIA
+                ? `Para charlar con ${n.nombre || 'tu planta'}, primero reconozcamos su especie.`
+                : `Decime qué planta cuida ${n.nombre || 'tu Rooti'}: con la especie sabe qué necesita.`),
+              h('button', { class: 'boton azul ancho', type: 'button', onClick: () => alCambiarEspecie(n.id) },
+                icono(conIA ? 'camara' : 'hoja', 20), conIA ? 'Sacarle una foto' : 'Elegir la especie'))
+          : null,
 
     panelMimos,
 
@@ -360,11 +383,13 @@ export function vistaDetalle(ctx) {
 
     n.revelado ? panelBotanica(ctx, n, esp) : null,
 
-    h('section', { class: 'panel' },
-      h('button', { class: 'boton azul ancho', type: 'button', onClick: () => alDiagnosticar(n.id) },
-        icono('lupa', 20), 'Diagnosticar con una foto'),
-      h('p', { class: 'nota', style: 'margin-top:10px' },
-        'Sirve cuando los números están bien y la planta igual se ve mal: hongos, plagas o falta de nutrientes no mueven ningún sensor.')),
+    conIA
+      ? h('section', { class: 'panel' },
+          h('button', { class: 'boton azul ancho', type: 'button', onClick: () => alDiagnosticar(n.id) },
+            icono('lupa', 20), 'Diagnosticar con una foto'),
+          h('p', { class: 'nota', style: 'margin-top:10px' },
+            'Sirve cuando los números están bien y la planta igual se ve mal: hongos, plagas o falta de nutrientes no mueven ningún sensor.'))
+      : null,
 
     n.revelado
       ? h('section', { class: 'panel' },
@@ -374,6 +399,8 @@ export function vistaDetalle(ctx) {
             h('button', { class: 'boton chico', type: 'button', onClick: () => irA('pasaporte', n.id) }, icono('hoja', 16), 'Pasaporte botánico')),
           h('p', { class: 'nota', style: 'margin-top:10px' }, 'Verla crecer foto a foto, y una hoja para imprimir con quién es y cómo estuvo.'))
       : null,
+
+    n.revelado ? panelSensor(ctx, n) : null,
 
     n.revelado ? panelCuidador(ctx, n) : null,
 
@@ -405,7 +432,7 @@ export function vistaDetalle(ctx) {
         ? h('p', {}, h('b', {}, esp.nombre), esp.cientifico ? h('span', { class: 'nota' }, ` · ${esp.cientifico}`) : null)
         : h('p', { class: 'nota' }, 'Sin identificar.'),
       h('button', { class: 'boton chico', type: 'button', style: 'margin-top:10px', onClick: () => alCambiarEspecie(n.id) },
-        icono('camara', 16), esp ? 'Cambiar' : 'Identificar')),
+        icono(conIA ? 'camara' : 'hoja', 16), esp ? 'Cambiar' : conIA ? 'Identificar' : 'Elegir')),
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Tu Rooti'),
@@ -419,7 +446,7 @@ export function vistaDetalle(ctx) {
         h('div', {}, h('dt', {}, 'Batería'), h('dd', {}, n.nodo?.usb ? 'Cargando' : bat === null ? '—' : `${bat} %`)),
         h('div', {}, h('dt', {}, 'Wifi'), h('dd', {}, n.nodo?.rssi ? `${n.nodo.rssi} dBm` : '—')),
         h('div', {}, h('dt', {}, 'Rooti'), h('dd', {}, modelo ? `${modelo.nombre}${n.revelado ? ` · ${modelo.pieles?.find((p) => p.rareza === n.rareza)?.nombre || ''}` : ''}` : '—')),
-        h('div', {}, h('dt', {}, 'Firmware'), h('dd', { class: 'mono' }, n.nodo?.fw || '—')))),
+        h('div', { class: 'dato-ancho' }, h('dt', {}, 'Firmware'), h('dd', {}, textoFirmware(n.nodo))))),
 
     h('button', { class: 'boton peligro ancho', type: 'button', onClick: desvincular }, icono('basura', 18), 'Desvincular'));
 

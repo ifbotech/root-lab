@@ -1,8 +1,20 @@
-/* gamificacion.mjs — el progreso del jardinero, no el de la app.
+/* gamificacion.mjs — la racha de la casa y los logros.
+ *
+ * UNA SOLA PROGRESIÓN
+ *
+ * Hubo XP y niveles ("Jardinero de interior", nivel 5). Se sacaron: el número
+ * salía entero de los días sanos, así que no decía nada que el vínculo no
+ * dijera ya, y eran dos barras para lo mismo. Ahora cada cosa mide una sola:
+ *
+ *   la MASCOTA     lo de hoy: felicidad, polvo, gotas (lib/mascota.mjs)
+ *   el VÍNCULO     lo de meses: días sanos -> etapas -> adornos en la cara
+ *                  (model.mjs, etapaDe; firmware core/vinculo.c)
+ *   la RACHA       la casa entera: días seguidos sin ninguna urgencia
+ *   los LOGROS     hitos del vínculo, de la racha y de la colección
  *
  * LA REGLA QUE DECIDE QUÉ ENTRA ACÁ
  *
- * Se gana XP por cuidar plantas, nunca por usar la app. Abrir la pantalla,
+ * Se premia cuidar plantas, nunca usar la app. Abrir la pantalla,
  * mirar un gráfico o tocar un botón no dan nada. Si dieran, el número
  * mediría enganche en vez de jardinería, y un número que mide enganche
  * termina empujando a la app a pedir atención que no necesita.
@@ -15,82 +27,13 @@
  *   una etapa del vínculo            -> 7, 30, 90, 180 días sanos
  *
  * De ahí sale una consecuencia incómoda y correcta: **no se puede acelerar.**
- * No hay forma de subir de nivel en una tarde. Alguien que quiera el nivel
- * más alto tiene que mantener plantas vivas medio año, que es exactamente lo
- * que el producto quiere que pase.
+ * Alguien que quiera la última etapa tiene que mantener una planta viva
+ * medio año, que es exactamente lo que el producto quiere que pase.
  *
  * Y una que conviene no olvidar: los logros de colección son de OBJETOS que
- * el usuario ya compró, así que no dan XP. Tener las seis carcasas demuestra
- * que gastaste plata, no que sepas regar.
+ * el usuario ya compró. Tener los cinco Rooties demuestra que gastaste plata,
+ * no que sepas regar; por eso van al final de la lista.
  */
-
-/* XP por evento. Los números son chicos a propósito: con un día sano por
- * planta valiendo 10, alguien con tres plantas hace 30 por día, y llegar al
- * último nivel lleva unos siete meses de cuidado sostenido. Esa lentitud es
- * la característica, no un problema de balanceo. */
-export const XP = {
-  DIA_SANO: 10,
-  RESOLVER_URGENTE: 15,
-  RESOLVER_TAREA: 5,
-  ETAPA: 100,
-  RACHA_SEMANA: 25,
-};
-
-/* Los niveles. El salto entre uno y otro crece, pero no exponencialmente:
- * una curva agresiva haría que el último nivel sea inalcanzable y eso deja
- * de motivar cuando se nota. */
-export const NIVELES = [
-  { nivel: 1, desde: 0, titulo: 'Maceta nueva' },
-  { nivel: 2, desde: 150, titulo: 'Regador ocasional' },
-  { nivel: 3, desde: 500, titulo: 'Mano verde' },
-  { nivel: 4, desde: 1200, titulo: 'Jardinero' },
-  { nivel: 5, desde: 2500, titulo: 'Jardinero de interior' },
-  { nivel: 6, desde: 5000, titulo: 'Botánico aficionado' },
-  { nivel: 7, desde: 9000, titulo: 'Sabe lo que hace' },
-];
-
-/**
- * XP total a partir del estado real del kit. Se DERIVA, no se acumula: no hay
- * un contador guardado que se pueda desincronizar ni inflar. Si una planta se
- * muere y se borra, su XP se va con ella, y eso es correcto — el número dice
- * cuánto cuidado hay vivo ahora, no cuánto hubo alguna vez.
- */
-export function xpTotal(nodos) {
-  let xp = 0;
-  for (const n of nodos || []) {
-    const b = n.bond || {};
-    xp += (b.dias_sanos || 0) * XP.DIA_SANO;
-    xp += Math.floor((b.mejor_racha || 0) / 7) * XP.RACHA_SEMANA;
-    xp += etapasAlcanzadas(b.dias_sanos || 0) * XP.ETAPA;
-  }
-  return xp;
-}
-
-/** Cuántos umbrales de etapa superó. Espejo de rk_stage_from_bond. */
-function etapasAlcanzadas(diasSanos) {
-  return [7, 30, 90, 180].filter((u) => diasSanos >= u).length;
-}
-
-/** Nivel, título y progreso hacia el siguiente. */
-export function nivelDe(xp) {
-  const n = Number.isFinite(xp) ? Math.max(0, xp) : 0;
-  let i = 0;
-  while (i + 1 < NIVELES.length && n >= NIVELES[i + 1].desde) i += 1;
-
-  const actual = NIVELES[i];
-  const siguiente = NIVELES[i + 1] || null;
-  const progreso = siguiente
-    ? Math.round(((n - actual.desde) * 100) / (siguiente.desde - actual.desde))
-    : 100;
-
-  return {
-    ...actual,
-    xp: n,
-    siguiente,
-    progreso: Math.min(100, Math.max(0, progreso)),
-    faltan: siguiente ? siguiente.desde - n : 0,
-  };
-}
 
 /**
  * La racha de la casa: días seguidos sin que ninguna planta llegue a urgente.
@@ -147,7 +90,7 @@ export const LOGROS = [
     cumple: (e) => (e.racha?.mejor || 0) >= 30,
   },
   {
-    id: 'brote',
+    id: 'raiz',
     nombre: 'Echó raíz',
     detalle: 'Una planta llega a los 30 días sanos',
     cumple: (e) => e.nodos.some((n) => (n.bond?.dias_sanos || 0) >= 30),
@@ -168,7 +111,7 @@ export const LOGROS = [
     id: 'coleccion',
     nombre: 'Los cinco',
     detalle: 'Tener a Brote, Musgo, Pinchito, Bulbo y Champi',
-    /* No da XP: tenerlos demuestra que compraste figuras, no que sepas regar. */
+    /* Tenerlos demuestra que compraste figuras, no que sepas regar. */
     cumple: (e) => (e.coleccion?.rooties || 0) >= 5,
   },
   {

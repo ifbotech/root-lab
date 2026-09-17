@@ -29,6 +29,8 @@
  * y el sensor en leer el cambio. Si pasado ese rato la planta sigue seca, la
  * tarea vuelve — y volver es correcto, porque significa que el riego no
  * alcanzó. */
+import { aguaEnPalabras } from './riego.mjs';
+
 export const GRACIA_MS = 2 * 60 * 60 * 1000;
 
 /* Urgencias, de más a menos. El orden es el de la lista. */
@@ -86,9 +88,11 @@ export function tareasDe(nodo, especie) {
   switch (n.mood) {
     case 'THIRSTY':
       add('regar', conNombre('Regar', nombre),
-        especie
+        (especie
           ? `La tierra está al ${tel.soil_pct}% y ${especie.nombre} quiere entre ${especie.soil_min} y ${especie.soil_max}%.`
-          : `La tierra está al ${tel.soil_pct}%.`,
+          : `La tierra está al ${tel.soil_pct}%.`)
+          /* Con la maceta cargada, cuánta agua (lib/riego.mjs). */
+          + (n.agua_ml > 0 ? ` Echale unos ${aguaEnPalabras(n.agua_ml)}, despacio.` : ''),
         urgente ? 'urgente' : 'pronto', 'gota');
       break;
 

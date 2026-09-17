@@ -54,7 +54,7 @@ import { vistaSitter } from './vistas/sitter.mjs';
 import { vistaAlbum } from './vistas/album.mjs';
 import { vistaPasaporte } from './vistas/pasaporte.mjs';
 import { vistaInvernadero } from './vistas/invernadero.mjs';
-import { aplicarPaleta } from './lib/tema.mjs';
+import { aplicarPaleta, vigilarNoche } from './lib/tema.mjs';
 import { PALETA_POR_DEFECTO } from './lib/paletas.mjs';
 import { desactivarAvisos } from './lib/dispositivo.mjs';
 
@@ -197,6 +197,20 @@ async function salir() {
   pintar();
 }
 
+/* ----------------------------------------------------------- métricas --- */
+/* Contadores anónimos (server/api.mjs, POST /api/evento): cuántos llegan a
+   cada paso del alta y cuánto se usa cada pantalla. Ni cuenta ni planta; si
+   falla o no hay red, no pasa nada. Cada evento, una vez por sesión de la app. */
+const contados = new Set();
+function contar(evento) {
+  if (contados.has(evento)) return;
+  contados.add(evento);
+  fetch(enBase('api/evento'), {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ evento }), keepalive: true,
+  }).catch(() => {});
+}
+const VISTAS_CONTADAS = new Set(['pasaporte', 'album', 'desk', 'invernadero', 'coleccion', 'chat', 'diagnostico', 'sitter']);
+
 /* --------------------------------------------------------------- alta --- */
 function guardarAlta(cambios) {
   app.alta = { ...(app.alta || {}), ...cambios };
@@ -302,6 +316,7 @@ function contexto() {
     cerrarSesionLocal,
     alChat: (id) => irA('chat', id),
     repintar: () => pintar(),
+    contar,
     alVerificar: () => { if (app.cuenta) recargar(); },
     /* Pinta la app con una paleta, con el círculo que crece desde `origen`. */
     pintarApp: (paleta, origen = null) => aplicarPaleta(paleta, { animar: true, origen }),
@@ -332,9 +347,11 @@ function pintar() {
   const ctx = contexto();
   let vista;
   let sinTabs = false;
+  if (VISTAS_CONTADAS.has(r.vista)) contar(`vista:${r.vista}`);
 
   if (r.codigo || (r.vista === 'alta' && app.alta)) {
     sinTabs = true;
+    contar(`alta:${app.alta?.paso || 'hola'}`);
     if (!app.cuenta && app.alta && PASOS.indexOf(app.alta.paso) > PASOS.indexOf('cuenta')) {
       guardarAlta({ paso: 'cuenta' });
     }
@@ -356,7 +373,10 @@ function pintar() {
       case 'invernadero': vista = vistaInvernadero(ctx); break;
       case 'plantas': vista = vistaPlantas(ctx); break;
       case 'planta': vista = vistaDetalle(ctx); break;
-      case 'diagnostico': vista = vistaDiagnostico(ctx); break;
+      case 'diagnostico':
+        /* Sin una IA de verdad no hay diagnóstico: vuelve a la planta. */
+        vista = app.config?.ia_visible === false ? vistaDetalle(ctx) : vistaDiagnostico(ctx);
+        break;
       case 'especie': vista = vistaEspecie(ctx); break;
       case 'coleccion': vista = vistaColeccion(ctx); break;
       case 'ajustes': vista = vistaAjustes(ctx); break;
@@ -404,8 +424,9 @@ async function refrescar() {
   const antes = app.firma;
   const sinRedAntes = app.sinRed;
   await recargar();
-  /* Tampoco en medio de un mimo: la caricia o la esponja se cortarían. */
-  if (document.querySelector('.cuerpo.mimo, .esponja-capa:not([hidden])')) return;
+  /* Tampoco en medio de un mimo (la caricia o la esponja se cortarían) ni de
+     una calibración (se perdería el paso en el que está). */
+  if (document.querySelector('.cuerpo.mimo, .esponja-capa:not([hidden]), .calibrar-crudo')) return;
   if (firmaTablero(app.estado?.nodes) !== antes || app.sinRed !== sinRedAntes) pintar();
 }
 
@@ -414,7 +435,13 @@ async function inicio() {
   for (const b of document.querySelectorAll('.tab')) {
     b.addEventListener('click', () => irA(b.dataset.vista));
   }
-  window.addEventListener('hashchange', pintar);
+  /* Otra vista arranca desde arriba; la misma (un repintado) no se mueve. */
+  let vistaPrevia = location.hash;
+  window.addEventListener('hashchange', () => {
+    if (location.hash !== vistaPrevia) window.scrollTo(0, 0);
+    vistaPrevia = location.hash;
+    pintar();
+  });
   window.addEventListener('popstate', async () => {
     const r = ruta();
     if (r.codigo) await entrarConCodigo(r.codigo);
@@ -456,6 +483,8 @@ async function inicio() {
   };
   pildoraHora();
   alCambiarHora(() => pildoraHora());
+  /* De día y de noche (lib/tema.mjs): se vuelve a mirar cada minuto. */
+  vigilarNoche();
   window.addEventListener('online', async () => { await sincronizar(); await recargar(); pintar(); });
 
   app.config = await api('/api/config').catch(() => app.config);

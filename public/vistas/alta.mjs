@@ -352,6 +352,8 @@ export function selectorEspecie(ctx, { planta, alGuardar, textoGuardar = 'Es est
   const zona = h('div', { class: 'alta-cuerpo' });
   const pie = h('div', { class: 'alta-pie' });
   const especies = ctx.especies || [];
+  /* Sin una IA de verdad no se ofrece la foto: se elige de la lista. */
+  const conIA = ctx.config?.ia_visible !== false;
 
   const lista = (sugeridas = []) => {
     const sel = h('select', { 'aria-label': 'Especie' },
@@ -362,10 +364,12 @@ export function selectorEspecie(ctx, { planta, alGuardar, textoGuardar = 'Es est
       h('optgroup', { label: 'Todas' },
         [...especies].sort((a, b) => a.nombre.localeCompare(b.nombre)).map((e) => h('option', { value: e.id }, e.nombre))));
     render(zona,
-      h('h1', { class: 'alta-titulo' }, '¿Cuál es?'),
-      h('p', { class: 'alta-texto' }, 'Elegila de la lista. Si no está, elegí la más parecida.'),
+      h('h1', { class: 'alta-titulo' }, conIA ? '¿Cuál es?' : '¿Qué planta cuida?'),
+      h('p', { class: 'alta-texto' }, conIA
+        ? 'Elegila de la lista. Si no está, elegí la más parecida.'
+        : 'Elegila de la lista: con la especie, tu Rooti sabe cuánta agua, luz y calor necesita. Si no está, elegí la más parecida.'),
       sel,
-      campoFoto('Probar con otra foto'));
+      conIA ? campoFoto('Probar con otra foto') : null);
     render(pie, h('button', {
       class: 'boton primario ancho', type: 'button',
       onClick: () => {
@@ -419,6 +423,10 @@ export function selectorEspecie(ctx, { planta, alGuardar, textoGuardar = 'Es est
     }
   }
 
+  if (!conIA) {
+    lista();
+    return [zona, pie];
+  }
   render(zona,
     h('h1', { class: 'alta-titulo' }, 'Presentame a tu planta'),
     h('p', { class: 'alta-texto' },
@@ -451,7 +459,9 @@ function pasoListo(ctx) {
       cuerpo({ persona: ctx.alta.persona, rareza: ctx.alta.rareza || 'comun', animo: 'HAPPY', lado: 200 }),
       h('h1', { class: 'alta-titulo' }, `${nombre} ya te cuida`),
       h('p', { class: 'alta-texto' },
-        'Mirá la cara de tu Rooti: si algo le falta, lo vas a notar. Y si no estás mirando, te aviso acá. Cuando quieras, charlá con ella desde su ficha.')),
+        ctx.config?.ia_visible !== false
+          ? 'Mirá la cara de tu Rooti: si algo le falta, lo vas a notar. Y si no estás mirando, te aviso acá. Cuando quieras, charlá con ella desde su ficha.'
+          : 'Mirá la cara de tu Rooti: si algo le falta, lo vas a notar. Y si no estás mirando, te aviso acá. En su ficha podés mimarlo y calibrar su sensor.')),
     h('div', { class: 'alta-pie' },
       h('button', {
         class: 'boton primario ancho', type: 'button',

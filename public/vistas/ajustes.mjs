@@ -21,14 +21,14 @@
 import { h, render, icono } from '../lib/ui.mjs';
 import { motivoSinAvisos, activarAvisos, avisosActivos } from '../lib/dispositivo.mjs';
 import { paletasDisponibles, PALETA_POR_DEFECTO } from '../lib/paletas.mjs';
-import { progresoColeccion } from '../lib/model.mjs';
 import { estaSilenciado, silenciar, SILENCIO_DESDE, SILENCIO_HASTA } from '../lib/voz.mjs';
+import { MODOS, MODO_ES } from '../lib/reloj.mjs';
+import { modoActual, fijarModo } from '../lib/tema.mjs';
 
 export function vistaAjustes(ctx) {
   const { api, avisar, config, cuenta, estado, coleccion } = ctx;
-  /* Lo que desbloquea las paletas cosméticas: el Rooti secreto y los días
+  /* Lo que desbloquea las paletas cosméticas: una piel épica y los días
      sanos de la planta que más tiene. */
-  const progreso = progresoColeccion(coleccion?.catalogo || [], coleccion?.tengo || []);
   const diasSanos = Math.max(0, ...(estado?.nodes || []).map((n) => n.bond?.dias_sanos || 0));
   const cont = h('div', { class: 'vista' });
   const claveMin = config?.clave_min || 8;
@@ -105,8 +105,24 @@ export function vistaAjustes(ctx) {
     },
     h('span', { class: 'muestras', 'aria-hidden': 'true' }, p.colores.map((c) => h('i', { style: `background:${c.hex}`, title: c.nombre }))),
     h('b', {}, p.nombre),
-    h('small', {}, p.bloqueada ? p.porque : p.rooti ? 'De tu Rooti' : p.requisito ? 'Ganada' : p.estilo ? 'Cosmética' : 'La de ROOTLAB'),
+    h('small', {}, p.bloqueada ? p.porque : p.rooti ? 'De tu Rooti' : p.requisito ? 'Ganada' : p.id === PALETA_POR_DEFECTO ? 'La de ROOTLAB' : 'Siempre de noche'),
     p.bloqueada ? h('span', { class: 'paleta-candado', 'aria-label': 'Bloqueada' }, icono('candado', 16)) : null)));
+
+  /* ------------------------------------------------------------ apariencia --- */
+  /* De día o de noche: es de esta pantalla, no de la cuenta (lib/tema.mjs). */
+  const modos = h('div', { class: 'selector selector-modo', role: 'radiogroup', 'aria-label': 'De día o de noche' },
+    MODOS.map((m) => h('button', {
+      type: 'button', role: 'radio', id: `modo-${m}`,
+      class: m === modoActual() ? 'activo' : '',
+      'aria-checked': m === modoActual() ? 'true' : 'false',
+      onClick: async (ev) => {
+        const boton = ev.currentTarget;
+        [...modos.children].forEach((b) => { b.classList.toggle('activo', b === boton); b.setAttribute('aria-checked', b === boton ? 'true' : 'false'); });
+        await fijarModo(m, { animar: true, origen: boton });
+      },
+    }, { auto: 'Auto', sistema: 'Sistema', dia: 'Día', noche: 'Noche' }[m])));
+  const notaModo = h('p', { class: 'nota', style: 'margin-top:10px' },
+    MODOS.map((m) => `${{ auto: 'Auto', sistema: 'Sistema', dia: 'Día', noche: 'Noche' }[m]}: ${MODO_ES[m].toLowerCase()}`).join(' · '));
 
   /* -------------------------------------------------------------- nombre --- */
   const inputNombre = h('input', { type: 'text', id: 'ajustes-nombre', maxlength: '40', value: cuenta?.nombre || '', autocomplete: 'given-name' });
@@ -205,8 +221,11 @@ export function vistaAjustes(ctx) {
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Paleta'),
-      h('p', { class: 'nota', style: 'margin-bottom:12px' }, 'ROOTLAB se pinta con los colores de tu Rooti cuando sale del cofre. Podés cambiarla cuando quieras.'),
-      paletas),
+      h('p', { class: 'nota', style: 'margin-bottom:12px' }, 'ROOTLAB se pinta con los colores de la piel de tu Rooti cuando sale del cofre. Podés cambiarla cuando quieras.'),
+      paletas,
+      h('h3', { class: 'panel-tit', style: 'margin-top:16px' }, 'De día y de noche'),
+      modos,
+      notaModo),
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Notificaciones'),
@@ -228,7 +247,7 @@ export function vistaAjustes(ctx) {
         : 'Con la ciudad, ROOTLAB mira el pronóstico (Open-Meteo, sin cuenta) y te avisa antes de un día de calor seco. Sólo se manda el nombre de la ciudad, nunca tu ubicación.'),
       h('div', { class: 'con-boton' }, ubicacion, h('button', { class: 'boton chico', type: 'submit' }, 'Guardar'))),
 
-    h('section', { class: 'panel' },
+    config?.ia_visible === false ? null : h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Tu plan'),
       h('div', { class: 'fila-ajuste' },
         h('div', {},
@@ -253,7 +272,7 @@ export function vistaAjustes(ctx) {
       h('h3', { class: 'panel-tit' }, 'Sobre ROOTLAB'),
       h('dl', { class: 'datos' },
         h('div', {}, h('dt', {}, 'Versión'), h('dd', {}, config?.version || '—')),
-        h('div', {}, h('dt', {}, 'Inteligencia'), h('dd', {}, config?.ia === 'claude' ? 'Claude' : 'Simulada'))),
+        h('div', {}, h('dt', {}, 'Inteligencia'), h('dd', {}, config?.ia === 'claude' ? 'Claude' : config?.ia_visible ? 'Simulada (de prueba)' : 'Todavía no disponible'))),
       h('p', { class: 'nota', style: 'margin-top:12px' }, 'Tus datos personales (email, nombre y charlas) se guardan cifrados. Para desvincular un Rooti, entrá a su planta y bajá hasta el final; en el Rooti, mantener apretado el botón 10 segundos lo reinicia por completo.')),
 
     h('section', { class: 'panel' }, zonaBorrar));

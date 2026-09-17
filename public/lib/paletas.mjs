@@ -5,13 +5,23 @@
  * La app se pinta con la piel de tu Rooti. Cada uno de los cinco tiene tres
  * pieles (común, rara, épica) y cada piel es una paleta: cuando abrís el
  * cofre y sale la rareza, la app entera cambia a esos colores. La paleta por
- * defecto es Vibrant Tones, y en Ajustes se puede elegir entre ella, las
- * pieles que ya te salieron y las cosméticas que ganaste.
+ * defecto es ROOTLAB, y en Ajustes se puede elegir entre ella, las pieles que
+ * ya te salieron y las cosméticas (oscuras) que son libres o que ganaste.
+ *
+ * DE DÍA Y DE NOCHE
+ *
+ * La paleta por defecto (ROOTLAB) y las quince pieles son CLARAS, de libro de
+ * cuentos, y cada una trae su versión de NOCHE (`noche`: los mismos colores
+ * con otros roles, sobre fondo profundo). Cuál se ve lo decide lib/tema.mjs
+ * con el modo elegido en Ajustes: de 22 a 8, según el sistema, siempre de
+ * día o siempre de noche. Las cosméticas oscuras (Vibrant Tones, OLED,
+ * Cristal, Solar) son oscuras a toda hora: es su gracia.
  *
  * Las quince pieles salen de public/lib/rooties.mjs, que se genera desde el
  * firmware: la maceta y la app usan exactamente los mismos cuatro colores
  * (fondo, ojos, piel, rubor). Son temas CLAROS, pastel, de libro de
- * cuentos; Vibrant Tones y las cosméticas son oscuros.
+ * cuentos, igual que la de ROOTLAB; Vibrant Tones y las cosméticas son
+ * oscuros.
  *
  * ARTE COMO DATOS
  *
@@ -46,7 +56,7 @@
 
 import { MODELOS, RAREZAS } from './rooties.mjs';
 
-export const PALETA_POR_DEFECTO = 'vibrant';
+export const PALETA_POR_DEFECTO = 'rootlab';
 
 export const RAREZA_ES = { comun: 'común', raro: 'rara', epico: 'épica' };
 
@@ -85,12 +95,54 @@ function paletaDePiel(m, rareza) {
   };
 }
 
+/* Verde, ámbar y rojo que se leen sobre fondo oscuro. */
+const ESTADOS_NOCHE = { bien: '#66bb6a', atencion: '#ffa726', urgente: '#ef5350' };
+
 export const PALETAS = [
+  {
+    id: 'rootlab',
+    nombre: 'ROOTLAB',
+    rooti: null,
+    claro: true,
+    estilo: 'claro',
+    descripcion: 'La de ROOTLAB: papel, hoja y miel, como un libro de cuentos de jardín.',
+    colores: [
+      { nombre: 'Papel', hex: '#f5f8ee', nota: 'El fondo: crema con un dejo de verde.' },
+      { nombre: 'Hoja', hex: '#2f7d3a', nota: 'El botón principal y la marca.' },
+      { nombre: 'Brote tierno', hex: '#cfe3bd', nota: 'Tiñe paneles y bordes.' },
+      { nombre: 'Río', hex: '#2b6f9e', nota: 'Enlaces y foco.' },
+      { nombre: 'Miel', hex: '#e0a526', nota: 'Logros y destacados.' },
+      { nombre: 'Pétalo', hex: '#e2718a', nota: 'El acento: mimos y revelaciones.' },
+    ],
+    roles: {
+      fondo: '#f5f8ee',
+      base: '#cfe3bd',
+      primario: '#2f7d3a',
+      secundario: '#2b6f9e',
+      destacado: '#e0a526',
+      acento: '#e2718a',
+      bien: '#2e7d32',
+      atencion: '#e65100',
+      urgente: '#c62828',
+      datos: { tierra: '#2b6f9e', temperatura: '#e65100', luz: '#e0a526', humedad: '#2f7d3a' },
+    },
+    noche: {
+      base: '#3f6b4a',
+      primario: '#9ccc65',
+      secundario: '#64b5f6',
+      destacado: '#ffd54f',
+      acento: '#f48fb1',
+      bien: '#66bb6a',
+      atencion: '#ffa726',
+      urgente: '#ef5350',
+      datos: { tierra: '#64b5f6', temperatura: '#ffa726', luz: '#ffd54f', humedad: '#9ccc65' },
+    },
+  },
   {
     id: 'vibrant',
     nombre: 'Vibrant Tones',
     rooti: null,
-    descripcion: 'La de ROOTLAB: jugosa, cálida y con verdes de huerta.',
+    descripcion: 'La primera de ROOTLAB: nocturna, jugosa y con verdes de huerta.',
     colores: [
       { nombre: 'Strawberry Red', hex: '#f94144', nota: 'Jugoso y vibrante, como frutillas recién cortadas.' },
       { nombre: 'Pumpkin Spice', hex: '#f3722c', nota: 'Audaz y especiado, cálido de otoño.' },
@@ -337,6 +389,30 @@ function lleno(color) {
 export function temaDesdePaleta(paleta) {
   const pal = paleta || paletaPorId(PALETA_POR_DEFECTO);
   return pal.claro ? temaClaro(pal.roles) : temaOscuro(pal.roles);
+}
+
+/* De noche, en una piel, los roles se dan vuelta: la piel (pastel) es el
+ * botón que brilla sobre el fondo profundo, teñido con el color de los ojos. */
+function rolesDeNoche(pal) {
+  if (pal.noche) return pal.noche;
+  if (!pal.claro) return null;
+  const [, ojos, piel, rubor] = pal.colores.map((c) => c.hex);
+  return {
+    base: mezclar(ojos, piel, 0.35),
+    primario: piel,
+    secundario: mezclar(piel, '#ffffff', 0.35),
+    destacado: rubor,
+    acento: rubor,
+    ...ESTADOS_NOCHE,
+    datos: { tierra: mezclar(piel, '#ffffff', 0.2), temperatura: '#ffa726', luz: '#ffe082', humedad: rubor },
+  };
+}
+
+/** La misma paleta de noche. Las oscuras no cambian: ya lo son. */
+export function temaNocheDePaleta(paleta) {
+  const pal = paleta || paletaPorId(PALETA_POR_DEFECTO);
+  const roles = rolesDeNoche(pal);
+  return roles ? temaOscuro(roles) : temaDesdePaleta(pal);
 }
 
 const ROLES_LLENOS = ['primario', 'secundario', 'destacado', 'acento', 'bien', 'atencion', 'urgente'];

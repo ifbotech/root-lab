@@ -187,6 +187,12 @@ export function vistaChat(ctx) {
   (async () => {
     try {
       const r = await api(`/api/plantas/${n.id}/chat`);
+      if (!r.disponible && r.motivo === 'ia') {
+        render(cont, cabecera, h('section', { class: 'panel vacio' },
+          h('p', {}, `La charla con ${nombre} todavía no está disponible. Mientras tanto, su cara y sus tareas te dicen todo lo que necesita.`),
+          h('button', { class: 'boton', type: 'button', onClick: volver }, 'Volver')));
+        return;
+      }
       if (!r.disponible) {
         render(cont, cabecera, h('section', { class: 'panel vacio' },
           h('p', {}, `Para charlar, primero conozcamos a ${nombre}: sacale una foto y reconozco su especie.`),

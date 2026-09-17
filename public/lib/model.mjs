@@ -37,11 +37,12 @@ export const LINK_ES = {
 };
 
 /* Las cinco etapas del vínculo, en el mismo orden que rk_stage_t. */
-export const ETAPAS = ['ESPORA', 'BROTE', 'JOVEN', 'MADURO', 'ANCESTRAL'];
+/* "RETONO" y no "BROTE": Brote es uno de los cinco Rooties. */
+export const ETAPAS = ['ESPORA', 'RETONO', 'JOVEN', 'MADURO', 'ANCESTRAL'];
 
 export const ETAPA_ES = {
   ESPORA: 'espora',
-  BROTE: 'brote',
+  RETONO: 'retoño',
   JOVEN: 'joven',
   MADURO: 'maduro',
   ANCESTRAL: 'ancestral',

@@ -24,12 +24,30 @@
  * mimos y gotas de rocío (POST /api/d/demo, que sólo acepta a la placa
  * "emulador"), y enlaces directos a cada pantalla de la planta. Muestra al
  * Rooti entero como lo dibuja la app (lib/cuerpo.mjs).
+ *
+ * ACTUALIZARSE POR AIRE
+ *
+ * Cuando el sync ofrece un firmware (publicado para la placa "emulador"), el
+ * emulador hace lo mismo que la placa (root-kit, esp32/ota.cpp): lo baja con
+ * su token, calcula el SHA-256, verifica la firma ECDSA P-256 con la clave
+ * pública del servidor (WebCrypto) y recién entonces "reinicia" con la
+ * versión nueva y se lo cuenta a la nube. Un binario mal firmado no se
+ * instala, acá tampoco.
+ *
+ * CALIBRAR
+ *
+ * Con "Sensor sin calibrar", el capacitivo virtual da un crudo corrido (como
+ * uno de verdad con otra tierra): el porcentaje sale mal hasta que se calibra
+ * desde la app, y la calibración que manda la nube lo corrige.
  */
 import { cargarCaras, escribirEntrada, leerTexto, ANIMOS, indiceRareza } from '../lib/caras.mjs';
 import { enBase } from '../lib/base.mjs';
 import { MODELOS, RAREZAS, pielDe, modeloPorId } from '../lib/rooties.mjs';
 import { cuerpo } from '../lib/cuerpo.mjs';
 import { horaDePrueba, fijarHoraDePrueba } from '../lib/reloj.mjs';
+import { porcentajeDeCrudo, CAL_POR_DEFECTO } from '../lib/riego.mjs';
+
+const FW_DE_FABRICA = '0.6.0';
 
 const EV = { TICK: 0, WIFI_GUARDADO: 1, WIFI_OK: 2, WIFI_FALLO: 3, NUBE_OK: 4, NUBE_FALLO: 5, BOTON_LARGO: 6 };
 const ESTADOS = ['SIN_WIFI', 'CONECTANDO', 'SIN_VINCULO', 'ESPERA_COFRE', 'DESPERTANDO', 'ACTIVO'];
@@ -65,6 +83,7 @@ function identidad() {
   }
   /* Un aparato de antes de los cinco Rooties se vuelve Brote. */
   if (!PERSONAS.includes(yo.persona)) yo.persona = 'brote';
+  if (!yo.fw) yo.fw = FW_DE_FABRICA;
   yo.arranques += 1;
   escribir('yo', yo);
   return yo;
@@ -80,7 +99,7 @@ const config = await fetch(enBase('api/config')).then((r) => r.json()).catch(() 
 
 let yo = identidad();
 let nvs = leer('nvs', { epoca: 0, wifi: false, vinculado: false, revelado: false, rareza: 'comun' });
-const NUBE_VACIA = { persona: '', rareza: 'comun', planta: null, especie: null, nombre: '', dias_sanos: 0, brillo: 80 };
+const NUBE_VACIA = { persona: '', rareza: 'comun', planta: null, especie: null, nombre: '', dias_sanos: 0, brillo: 80, calibracion: null };
 let nube = { ...NUBE_VACIA, ...leer('nube', {}) };
 const inicioMs = Date.now();
 let relojBase = leer('reloj', 0);
@@ -93,6 +112,9 @@ let ultimoReloj = -1;
 let proxima = 0;
 let enCurso = false;
 let transmitir = true;
+let calibrando = false;
+/* La actualización por aire: { version, estado, pct, motivo }. */
+let ota = leer('ota', null);
 
 function cargarSecreto() {
   const mem = new Uint8Array(x.memory.buffer, x.secreto(), 16);
@@ -144,9 +166,22 @@ $('c-cortar').addEventListener('change', (e) => {
 
 /* ------------------------------------------------------------- sensores --- */
 const luxDe = (v) => Math.round(10 ** (v / 1000 * 5) - 1);   /* 0..100000, logarítmico */
+/* El capacitivo virtual: de la humedad "de verdad" (el deslizador) a un número
+   crudo, y de ahí al porcentaje con la calibración vigente, como nodo/soil.c.
+   Sin calibrar, el sensor está corrido: lee de menos hasta que se calibra. */
+function crudoDe(humedad) {
+  return $('c-sin-calibrar').checked ? Math.round(2950 - humedad * 15.5) : Math.round(CAL_POR_DEFECTO.seco - humedad * 14.7);
+}
+function sueloMedido(humedad) {
+  const pct = porcentajeDeCrudo(crudoDe(humedad), nube.calibracion || CAL_POR_DEFECTO);
+  return pct === null ? humedad : pct;
+}
+
 function lecturaActual() {
+  const humedad = Number($('r-suelo').value);
   return {
-    suelo: Number($('r-suelo').value),
+    suelo: sueloMedido(humedad),
+    suelo_raw: crudoDe(humedad),
     temp: Number($('r-temp').value),
     hr: Number($('r-hr').value),
     lux: luxDe(Number($('r-lux').value)),
@@ -157,13 +192,13 @@ function lecturaActual() {
 }
 function pintarValores() {
   const l = lecturaActual();
-  $('v-suelo').textContent = `${l.suelo} %`;
+  $('v-suelo').textContent = `${l.suelo} % · crudo ${l.suelo_raw}`;
   $('v-temp').textContent = `${(l.temp / 10).toFixed(1)} °C`;
   $('v-hr').textContent = `${l.hr} %`;
   $('v-lux').textContent = l.lux >= 1000 ? `${(l.lux / 1000).toFixed(1)} mil lux` : `${l.lux} lux`;
   $('v-bat').textContent = l.usb ? 'enchufado' : `${(l.bat / 1000).toFixed(2)} V`;
 }
-for (const id of ['r-suelo', 'r-temp', 'r-hr', 'r-lux', 'r-bat', 'c-usb', 'c-falla-aire']) {
+for (const id of ['r-suelo', 'r-temp', 'r-hr', 'r-lux', 'r-bat', 'c-usb', 'c-falla-aire', 'c-sin-calibrar']) {
   $(id).addEventListener('input', () => { pintarValores(); medir(); });
 }
 pintarValores();
@@ -189,7 +224,7 @@ function medir() {
   if (!(l.fallas & 1) && x.riego_paso) x.riego_paso(l.suelo, reloj());
   const escurre = Boolean(x.riego_escurre && x.riego_escurre(reloj()));
   const r = {
-    reloj: reloj(), suelo: l.suelo, suelo_raw: 2650 - l.suelo * 14, lux: l.lux, usb: l.usb,
+    reloj: reloj(), suelo: l.suelo, suelo_raw: l.suelo_raw, lux: l.lux, usb: l.usb,
     animo: ANIMOS[animo], sev: SEV[sev], fallas: l.fallas | (escurre ? 16 : 0),
     ...(escurre ? { escurre: true } : {}),
   };
@@ -204,6 +239,8 @@ function medir() {
 $('b-medir').addEventListener('click', medir);
 $('b-regar').addEventListener('click', () => { $('r-suelo').value = '62'; pintarValores(); medir(); });
 setInterval(medir, 20000);
+/* Con la app calibrando, la placa mide y cuenta cada pocos segundos. */
+setInterval(() => { if (calibrando) medir(); }, 5000);
 medir();
 
 /* ---------------------------------------------------------------- nube ----- */
@@ -224,7 +261,8 @@ async function sincronizar() {
   const l = lecturaActual();
   const lote = pendientes.slice(0, 20);
   const cuerpo = {
-    id: yo.id, fw: '0.5.0-emulador', placa: 'emulador', pantalla: $('s-panel').value === '128' ? 'st7735-128' : 'ili9341-240x320',
+    id: yo.id, fw: yo.fw, placa: 'emulador', pantalla: 'st7735-128',
+    ...(ota ? { ota: { version: ota.version, estado: ota.estado } } : {}),
     persona: yo.persona, estado, epoca: x.enlace_epoca(),
     ...(x.enlace_codigo() ? { codigo } : {}),
     reloj: reloj(), rssi: -55, usb: l.usb, bat_mv: l.bat, arranques: yo.arranques,
@@ -257,7 +295,19 @@ async function sincronizar() {
       }
       if (j.vinculo) nube.dias_sanos = j.vinculo.dias_sanos;
       nube.brillo = j.brillo || 80;
+      /* La calibración que se hizo desde la app corrige el porcentaje. */
+      const cal = j.calibracion || null;
+      if (JSON.stringify(cal) !== JSON.stringify(nube.calibracion || null)) {
+        nube.calibracion = cal;
+        pintarValores();
+        medir();
+      }
     }
+    if (Boolean(j.calibrando) !== calibrando) {
+      calibrando = Boolean(j.calibrando);
+      if (calibrando) medir();
+    }
+    if (j.firmware) actualizar(j.firmware);
     pendientes.splice(0, Math.min(j.aceptadas || 0, lote.length));
     escribir('pendientes', pendientes);
     transmitir = pendientes.length > 0;
@@ -267,7 +317,68 @@ async function sincronizar() {
     x.enlace_evento(EV.NUBE_FALLO, 0, 0, ahora());
   } finally {
     enCurso = false;
-    proxima = ahora() + (consulta > 0 ? consulta : 15000);
+    proxima = ahora() + (calibrando ? 3000 : consulta > 0 ? consulta : 15000);
+  }
+}
+
+/* ------------------------------------------------- actualización por aire --- */
+/* DER de ECDSA (lo que firma Node y verifica mbedTLS) -> r||s (lo que pide WebCrypto). */
+function derARaw(der) {
+  let p = 2 + (der[1] & 0x80 ? der[1] & 0x7f : 0);
+  const entero = () => {
+    if (der[p] !== 0x02) throw new Error('firma DER inválida');
+    const n = der[p + 1];
+    let v = der.slice(p + 2, p + 2 + n);
+    p += 2 + n;
+    while (v.length > 32 && v[0] === 0) v = v.slice(1);
+    const out = new Uint8Array(32);
+    out.set(v, 32 - v.length);
+    return out;
+  };
+  const r = entero();
+  const s2 = entero();
+  const raw = new Uint8Array(64);
+  raw.set(r, 0);
+  raw.set(s2, 32);
+  return raw;
+}
+const deBase64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
+let actualizando = false;
+async function actualizar(f) {
+  if (actualizando || f.version === yo.fw) return;
+  if (ota && ota.version === f.version && ota.estado === 'fallo' && (ota.intentos || 0) >= 3) return;   /* como RK_OTA_INTENTOS_MAX */
+  actualizando = true;
+  const intentos = (ota && ota.version === f.version ? ota.intentos || 0 : 0) + 1;
+  const poner = (estado, extra = {}) => { ota = { version: f.version, estado, intentos, ...extra }; escribir('ota', ota); pintarProbar(); };
+  poner('bajando', { pct: 0 });
+  transmitir = true;
+  try {
+    /* Mismo origen que el emulador (la URL pública puede ser otra en desarrollo). */
+    const r = await fetch(enBase(`api/d/firmware/${String(f.url).split('/').pop()}`), { headers: { authorization: `Bearer ${token}` } });
+    if (!r.ok) throw new Error(r.status === 401 ? 'no autorizado' : 'descarga');
+    const bin = new Uint8Array(await r.arrayBuffer());
+    if (bin.length !== f.tamano) throw new Error('tamano');
+    poner('bajando', { pct: 60 });
+    const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bin))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    if (hash !== f.sha256) throw new Error('hash');
+    if (!config.firmware_publica) throw new Error('sin clave publica');
+    const pem = config.firmware_publica.replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, '');
+    const clave = await crypto.subtle.importKey('spki', deBase64(pem), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const firmaOk = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, clave, derARaw(deBase64(f.firma)), bin);
+    if (!firmaOk) throw new Error('firma');
+    poner('verificando', { pct: 100 });
+    await new Promise((ok) => setTimeout(ok, 1200));           /* "reinicia" */
+    yo.fw = f.version;
+    yo.arranques += 1;
+    escribir('yo', yo);
+    poner('ok');
+  } catch (e) {
+    poner('fallo', { motivo: e.message });
+  } finally {
+    actualizando = false;
+    transmitir = true;
+    proxima = 0;
   }
 }
 
@@ -281,7 +392,7 @@ $('b-reset').addEventListener('click', () => {
 });
 $('b-nuevo').addEventListener('click', () => {
   if (!confirm('¿Borrar la identidad de este aparato virtual y empezar de cero?')) return;
-  for (const k of ['yo', 'nvs', 'nube', 'pendientes', 'reloj']) localStorage.removeItem(P + k);
+  for (const k of ['yo', 'nvs', 'nube', 'pendientes', 'reloj', 'ota']) localStorage.removeItem(P + k);
   location.reload();
 });
 $('s-persona').addEventListener('change', (e) => {
@@ -290,13 +401,6 @@ $('s-persona').addEventListener('change', (e) => {
   pintarProbar();
 });
 $('b-abrir').addEventListener('click', () => window.open(enBase(`v/${codigo}`), '_blank', 'noopener'));
-$('s-panel').addEventListener('change', (e) => {
-  const chico = e.target.value === '128';
-  const c = $('pantalla');
-  c.width = chico ? 128 : 240;
-  c.height = chico ? 128 : 320;
-  $('carcasa').classList.toggle('chica', chico);
-});
 
 /* --------------------------------------------------------------- bucle ----- */
 let animoPantalla = null;
@@ -430,6 +534,10 @@ function pintarProbar() {
     vista.actualizar({ animo: ANIMOS[animo], noche });
   }
   const mo = modeloPorId(personaId);
+  $('d-fw').textContent = !ota || ota.estado === 'ok' ? `${yo.fw}${ota ? ' · actualizado por aire' : ''}`
+    : ota.estado === 'fallo' ? `${yo.fw} · la ${ota.version} falló (${ota.motivo || '?'}), intento ${ota.intentos}/3`
+      : `${yo.fw} · ${ota.estado} ${ota.version}${ota.pct ? ` ${ota.pct} %` : ''}`;
+  $('d-cal').textContent = `${nube.calibracion ? `seco ${nube.calibracion.seco} · mojado ${nube.calibracion.mojado}` : 'de fábrica'}${calibrando ? ' · la app está calibrando' : ''}`;
   $('d-piel').textContent = revelado ? `${pielDe(personaId, nvs.rareza)?.nombre || '—'} (${nvs.rareza})` : 'sin cofre';
   $('vista-leyenda').textContent = revelado
     ? `${mo?.nombre}: piel ${pielDe(personaId, rareza)?.nombre}${$('s-piel').value ? ' (sólo acá, para ver)' : ''}`
