@@ -10,10 +10,10 @@ documentada en [root-kit/docs/firmware.md](https://github.com/ifbotech/root-kit/
 | Rooti | Silueta | Personalidad (chat y voz) | Cara |
 |---|---|---|---|
 | **Brote** | semilla redonda con dos hojitas arriba | curiosa y entusiasta | ojos redondos enormes con brillos de cachorro, sin cejas |
-| **Musgo** | domo bajo y ancho, con matas de musgo en relieve | serena y zen | ojos en medialuna, entrecerrados |
-| **Pinchito** | cactus columnar con una flor arriba y un brazo que saluda | hiperactiva y alegre | ojos en arco, felices |
-| **Bulbo** | cebolla en forma de gota, con un collar de pétalos | soñadora y un poco mágica | ojos grandes con reflejo de estrella |
-| **Champi** | hongo: sombrero con manchas sobre un tallo | glotona y charlatana | cejas flotantes, boca con dientecito |
+| **Musgo** | domo bajo y ancho, con matas de musgo en relieve | serena y zen | ojos en medialuna "u u", boca de gato |
+| **Pinchito** | cactus columnar con una flor arriba y un brazo que saluda | hiperactiva y alegre | ojos en arco "^ ^" que guiñan, sonrisa con dientecito |
+| **Bulbo** | cebolla en forma de gota, con un collar de pétalos | soñadora y un poco mágica | ojos grandes con doble brillo, cejas flotantes |
+| **Champi** | hongo: sombrero con manchas sobre un tallo | glotona y charlatana | cejas finas, boca ":D" con lengua, pecas |
 
 La tabla de datos es una sola: `root-kit/firmware/core/persona.c`.
 `npm run firmware` la copia a `public/lib/rooties.mjs` (nombres, lemas y
