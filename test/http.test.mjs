@@ -15,12 +15,13 @@ import { crearServidorHttp, normalizarBase, quitarBase } from '../server/http.mj
 import { crearApi } from '../server/api.mjs';
 import { abrirBase } from '../server/db.mjs';
 import { crearIA } from '../server/ia.mjs';
+import { patron } from '../server/registro.mjs';
 
 const RAIZ = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
-function levantar(base) {
+function levantar(base, registro = null) {
   const api = crearApi({ db: abrirBase(), ia: crearIA({ clave: '' }), version: 'prueba' });
-  const servidor = crearServidorHttp({ api, raiz: RAIZ, base });
+  const servidor = crearServidorHttp({ api, raiz: RAIZ, base, registro });
   return new Promise((ok) => {
     servidor.listen(0, '127.0.0.1', () => ok({ servidor, url: `http://127.0.0.1:${servidor.address().port}` }));
   });
@@ -207,6 +208,27 @@ describe('servidor en /rootkit', () => {
       assert.ok([400, 403, 404].includes(r.status), `${intento} -> ${r.status}`);
     }
     assert.equal((await pedir(`${s.url}/rootkit/nada.js`)).status, 404);
+  });
+});
+
+describe('lo que queda escrito', () => {
+  test('la ruta se anota sin la base: detrás del proxy todo llega con /rootkit adelante', async () => {
+    const anotados = [];
+    const s = await levantar('/rootkit', { anotar: (x) => anotados.push(x) });
+    try {
+      await pedir(`${s.url}/rootkit/api/config`);
+      await pedir(`${s.url}/rootkit/style.css`);
+      await pedir(`${s.url}/api/salud`, { method: 'GET' });
+      /* El evento 'finish' llega después de la respuesta. */
+      await new Promise((ok) => setTimeout(ok, 120));
+      const rutas = anotados.map((a) => patron(a.ruta));
+      assert.ok(rutas.includes('/api/config'), `anotó ${rutas.join(', ')}`);
+      assert.ok(rutas.includes('/api/salud'));
+      assert.ok(rutas.includes('estático'), 'la hoja de estilos sí es estática');
+      assert.ok(anotados.every((a) => Number.isFinite(a.ms) && a.codigo >= 100));
+    } finally {
+      s.servidor.close();
+    }
   });
 });
 

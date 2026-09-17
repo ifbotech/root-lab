@@ -78,6 +78,16 @@ describe('qué se anota', () => {
     assert.match(lineas[0], /lento 21000 ms/, 'veintiuno ya no');
   });
 
+  test('un 503 de la IA apagada no es una falla del servidor', () => {
+    /* Con la IA apagada, las rutas de IA contestan 503 a propósito: llenar el
+       journal de "error 503" esconde los errores de verdad. */
+    const { r, lineas } = nuevo();
+    r.anotar({ metodo: 'POST', ruta: '/api/plantas/p1/identificar', codigo: 503, ms: 1 });
+    assert.deepEqual(lineas, []);
+    r.anotar({ metodo: 'GET', ruta: '/api/estado', codigo: 503, ms: 1 });
+    assert.match(lineas[0], /error 503 · GET \/api\/estado/, 'un 503 en otra ruta sí');
+  });
+
   test('un 404 no merece su propia línea, pero se cuenta', () => {
     const { r, lineas } = nuevo();
     r.anotar({ metodo: 'GET', ruta: '/api/nada', codigo: 404, ms: 1 });

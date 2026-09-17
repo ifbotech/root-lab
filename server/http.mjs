@@ -208,10 +208,14 @@ export function crearServidorHttp({ api, raiz, base = '', registro = null }) {
 
   return createServer(async (req, res) => {
     for (const [k, v] of Object.entries(CABECERAS_SEGURIDAD)) res.setHeader(k, v);
+    /* La ruta que se anota es la que queda DESPUÉS de sacar la base: detrás
+       del proxy todo llega como /rootkit/api/..., y sin esto la API entera se
+       anotaba como "estático". Se lee al terminar, cuando ya se calculó. */
+    let rutaAnotada = req.url;
     if (registro) {
       const empezo = Date.now();
       res.once('finish', () => registro.anotar({
-        metodo: req.method, ruta: req.url, codigo: res.statusCode, ms: Date.now() - empezo,
+        metodo: req.method, ruta: rutaAnotada, codigo: res.statusCode, ms: Date.now() - empezo,
       }));
     }
 
@@ -223,6 +227,7 @@ export function crearServidorHttp({ api, raiz, base = '', registro = null }) {
       return;
     }
     const ruta = quitarBase(url.pathname, BASE);
+    if (ruta !== null) rutaAnotada = ruta;
     if (ruta === null) {
       res.writeHead(301, { location: `${BASE}/${url.search}` }).end();
       return;

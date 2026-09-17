@@ -12,7 +12,9 @@
  * la app relee el tablero cada quince segundos. Se anota sólo lo que alguien
  * querría leer:
  *
- *   - los errores del servidor (5xx), siempre;
+ *   - los errores del servidor (5xx), siempre; menos el `503` con el que las
+ *     rutas de IA contestan cuando la IA está apagada, que es la respuesta
+ *     correcta y no una falla;
  *   - los `429`, que dicen que alguien está golpeando una puerta;
  *   - lo que tardó más de lo que debería (con más paciencia para lo que
  *     llama a la IA, que tarda segundos por diseño);
@@ -95,7 +97,10 @@ export function crearRegistro({
       tiempos.push(ms);
       if (!masLento || ms > masLento.ms) masLento = { metodo, ruta: forma, ms };
 
-      if (codigo >= 500) escribir(`error ${codigo} · ${metodo} ${forma} · ${ms} ms`);
+      /* Un 503 en una ruta de IA no es una falla del servidor: es la
+         respuesta que se da cuando la IA está apagada (docs/ia.md). */
+      const esperado503 = codigo === 503 && esDeIA(forma);
+      if (codigo >= 500 && !esperado503) escribir(`error ${codigo} · ${metodo} ${forma} · ${ms} ms`);
       else if (codigo === 429) escribir(`freno 429 · ${metodo} ${forma}`);
       else if (ms >= (esDeIA(forma) ? lentoIA : lento)) escribir(`lento ${ms} ms · ${metodo} ${forma} · ${codigo}`);
 
