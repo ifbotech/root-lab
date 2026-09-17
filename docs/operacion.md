@@ -60,6 +60,12 @@ minutos con tráfico, un renglón de resumen:
 1240 pedidos en 600 s · 2xx 1230, 4xx 9, 5xx 1 · mediana 3 ms, p95 48 ms · el más lento: POST /api/plantas/:id/chat 4200 ms
 ```
 
+Los `3xx` del resumen son las revalidaciones que vuelven vacías (`304`): con
+la app abierta suelen ser más de la mitad de los pedidos. Y si la IA está
+apagada, cada intento de usarla suma un `5xx` a la cuenta —es un `503`, el que
+corresponde— pero no escribe una línea de error: es la respuesta correcta, no
+una falla.
+
 Una línea por pedido sería ruido —cada aparato habla cada quince minutos y
 cada app relee el tablero cada quince segundos— y además una base de datos de
 quién hizo qué. **Nunca entran IPs, emails ni ids**: la ruta se anota por su
