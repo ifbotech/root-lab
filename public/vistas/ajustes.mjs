@@ -218,12 +218,17 @@ export function vistaAjustes(ctx) {
             h('span', {}, 'Confirmá tu email: así podés recuperar la contraseña.'), reenviar)
         : null),
 
+    /* El día y la noche se tocan seguido: quedan a la vista. Las veinte
+       paletas se eligen una vez cada tanto: van plegadas, con la puesta al
+       lado del título. */
+    h('section', { class: 'panel' },
+      h('h3', { class: 'panel-tit' }, 'De día y de noche'),
+      modos,
+      notaModo),
+
     seccion('ajustes-paleta', 'Paleta', [
       h('p', { class: 'nota' }, 'ROOTLAB se pinta con los colores de la piel de tu Rooti cuando sale del cofre. Podés cambiarla cuando quieras.'),
       paletas,
-      h('h3', { class: 'panel-tit', style: 'margin:6px 0 0' }, 'De día y de noche'),
-      modos,
-      notaModo,
     ], { resumen: paletaPorId(cuenta?.paleta)?.nombre || '' }),
 
     h('section', { class: 'panel' },
