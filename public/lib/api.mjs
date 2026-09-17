@@ -31,6 +31,20 @@ const CACHEABLES = /^\/api\/(estado|config|cuenta|coleccion|especies|plantas\/[A
 
 const leer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 
+/* PREGUNTAR SI CAMBIÓ, EN VEZ DE BAJARLO DE NUEVO
+ *
+ * El tablero se relee cada quince segundos y casi nunca cambia. El servidor
+ * manda con cada lectura una etiqueta (`ETag`) y acá se guarda junto con la
+ * respuesta; la próxima vez la etiqueta viaja en `If-None-Match` y, si sigue
+ * valiendo, la respuesta es un `304` vacío y se reusa lo que ya estaba.
+ *
+ * Vive en memoria y sólo mientras la app está abierta: en el disco del
+ * teléfono no queda nada (las respuestas siguen siendo `no-store`). El texto
+ * se guarda sin interpretar y se vuelve a interpretar en cada `304`, así dos
+ * pantallas nunca comparten el mismo objeto sin querer. */
+const etags = new Map();
+const TOPE_ETAGS = 40;
+
 export const tokenGuardado = () => leer(CLAVE);
 export const guardarToken = (t) => { try { localStorage.setItem(CLAVE, t); } catch { /* privado */ } };
 export const borrarToken = () => {
@@ -38,6 +52,7 @@ export const borrarToken = () => {
   /* Lo guardado es de esa cuenta: no queda para la siguiente. */
   almacen().vaciar('get:');
   almacen().borrar(CLAVE_COLA);
+  etags.clear();
 };
 
 export class ErrorApi extends Error {
@@ -59,6 +74,7 @@ export const colaPendiente = () => pendientes;
 const avisarCola = (cola) => { pendientes = cola.length; oyentes.forEach((f) => f(pendientes)); };
 
 async function pedir(ruta, { metodo, cuerpo, token }) {
+  const previo = metodo === 'GET' ? etags.get(ruta) : null;
   let r;
   try {
     r = await fetch(enBase(ruta), {
@@ -66,15 +82,28 @@ async function pedir(ruta, { metodo, cuerpo, token }) {
       headers: {
         ...(cuerpo !== undefined ? { 'content-type': 'application/json' } : {}),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(previo ? { 'if-none-match': previo.etag } : {}),
       },
       body: cuerpo !== undefined ? JSON.stringify(cuerpo) : undefined,
     });
   } catch {
     throw new ErrorApi(0, 'Sin conexión');
   }
+  if (r.status === 304 && previo) return JSON.parse(previo.texto);
   if (r.status === 204) return null;
-  const datos = await r.json().catch(() => ({}));
-  if (!r.ok) throw new ErrorApi(r.status, datos.error || `Error ${r.status}`);
+  const texto = await r.text().catch(() => '');
+  let datos;
+  try { datos = texto ? JSON.parse(texto) : {}; } catch { datos = {}; }
+  if (!r.ok) {
+    /* Una etiqueta vieja no puede dejar a la app clavada en un error. */
+    etags.delete(ruta);
+    throw new ErrorApi(r.status, datos.error || `Error ${r.status}`);
+  }
+  const etag = r.headers.get('etag');
+  if (metodo === 'GET' && etag && texto) {
+    if (etags.size >= TOPE_ETAGS && !etags.has(ruta)) etags.clear();
+    etags.set(ruta, { etag, texto });
+  }
   return datos;
 }
 

@@ -150,6 +150,57 @@ describe('servidor en /rootkit', () => {
     assert.equal(fuente.headers.get('content-type'), 'font/woff2');
   });
 
+  test('el texto viaja comprimido, y lo que ya viene comprimido no', async () => {
+    const crudo = await pedir(`${s.url}/rootkit/style.css`, { headers: { 'accept-encoding': 'identity' } });
+    const bytes = Number(crudo.headers.get('content-length'));
+    assert.ok(bytes > 10000, `la hoja de estilos mide ${bytes}`);
+    assert.equal(crudo.headers.get('content-encoding'), null, 'quien no lo pide, no lo recibe');
+
+    for (const [acepta, espera] of [['gzip, deflate, br', 'br'], ['gzip', 'gzip']]) {
+      const r = await pedir(`${s.url}/rootkit/style.css`, { headers: { 'accept-encoding': acepta } });
+      assert.equal(r.headers.get('content-encoding'), espera, acepta);
+      assert.equal(r.headers.get('vary'), 'accept-encoding');
+      assert.ok(Number(r.headers.get('content-length')) < bytes / 2, 'al menos a la mitad');
+      /* fetch lo descomprime solo: tiene que llegar la hoja entera. */
+      assert.match(await r.text(), /:root\s*\{/);
+    }
+
+    const png = await pedir(`${s.url}/rootkit/caras/brote-comun-HAPPY.png`, { headers: { 'accept-encoding': 'br, gzip' } });
+    assert.equal(png.status, 200);
+    assert.equal(png.headers.get('content-encoding'), null, 'un PNG ya está comprimido');
+
+    const api = await pedir(`${s.url}/rootkit/api/config`, { headers: { 'accept-encoding': 'br' } });
+    assert.equal(api.headers.get('cache-control'), 'no-store', 'la API no se guarda en el disco');
+  });
+
+  test('lo que el navegador ya tiene vuelve como 304, sin cuerpo', async () => {
+    for (const ruta of ['/rootkit/', '/rootkit/style.css', '/rootkit/manifest.webmanifest', '/rootkit/api/config']) {
+      const uno = await pedir(`${s.url}${ruta}`);
+      const etag = uno.headers.get('etag');
+      assert.match(etag || '', /^"[0-9a-f]+-[0-9a-f]{16}"$/, `${ruta} sin etiqueta`);
+
+      const dos = await pedir(`${s.url}${ruta}`, { headers: { 'if-none-match': etag } });
+      assert.equal(dos.status, 304, ruta);
+      assert.equal(dos.headers.get('etag'), etag);
+      assert.equal(await dos.text(), '', 'un 304 no trae cuerpo');
+
+      const otra = await pedir(`${s.url}${ruta}`, { headers: { 'if-none-match': '"nada"' } });
+      assert.equal(otra.status, 200, `${ruta} con una etiqueta vieja`);
+    }
+  });
+
+  test('la etiqueta sigue al contenido, no a cómo se pidió', async () => {
+    const br = await pedir(`${s.url}/rootkit/app.js`, { headers: { 'accept-encoding': 'br' } });
+    const gz = await pedir(`${s.url}/rootkit/app.js`, { headers: { 'accept-encoding': 'gzip' } });
+    const sin = await pedir(`${s.url}/rootkit/app.js`, { headers: { 'accept-encoding': 'identity' } });
+    assert.equal(br.headers.get('etag'), gz.headers.get('etag'));
+    assert.equal(br.headers.get('etag'), sin.headers.get('etag'));
+    /* Y el manifest, que se arma por pedido, cambia con el código del QR. */
+    const m1 = await pedir(`${s.url}/rootkit/manifest.webmanifest`);
+    const m2 = await pedir(`${s.url}/rootkit/manifest.webmanifest?codigo=K7Q2M9XA`);
+    assert.notEqual(m1.headers.get('etag'), m2.headers.get('etag'));
+  });
+
   test('no se sale de la carpeta pública', async () => {
     for (const intento of ['/rootkit/../package.json', '/rootkit/%2e%2e/server/api.mjs', '/rootkit/..%2f..%2fpackage.json']) {
       const r = await pedir(`${s.url}${intento}`);

@@ -19,6 +19,8 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 
+import { crearCacheComprimidos, elegirCodificacion, etagDe, coincide, seComprime } from './estatico.mjs';
+
 export const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -116,15 +118,51 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
   const BASE = normalizarBase(base);
   const PUBLICO = join(raiz, 'public');
   const EMULADOR = join(raiz, 'emulador');
+  const comprimidos = crearCacheComprimidos();
 
-  async function pagina(res, archivo) {
-    const html = (await readFile(archivo, 'utf8'))
-      .replace('<base href="/">', `<base href="${BASE}/">`);
-    res.writeHead(200, { 'content-type': MIME['.html'], 'cache-control': 'no-cache' });
-    res.end(html);
+  /**
+   * Manda un cuerpo con su etiqueta y, si el cliente entiende, comprimido.
+   *
+   * La etiqueta sale del cuerpo sin comprimir, así que no depende de con qué
+   * se comprimió; y es la clave de la caché de comprimidos, así que dos
+   * respuestas iguales se comprimen una sola vez. Si el navegador dice que ya
+   * tiene esa etiqueta, se va con `304` y sin cuerpo.
+   */
+  function responder(req, res, { codigo = 200, tipo, datos, cache, firma }) {
+    const buf = Buffer.isBuffer(datos) ? datos : Buffer.from(String(datos), 'utf8');
+    /* Casi siempre la etiqueta es el cuerpo mismo. Una ruta que sabe qué de
+       su respuesta es "lo mismo" aunque los bytes cambien manda su firma. */
+    const etag = etagDe(firma === undefined ? buf : firma);
+    const cabeceras = { 'content-type': tipo, 'cache-control': cache, etag };
+    const leyendo = req.method === 'GET' || req.method === 'HEAD';
+
+    if (leyendo && codigo === 200 && coincide(req.headers['if-none-match'], etag)) {
+      if (seComprime(tipo)) cabeceras.vary = 'accept-encoding';
+      res.writeHead(304, cabeceras).end();
+      return;
+    }
+    let cuerpo = buf;
+    if (seComprime(tipo)) {
+      cabeceras.vary = 'accept-encoding';
+      const codificacion = elegirCodificacion(req.headers['accept-encoding']);
+      const comprimido = comprimidos.obtener(etag, buf, codificacion);
+      if (comprimido) {
+        cuerpo = comprimido;
+        cabeceras['content-encoding'] = codificacion;
+      }
+    }
+    cabeceras['content-length'] = cuerpo.length;
+    res.writeHead(codigo, cabeceras);
+    res.end(req.method === 'HEAD' ? undefined : cuerpo);
   }
 
-  async function archivo(res, dir, ruta) {
+  async function pagina(req, res, archivo) {
+    const html = (await readFile(archivo, 'utf8'))
+      .replace('<base href="/">', `<base href="${BASE}/">`);
+    responder(req, res, { tipo: MIME['.html'], datos: html, cache: 'no-cache' });
+  }
+
+  async function archivo(req, res, dir, ruta) {
     let limpia;
     try {
       limpia = normalize(decodeURIComponent(ruta)).replace(/^([/\\]*\.\.[/\\])+/, '');
@@ -144,13 +182,14 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
         return;
       }
       const datos = await readFile(destino);
-      res.writeHead(200, {
-        'content-type': MIME[extname(destino)] || 'application/octet-stream',
+      responder(req, res, {
+        tipo: MIME[extname(destino)] || 'application/octet-stream',
+        datos,
         /* El service worker maneja el caché del armazón; el navegador siempre
-           revalida, así una versión nueva llega en la próxima carga. */
-        'cache-control': ['.png', '.woff2'].includes(extname(destino)) ? 'public, max-age=604800' : 'no-cache',
+           revalida, y con la etiqueta esa revalidación termina en un `304`
+           vacío en vez de bajar el archivo de nuevo. */
+        cache: ['.png', '.woff2'].includes(extname(destino)) ? 'public, max-age=604800' : 'no-cache',
       });
-      res.end(datos);
     } catch {
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('no encontrado');
     }
@@ -160,12 +199,11 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
      el ícono de inicio abre directo en ese código. En iPhone la app instalada
      no comparte almacenamiento con Safari, y así no pierde el hilo. Las rutas
      son relativas al manifest, así que funcionan con cualquier base. */
-  async function manifest(res, url) {
+  async function manifest(req, res, url) {
     const m = JSON.parse(await readFile(join(PUBLICO, 'manifest.webmanifest'), 'utf8'));
     const codigo = String(url.searchParams.get('codigo') || '').toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 8);
     if (codigo.length === 8) m.start_url = `v/${codigo}`;
-    res.writeHead(200, { 'content-type': MIME['.webmanifest'], 'cache-control': 'no-cache' });
-    res.end(JSON.stringify(m));
+    responder(req, res, { tipo: MIME['.webmanifest'], datos: JSON.stringify(m), cache: 'no-cache' });
   }
 
   return createServer(async (req, res) => {
@@ -187,7 +225,7 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
     try {
       if (ruta.startsWith('/api/')) {
         const cuerpo = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) ? await leerCuerpo(req) : null;
-        const [codigo, respuesta] = await api.manejar({
+        const [codigo, respuesta, pistas] = await api.manejar({
           metodo: req.method,
           ruta,
           query: Object.fromEntries(url.searchParams),
@@ -209,27 +247,32 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
           res.end(respuesta.binario);
           return;
         }
-        res.writeHead(codigo, { 'content-type': MIME['.json'], 'cache-control': 'no-store' });
-        res.end(JSON.stringify(respuesta));
+        /* La API sigue con `no-store`: el navegador no guarda nada en disco.
+           La etiqueta igual viaja, y la app la repite a mano en la próxima
+           lectura (public/lib/api.mjs): el tablero que no cambió vuelve como
+           un `304` vacío en vez de todo el JSON, cada quince segundos. */
+        responder(req, res, {
+          codigo, tipo: MIME['.json'], datos: JSON.stringify(respuesta), cache: 'no-store', firma: pistas?.firma,
+        });
         return;
       }
       /* /v/<código> (el QR), /desk/<id> (el modo escritorio) y
          /sitter/<token> (el cuidador) son la app. */
       if (ruta === '/' || ruta === '/index.html' || /^\/(v|desk|sitter)\/[^/]+\/?$/i.test(ruta)) {
-        return await pagina(res, join(PUBLICO, 'index.html'));
+        return await pagina(req, res, join(PUBLICO, 'index.html'));
       }
-      if (ruta === '/manifest.webmanifest') return await manifest(res, url);
+      if (ruta === '/manifest.webmanifest') return await manifest(req, res, url);
       if (/^\/emulador\/?$/i.test(ruta)) {
         if (!ruta.endsWith('/')) {
           res.writeHead(301, { location: `${BASE}/emulador/` }).end();
           return;
         }
-        return await pagina(res, join(EMULADOR, 'index.html'));
+        return await pagina(req, res, join(EMULADOR, 'index.html'));
       }
       if (ruta.toLowerCase().startsWith('/emulador/')) {
-        return await archivo(res, EMULADOR, ruta.slice('/emulador'.length));
+        return await archivo(req, res, EMULADOR, ruta.slice('/emulador'.length));
       }
-      return await archivo(res, PUBLICO, ruta);
+      return await archivo(req, res, PUBLICO, ruta);
     } catch (e) {
       res.writeHead(e.codigo || 500, { 'content-type': MIME['.json'] })
         .end(JSON.stringify({ error: e.message }));

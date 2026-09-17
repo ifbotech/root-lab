@@ -63,6 +63,20 @@ Todas con `Authorization: Bearer <token de sesión>`, salvo las marcadas. Sin
 sesión (o con una vencida) responden `401`, y cada una ve sólo las plantas de
 su cuenta: pedir la planta de otra cuenta da `404`, igual que si no existiera.
 
+**Preguntar si cambió.** Cada lectura vuelve con su `ETag` y con
+`Cache-Control: no-store` (nada queda en el disco del teléfono). Repitiendo
+esa etiqueta en `If-None-Match`, una respuesta que no cambió es un `304` sin
+cuerpo. La app lo hace sola, guardando la última en memoria
+(`public/lib/api.mjs`).
+
+En `/api/estado` la etiqueta no sale de los bytes sino de una **firma** que
+mide la edad de la lectura como la muestra la pantalla ("hace 3 min") en vez
+de en segundos: si no, cada consulta sería distinta y nunca habría un `304`.
+El cuerpo, cuando llega, trae los segundos exactos como siempre.
+
+**Comprimido.** Lo que pasa de 1 KB sale con brotli o gzip si el cliente lo
+acepta (`Accept-Encoding`), con `Vary: accept-encoding`.
+
 ### Cuenta
 
 | | |
@@ -117,7 +131,7 @@ no hace falta regalar intentos.
 
 | | |
 |---|---|
-| `GET /api/estado` | `{ cuenta, nodes, especies, coleccion, avisos, hora }` |
+| `GET /api/estado` | `{ cuenta, nodes, especies, coleccion, avisos }`. Lo que lee el tablero cada 15 s; si nada cambió, `304` (ver abajo) |
 | `GET /api/plantas/:id` | la planta |
 | `PATCH /api/plantas/:id` | `{ nombre?, especie?, pantalla?, brillo?, calibracion?, maceta? }`. Con la especie nace la ficha de cuidados; con nombre y especie, el prompt del chat. `calibracion: { seco, mojado }` (o `null` para volver a la de fábrica; `400` con el motivo si no sirve) y `maceta: { diametro_cm, alto_cm? }` (o `null`): ver [riego.md](riego.md) |
 | `POST /api/plantas/:id/calibrar` | `{ activo? }`: abre (o cierra, con `false`) la ventana de 10 minutos en la que el Rooti mide y cuenta cada 5 s → la planta |

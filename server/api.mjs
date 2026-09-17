@@ -19,7 +19,10 @@
  *
  * `manejar()` recibe un pedido ya parseado y devuelve [código, cuerpo]. Así
  * los tests recorren el flujo completo —de la primera consulta del aparato
- * a la notificación de sed— sin abrir un socket.
+ * a la notificación de sed— sin abrir un socket. Una ruta puede agregar un
+ * tercer valor, `{ firma }`: lo que de esa respuesta se considera "lo mismo"
+ * aunque los bytes cambien (server/http.mjs lo convierte en la etiqueta del
+ * `304`).
  *
  * Dónde está cada cosa:
  *
@@ -73,6 +76,7 @@ import { normalizarEmail } from './db.mjs';
 import { diaLocal, TZ_POR_DEFECTO } from './tiempo.mjs';
 import * as plantillas from './plantillas-correo.mjs';
 import { PALETA_POR_DEFECTO, paletaPorId, paletaDeRooti, cumpleRequisito } from '../public/lib/paletas.mjs';
+import { firmaTablero } from '../public/lib/model.mjs';
 
 export { diaLocal, normalizarEmail };
 
@@ -1231,14 +1235,20 @@ export function crearApi({
       const cuenta = cuentaDe(headers);
       const plantas = db.plantasDe(cuenta.id);
       const propias = plantas.map((p) => p.especie).filter((e) => e && !especiePorId(e.id));
-      return [200, {
+      const tablero = {
         cuenta: cuentaPublica(cuenta),
         nodes: plantas.map((p) => nodoDe(p, t)),
         especies: [...ESPECIES, ...propias],
         coleccion: coleccionDe(cuenta),
         avisos: db.suscripciones(cuenta.id).length,
-        hora: t,
-      }];
+      };
+      /* El tablero se relee cada quince segundos y casi nunca cambia. Lo que
+         cambia siempre es el tiempo: la edad de la lectura en segundos y la
+         espera de la caricia. La firma los mide como los mide la pantalla
+         ("hace 3 min", "está esperando o no"), la misma regla con la que la
+         app decide si repinta (public/lib/model.mjs): así una lectura igual
+         vuelve como un `304` vacío en vez de once kilobytes. */
+      return [200, tablero, { firma: firmaTablero(tablero.nodes) + JSON.stringify([tablero.cuenta, tablero.especies, tablero.coleccion, tablero.avisos]) }];
     }
 
     if ((m = ruta.match(/^\/api\/plantas\/([A-Za-z0-9]+)$/))) {
