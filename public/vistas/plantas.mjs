@@ -9,10 +9,10 @@
  * sobre una barra que marca "esta especie quiere entre 25 y 60" se lee sin
  * pensar.
  */
-import { h, render, icono, medidor, progreso } from '../lib/ui.mjs';
+import { h, render, icono, medidor, progreso, botonVolver, seccion } from '../lib/ui.mjs';
 import {
   MOOD_ES, LINK_ES, ETAPA_ES, formatTemp, formatLux, formatEdad,
-  ordenarNodos, etapaDe, progresoEtapa, bateriaDe,
+  ordenarNodos, etapaDe, progresoEtapa, bateriaDe, energiaDe,
 } from '../lib/model.mjs';
 import { caraDeNodo } from './hoy.mjs';
 import { token } from '../lib/tema.mjs';
@@ -96,7 +96,7 @@ function fila(n, esp, alAbrir) {
         t.soil_pct !== null ? dato('gota', `${t.soil_pct} %`, n.mood === 'THIRSTY' || n.mood === 'DROWNING') : null,
         t.temp_dc !== null ? dato('termometro', formatTemp(t.temp_dc), n.mood === 'COLD' || n.mood === 'HOT') : null,
         t.lux !== null ? dato('sol', formatLux(t.lux), n.mood === 'DARK' || n.mood === 'SCORCHED') : null,
-        n.nodo?.usb ? dato('enchufe', 'cargando') : bat !== null ? dato('pila', `${bat} %`, bat < 15) : null),
+        t.usb ? dato('enchufe', t.batt_mv > 0 ? 'cargando' : 'enchufado') : bat !== null ? dato('pila', `${bat} %`, bat < 15) : null),
       h('div', { class: 'planta-pie' },
         h('span', { class: `enlace-${(n.link || '').toLowerCase()}` }, LINK_ES[n.link] || '—'),
         h('span', {}, formatEdad(t.age_s)))));
@@ -227,9 +227,8 @@ function panelCuidador(ctx, n) {
   const reciente = enlacesRecientes.get(n.id);
   if (reciente && Date.now() - reciente.t < ENLACE_RECUERDO_MS) mostrar(reciente.r);
 
-  return h('section', { class: 'panel' },
-    h('h3', { class: 'panel-tit' }, 'Cuidador'),
-    h('p', { class: 'nota', style: 'margin-bottom:10px' }, `¿Te vas unos días? Compartí un enlace: quien cuide a ${n.nombre || 'tu planta'} ve su cara, qué necesita y cómo se riega, sin instalar nada, y puede anotar "ya regué".`),
+  return seccion('planta-cuidador', 'Cuidador', [
+    h('p', { class: 'nota' }, `¿Te vas unos días? Compartí un enlace: quien cuide a ${n.nombre || 'tu planta'} ve su cara, qué necesita y cómo se riega, sin instalar nada, y puede anotar "ya regué".`),
     h('div', { class: 'campo' }, nombre),
     h('div', { class: 'fila-botones' }, CUIDADOR_DIAS.map((d) => h('button', {
       class: 'boton chico', type: 'button',
@@ -238,7 +237,8 @@ function panelCuidador(ctx, n) {
       },
     }, `${d} días`))),
     zonaEnlace,
-    lista);
+    lista,
+  ]);
 }
 
 /* ----------------------------------------------------------- detalle --- */
@@ -342,7 +342,7 @@ export function vistaDetalle(ctx) {
 
   render(cont,
     h('header', { class: 'vista-cab' },
-      h('button', { class: 'boton chico', type: 'button', onClick: volver }, '‹'),
+      botonVolver(volver),
       h('h2', {}, ''),
       h('button', { class: 'boton chico', type: 'button', onClick: renombrar }, 'Renombrar')),
 
@@ -369,19 +369,10 @@ export function vistaDetalle(ctx) {
       h('h3', { class: 'panel-tit' }, 'Ahora'),
       medidores(n, esp)),
 
-    n.revelado
-      ? h('section', { class: 'panel' },
-          h('button', { class: 'boton ancho', type: 'button', onClick: () => irA('desk', n.id) },
-            icono('pantalla', 20), 'Modo escritorio'),
-          h('p', { class: 'nota', style: 'margin-top:10px' },
-            'La cara sola, a pantalla completa y sin que se apague: para un teléfono apoyado en el escritorio. Se deja acariciar.'))
-      : null,
 
     h('section', { class: 'panel' },
       h('div', { class: 'vinculo-cab' }, h('h3', { class: 'panel-tit', style: 'margin:0' }, 'Últimas horas'), selector),
       zonaGrafico),
-
-    n.revelado ? panelBotanica(ctx, n, esp) : null,
 
     conIA
       ? h('section', { class: 'panel' },
@@ -391,64 +382,77 @@ export function vistaDetalle(ctx) {
             'Sirve cuando los números están bien y la planta igual se ve mal: hongos, plagas o falta de nutrientes no mueven ningún sensor.'))
       : null,
 
-    n.revelado
-      ? h('section', { class: 'panel' },
-          h('h3', { class: 'panel-tit' }, 'Recuerdos'),
-          h('div', { class: 'fila-botones' },
-            h('button', { class: 'boton chico', type: 'button', onClick: () => irA('album', n.id) }, icono('camara', 16), 'Álbum de fotos'),
-            h('button', { class: 'boton chico', type: 'button', onClick: () => irA('pasaporte', n.id) }, icono('hoja', 16), 'Pasaporte botánico')),
-          h('p', { class: 'nota', style: 'margin-top:10px' }, 'Verla crecer foto a foto, y una hoja para imprimir con quién es y cómo estuvo.'))
-      : null,
+    /* De acá para abajo, lo que se toca una vez y después se deja: cada cosa
+       en su sección plegada, con lo importante escrito al costado del título.
+       La ficha pasó de cuatro pantallas de scroll a una. */
+    seccion('planta-especie', 'La planta', [
+      esp
+        ? h('p', {}, h('b', {}, esp.nombre),
+            esp.cientifico && esp.cientifico.toLowerCase() !== esp.nombre.toLowerCase()
+              ? h('span', { class: 'nota' }, ` · ${esp.cientifico}`)
+              : null)
+        : h('p', { class: 'nota' }, 'Sin identificar.'),
+      n.ficha
+        ? h('dl', { class: 'cuidados' },
+            Object.entries(n.ficha.cuidados || {})
+              .sort(([a], [b]) => Object.keys(CUIDADO_ES).indexOf(a) - Object.keys(CUIDADO_ES).indexOf(b))
+              .map(([k, v]) => h('div', { class: 'cuidado' }, h('dt', {}, CUIDADO_ES[k] || k), h('dd', {}, v))))
+        : null,
+      n.ficha?.fuente === 'ia'
+        ? h('p', { class: 'nota' }, 'Los rangos son del catálogo de ROOTLAB; el resto lo sumó la IA al reconocerla.')
+        : null,
+      h('div', { class: 'fila-botones' },
+        h('button', { class: 'boton chico', type: 'button', onClick: () => alCambiarEspecie(n.id) },
+          icono(conIA ? 'camara' : 'hoja', 16), esp ? 'Cambiar la especie' : conIA ? 'Identificar' : 'Elegir la especie')),
+    ], { abierta: !esp, resumen: esp ? (n.ficha ? `cuidados · ${n.ficha.dificultad}` : 'sin cuidados') : 'sin identificar' }),
 
     n.revelado ? panelSensor(ctx, n) : null,
 
-    n.revelado ? panelCuidador(ctx, n) : null,
-
-    h('section', { class: 'panel' },
-      h('h3', { class: 'panel-tit' }, 'Vínculo'),
+    seccion('planta-vinculo', 'Vínculo', [
       h('div', { class: 'vinculo-cab' },
         h('span', { class: 'etapa-grande' }, ETAPA_ES[etapa] || etapa),
         h('span', { class: 'vinculo-dias' }, `${sanos} días sanos`)),
       progreso(progresoEtapa(sanos)),
       h('dl', { class: 'datos' },
         h('div', {}, h('dt', {}, 'Racha'), h('dd', {}, `${n.bond?.racha ?? 0} días`)),
-        h('div', {}, h('dt', {}, 'Mejor racha'), h('dd', {}, `${n.bond?.mejor_racha ?? 0} días`)))),
+        h('div', {}, h('dt', {}, 'Mejor racha'), h('dd', {}, `${n.bond?.mejor_racha ?? 0} días`))),
+    ], { resumen: `${ETAPA_ES[etapa] || etapa} · ${sanos} d` }),
 
-    n.ficha
-      ? h('section', { class: 'panel' },
-          h('h3', { class: 'panel-tit' }, `Cuidados · ${n.ficha.dificultad}`),
-          h('dl', { class: 'cuidados' },
-            Object.entries(n.ficha.cuidados || {})
-              .sort(([a], [b]) => Object.keys(CUIDADO_ES).indexOf(a) - Object.keys(CUIDADO_ES).indexOf(b))
-              .map(([k, v]) => h('div', { class: 'cuidado' }, h('dt', {}, CUIDADO_ES[k] || k), h('dd', {}, v)))),
-          n.ficha.fuente === 'ia'
-            ? h('p', { class: 'nota', style: 'margin-top:10px' }, 'Los rangos son del catálogo de ROOTLAB; el resto lo sumó la IA al reconocerla.')
-            : null)
+    n.revelado
+      ? seccion('planta-recuerdos', 'Recuerdos', [
+          h('p', { class: 'nota' }, 'Verla crecer foto a foto, y una hoja para imprimir con quién es y cómo estuvo.'),
+          h('div', { class: 'fila-botones' },
+            h('button', { class: 'boton chico', type: 'button', onClick: () => irA('album', n.id) }, icono('camara', 16), 'Álbum de fotos'),
+            h('button', { class: 'boton chico', type: 'button', onClick: () => irA('pasaporte', n.id) }, icono('hoja', 16), 'Pasaporte botánico')),
+        ], { resumen: 'álbum y pasaporte' })
       : null,
 
-    h('section', { class: 'panel' },
-      h('h3', { class: 'panel-tit' }, 'Especie'),
-      esp
-        ? h('p', {}, h('b', {}, esp.nombre), esp.cientifico ? h('span', { class: 'nota' }, ` · ${esp.cientifico}`) : null)
-        : h('p', { class: 'nota' }, 'Sin identificar.'),
-      h('button', { class: 'boton chico', type: 'button', style: 'margin-top:10px', onClick: () => alCambiarEspecie(n.id) },
-        icono(conIA ? 'camara' : 'hoja', 16), esp ? 'Cambiar' : conIA ? 'Identificar' : 'Elegir')),
+    n.revelado ? panelCuidador(ctx, n) : null,
 
-    h('section', { class: 'panel' },
-      h('h3', { class: 'panel-tit' }, 'Tu Rooti'),
+    n.revelado ? panelBotanica(ctx, n, esp) : null,
+
+    seccion('planta-aparato', 'Tu Rooti', [
       h('div', { class: 'fila-ajuste' },
         h('label', { for: siempre.id }, h('b', {}, 'Pantalla siempre encendida'),
           h('span', {}, 'A batería se apaga a los 20 s y se prende al tocarla. Siempre encendida dura días, no meses.')),
         h('span', { class: 'interruptor' }, siempre, h('i'))),
       h('div', { class: 'fila-ajuste', style: 'flex-direction:column;align-items:stretch' },
         h('label', { for: brillo.id }, h('b', {}, 'Brillo')), brillo),
+      n.revelado
+        ? h('div', {},
+            h('button', { class: 'boton ancho', type: 'button', onClick: () => irA('desk', n.id) },
+              icono('pantalla', 20), 'Modo escritorio'),
+            h('p', { class: 'nota', style: 'margin-top:10px' },
+              'La cara sola, a pantalla completa y sin que se apague: para un teléfono apoyado en el escritorio. Se deja acariciar.'))
+        : null,
       h('dl', { class: 'datos' },
-        h('div', {}, h('dt', {}, 'Batería'), h('dd', {}, n.nodo?.usb ? 'Cargando' : bat === null ? '—' : `${bat} %`)),
+        h('div', {}, h('dt', {}, 'Energía'), h('dd', {}, energiaDe(n.tel, bat))),
         h('div', {}, h('dt', {}, 'Wifi'), h('dd', {}, n.nodo?.rssi ? `${n.nodo.rssi} dBm` : '—')),
         h('div', {}, h('dt', {}, 'Rooti'), h('dd', {}, modelo ? `${modelo.nombre}${n.revelado ? ` · ${modelo.pieles?.find((p) => p.rareza === n.rareza)?.nombre || ''}` : ''}` : '—')),
-        h('div', { class: 'dato-ancho' }, h('dt', {}, 'Firmware'), h('dd', {}, textoFirmware(n.nodo))))),
-
-    h('button', { class: 'boton peligro ancho', type: 'button', onClick: desvincular }, icono('basura', 18), 'Desvincular'));
+        h('div', { class: 'dato-ancho' }, h('dt', {}, 'Firmware'), h('dd', {}, textoFirmware(n.nodo)))),
+      h('button', { class: 'boton peligro ancho', type: 'button', onClick: desvincular }, icono('basura', 18), 'Desvincular'),
+    ], { resumen: energiaDe(n.tel, bat) }),
+  );
 
   return cont;
 }

@@ -7,7 +7,7 @@
  * rango que usan los demás números, y se cargan al abrir la pestaña, no
  * antes: la mayoría no la abre.
  */
-import { h, render, medidor } from '../lib/ui.mjs';
+import { h, render, medidor, seccion } from '../lib/ui.mjs';
 import { vpd, zonaVpd, dliHoyYAyer, dliObjetivo, juicioDli } from '../lib/botanica.mjs';
 
 const ESTADO_VPD = { 'muy-bajo': 'urgente', bajo: 'atencion', ideal: 'ok', alto: 'atencion', 'muy-alto': 'urgente' };
@@ -78,13 +78,12 @@ function bloquePrevision(r, irA) {
    la lee. */
 const abiertas = new Set();
 
-/** La pestaña, plegada. Se llena al abrirla. */
+/** La sección, plegada. Se llena al abrirla. */
 export function panelBotanica(ctx, n, esp) {
   const { api, irA } = ctx;
   const cuerpo = h('div', { class: 'botanica' }, h('p', { class: 'nota' }, 'Calculando…'));
-  const det = h('details', { class: 'panel avanzado', open: abiertas.has(n.id) },
-    h('summary', {}, h('span', { class: 'panel-tit' }, 'Avanzado · Botánica'), h('span', { class: 'nota' }, 'VPD, DLI y previsión de riego')),
-    cuerpo);
+  const det = seccion('planta-botanica', 'Botánica', cuerpo,
+    { abierta: abiertas.has(n.id), resumen: 'VPD, DLI y riego' });
   let cargado = false;
   const cargar = async () => {
     if (cargado) return;

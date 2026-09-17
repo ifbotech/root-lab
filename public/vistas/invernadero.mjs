@@ -9,7 +9,7 @@
  * Las miradas son función del tiempo; acá sólo se le pasan a cada lienzo
  * cuatro veces por segundo (lib/caras.mjs las suaviza).
  */
-import { h, render, icono } from '../lib/ui.mjs';
+import { h, render, icono, botonVolver } from '../lib/ui.mjs';
 import { MOOD_ES } from '../lib/model.mjs';
 import { miradaDe } from '../lib/miradas.mjs';
 import { cuerpoDeNodo } from './mascota.mjs';
@@ -51,7 +51,7 @@ export function vistaInvernadero(ctx) {
   const preocupados = nodos.filter((n) => n.revelado && ['THIRSTY', 'COLD', 'DROWNING'].includes(n.mood));
   render(cont,
     h('header', { class: 'vista-cab' },
-      h('button', { class: 'boton chico', type: 'button', onClick: volver }, '‹'),
+      botonVolver(volver),
       h('h2', {}, 'El invernadero')),
     h('div', { class: 'estante-marco' },
       h('div', { class: 'estante', role: 'list' }, macetas),

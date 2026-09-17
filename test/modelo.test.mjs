@@ -9,7 +9,7 @@ import {
   formatTemp, formatLux, formatEdad, battPct, ordenarNodos, contarAlertas,
   LINK_ES, ETAPAS, ETAPA_DIAS, etapaDe, progresoEtapa, bateriaDe,
   RAREZAS, progresoColeccion, ordenarColeccion, firmaTablero,
-  posicionEnRango, validarAlta, interpretarIdentificacion, MOOD_ES,
+  posicionEnRango, validarAlta, interpretarIdentificacion, MOOD_ES, energiaDe,
 } from '../public/lib/model.mjs';
 
 import { ESPECIES, MODELOS } from '../server/catalogo.mjs';
@@ -247,6 +247,17 @@ describe('vinculo y crecimiento', () => {
     assert.equal(bateriaDe({ tel: { batt_mv: 0 } }), null,
       'sin lectura todavia es null, no 0%');
     assert.equal(bateriaDe(null), null);
+  });
+
+  test('enchufado sin celda no es "cargando"', () => {
+    /* El Rooti de escritorio no tiene batería: decía "Cargando" para siempre. */
+    assert.equal(energiaDe({ usb: true, batt_mv: 0 }, null), 'Enchufado');
+    assert.equal(energiaDe({ usb: true, batt_mv: null }, null), 'Enchufado');
+    assert.equal(energiaDe({ usb: true, batt_mv: 4050 }, null), 'Cargando');
+    assert.equal(energiaDe({ usb: false, batt_mv: 3700 }, 55), '55 %');
+    assert.equal(energiaDe({ usb: false, batt_mv: 0 }, null), '—', 'todavía no sé');
+    assert.equal(energiaDe(null, null), '—');
+    assert.equal(energiaDe({ usb: false }, 0), '0 %', 'vacía es un dato, no un "no sé"');
   });
 
   test('el orden de la lista no mira la carcasa', () => {

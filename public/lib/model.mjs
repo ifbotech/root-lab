@@ -188,6 +188,23 @@ export function bateriaDe(nodo) {
 }
 
 /**
+ * De dónde saca la energía, en palabras.
+ *
+ * Enchufado con una celda puesta se está cargando; enchufado sin celda —el
+ * Rooti de escritorio, el del banco de pruebas— está enchufado y nada más.
+ * Antes decía "Cargando" en los dos casos, y en uno era mentira. Sin USB, lo
+ * que queda de la celda.
+ *
+ * `nodo` es el `tel` de la planta (tiene `usb` y `batt_mv`); `pct` es lo que
+ * devuelve `bateriaDe`, que el servidor no calcula mientras carga porque la
+ * tensión de una celda cargando no dice cuánto le queda.
+ */
+export function energiaDe(tel, pct) {
+  if (tel?.usb) return Number.isFinite(tel?.batt_mv) && tel.batt_mv > 0 ? 'Cargando' : 'Enchufado';
+  return Number.isFinite(pct) ? `${pct} %` : '—';
+}
+
+/**
  * Cómo va la colección de pieles: cinco Rooties por tres rarezas. `rooties`
  * cuenta de cuántos Rooties tenés al menos una piel (eso depende de las
  * figuras que tengas) y `epicas`, las épicas (eso, del azar del cofre).

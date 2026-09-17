@@ -14,7 +14,7 @@
  * Las fotos de reconocer y diagnosticar entran solas al álbum: la primera
  * foto de una planta suele ser esa.
  */
-import { h, render, icono } from '../lib/ui.mjs';
+import { h, render, icono, botonVolver } from '../lib/ui.mjs';
 import { prepararFoto } from '../lib/dispositivo.mjs';
 import { tokenGuardado } from '../lib/api.mjs';
 import { enBase } from '../lib/base.mjs';
@@ -228,7 +228,7 @@ export function vistaAlbum(ctx) {
 
   render(cont,
     h('header', { class: 'vista-cab' },
-      h('button', { class: 'boton chico', type: 'button', onClick: volver }, '‹'),
+      botonVolver(volver),
       h('h2', {}, `Álbum de ${nombre}`)),
     acciones, elegir, zona, grilla,
     h('p', { class: 'nota' }, `Hasta ${maximo} fotos por planta. Las de reconocer y diagnosticar entran solas.`));

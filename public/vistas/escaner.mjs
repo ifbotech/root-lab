@@ -11,7 +11,7 @@
  * AGREGAR: vincular otro Rooti tipeando el código que muestra debajo de
  * su QR. Escanear el QR con la cámara del teléfono lleva al mismo lugar.
  */
-import { h, render, icono } from '../lib/ui.mjs';
+import { h, render, icono, botonVolver } from '../lib/ui.mjs';
 import { diagnosticar, HALLAZGO_ES } from '../lib/diagnostico.mjs';
 import { prepararFoto } from '../lib/dispositivo.mjs';
 import { selectorEspecie } from './alta.mjs';
@@ -63,7 +63,7 @@ export function vistaDiagnostico(ctx) {
 
   render(cont,
     h('header', { class: 'vista-cab' },
-      h('button', { class: 'boton chico', type: 'button', onClick: volver }, '‹'),
+      botonVolver(volver),
       h('h2', {}, `Diagnóstico de ${n.nombre || 'tu planta'}`)),
     h('section', { class: 'panel' },
       h('p', { class: 'nota', style: 'margin-bottom:12px' },
@@ -86,7 +86,7 @@ export function vistaEspecie(ctx) {
     return cont;
   }
   render(cont,
-    h('header', { class: 'vista-cab' }, h('button', { class: 'boton chico', type: 'button', onClick: volver }, '‹')),
+    h('header', { class: 'vista-cab' }, botonVolver(volver)),
     selectorEspecie({ ...ctx, alta: { nombre: n.nombre } }, {
       planta: n.id,
       textoGuardar: 'Guardar',
@@ -124,7 +124,7 @@ export function vistaAgregar(ctx) {
   };
   const cont = h('div', { class: 'alta' });
   render(cont,
-    h('header', { class: 'vista-cab' }, h('button', { class: 'boton chico', type: 'button', onClick: volver }, '‹')),
+    h('header', { class: 'vista-cab' }, botonVolver(volver)),
     h('form', { class: 'alta-cuerpo', onSubmit: seguir },
       h('h1', { class: 'alta-titulo' }, 'Agregar un Rooti'),
       h('p', { class: 'alta-texto' },

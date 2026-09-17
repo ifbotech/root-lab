@@ -20,7 +20,7 @@
  * Con el diámetro, las tareas y los avisos dicen cuánta agua ("unos 180 ml,
  * un vaso") en vez de "regá".
  */
-import { h, render, icono } from '../lib/ui.mjs';
+import { h, render, icono, seccion } from '../lib/ui.mjs';
 import {
   errorDeCalibracion, litrosDeSustrato, aguaEnPalabras, CRUDO_PISO, CRUDO_TECHO, MACETA,
 } from '../lib/riego.mjs';
@@ -28,6 +28,13 @@ import {
 const CADA_MS = 3000;
 const FRESCA_S = 40;
 const fecha = (ms) => new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'long' }).format(new Date(ms));
+
+/* Lo que se ve del sensor sin abrir la sección: si está calibrado y qué maceta. */
+function resumenSensor(n) {
+  const partes = [n.calibracion ? 'calibrado' : 'de fábrica'];
+  if (n.maceta?.diametro_cm) partes.push(`maceta de ${n.maceta.diametro_cm} cm`);
+  return partes.join(' · ');
+}
 
 export function panelSensor(ctx, n) {
   const { api, avisar, recargar } = ctx;
@@ -149,12 +156,12 @@ export function panelSensor(ctx, n) {
 
   resumen();
   pintarMaceta();
-  return h('section', { class: 'panel panel-sensor' },
-    h('h3', { class: 'panel-tit' }, 'Sensor de tierra y maceta'),
+  return seccion('planta-sensor', 'Sensor y maceta', [
     zona,
-    h('form', { class: 'form', onSubmit: guardarMaceta, style: 'margin-top:14px' },
+    h('form', { class: 'form', onSubmit: guardarMaceta },
       h('div', { class: 'campo' },
-        h('label', { for: diametro.id }, 'Diámetro de la maceta, arriba (cm)'),
+        h('label', { for: diametro.id }, 'Diámetro de la maceta, medido arriba (cm)'),
         h('div', { class: 'con-boton' }, diametro, h('button', { class: 'boton chico', type: 'submit' }, 'Guardar'))),
-      notaMaceta));
+      notaMaceta),
+  ], { clase: 'panel-sensor', resumen: resumenSensor(n) });
 }

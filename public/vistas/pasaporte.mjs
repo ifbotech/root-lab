@@ -8,7 +8,7 @@
  * imprime. "Guardar como PDF" es la impresión del navegador (`window.print`),
  * sin librerías: el CSS de impresión arma la página.
  */
-import { h, render, icono } from '../lib/ui.mjs';
+import { h, render, icono, botonVolver } from '../lib/ui.mjs';
 import { cara } from '../lib/caras.mjs';
 import { pielDe } from '../lib/rooties.mjs';
 import { ETAPAS, ETAPA_ES, etapaDe, MOOD_ES, RAREZA_ES, formatTemp, formatLux } from '../lib/model.mjs';
@@ -85,7 +85,7 @@ export function vistaPasaporte(ctx) {
 
   render(cont,
     h('header', { class: 'vista-cab no-imprimir' },
-      h('button', { class: 'boton chico', type: 'button', onClick: volver }, '‹'),
+      botonVolver(volver),
       h('h2', {}, 'Pasaporte'),
       h('button', { class: 'boton chico azul', type: 'button', onClick: () => window.print() }, 'Guardar PDF')),
     hoja,

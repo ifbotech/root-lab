@@ -14,7 +14,7 @@
  * a mitad de una pregunta: cuando se terminan, el campo se apaga y queda la
  * promesa de ROOTLAB Pro, sin nada que comprar todavía.
  */
-import { h, render, icono } from '../lib/ui.mjs';
+import { h, render, icono, botonVolver } from '../lib/ui.mjs';
 import { caraDeNodo } from './hoy.mjs';
 import { crearVoz } from '../lib/voz.mjs';
 
@@ -168,7 +168,7 @@ export function vistaChat(ctx) {
   });
 
   const cabecera = h('header', { class: 'chat-cab' },
-    h('button', { class: 'boton chico', type: 'button', onClick: volver, 'aria-label': 'Volver' }, '‹'),
+    botonVolver(volver),
     caraDeNodo(n, 56, { fps: 12 }),
     h('div', {},
       h('h2', {}, nombre),

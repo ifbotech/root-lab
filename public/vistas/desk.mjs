@@ -75,7 +75,7 @@ export function vistaDesk(ctx) {
   const nombre = h('p', { class: 'desk-nombre' }, h('b', {}, n.nombre || 'Tu Rooti'), h('span', {}, n.reason || ''));
   const noche = h('span', { class: 'desk-noche', 'aria-hidden': 'true' }, icono('luna', 22));
 
-  const volver = h('button', { class: 'boton chico', type: 'button', onClick: () => irA('planta', n.id), 'aria-label': 'Volver a la planta' }, '‹ Volver');
+  const volver = h('button', { class: 'boton chico', type: 'button', onClick: () => irA('planta', n.id) }, icono('volver', 18), 'Volver');
   const pantalla = document.fullscreenEnabled
     ? h('button', {
         class: 'boton chico', type: 'button',

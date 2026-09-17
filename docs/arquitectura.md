@@ -106,6 +106,39 @@ aunque el servidor esté escribiendo) en `<datos>/respaldos/` y conserva 14
 días. En el VPS lo corre un timer de systemd todos los días, y
 `deploy/instalar.sh` hace uno antes de cada actualización.
 
+## Lo que el teléfono no gasta
+
+Muchas macetas están en casas con datos móviles medidos, y la app se abre
+muchas veces por día. Dos piezas en `server/estatico.mjs`, sin dependencias:
+
+**Comprimido.** Todo lo que es texto —el HTML, la hoja de estilos, los 44
+módulos, el JSON de la API, el renderer en WebAssembly— sale con brotli o
+gzip, el que entienda el cliente. Lo que ya viene comprimido (las caras en
+PNG, las fuentes) no se toca, ni lo que no encoge. Cada cuerpo se comprime una
+vez y queda guardado en memoria, con su etiqueta de clave. El armazón pasó de
+281 KB a 89 KB.
+
+**Revalidado.** Cada respuesta lleva su `ETag`. El armazón se sirve con
+`no-cache` —el service worker maneja su caché y el navegador siempre
+pregunta—, y esa pregunta ahora termina en un `304` vacío en vez de bajar todo
+otra vez: la segunda carga de la app son 6 KB.
+
+**El tablero que no cambió.** `/api/estado` se relee cada quince segundos y
+casi nunca cambia; lo que cambiaba siempre era el tiempo (la edad de la
+lectura en segundos, la espera de la caricia). La ruta manda junto a la
+respuesta una **firma**: lo mismo que la app usa para decidir si repinta
+(`firmaTablero` en `public/lib/model.mjs`), que mide la edad como la muestra
+la pantalla ("hace 3 min") y no en segundos. La etiqueta sale de esa firma, y
+un tablero igual vuelve como un `304` vacío en vez de once kilobytes. La API
+sigue con `no-store` —nada queda en el disco del teléfono—: la etiqueta la
+repite la app a mano, desde memoria (`public/lib/api.mjs`).
+
+Comprimir una respuesta con datos personales puede filtrarlos por su tamaño
+(BREACH) cuando el atacante puede mezclar su entrada con un secreto y forzar
+pedidos desde el navegador de la víctima. Acá no: la API se autentica con
+`Authorization`, no con cookies, así que una página ajena no puede pedir nada
+en nombre de nadie.
+
 ## La app
 
 PWA sin build: HTML, CSS y módulos ES. Se instala desde el QR, abre a
@@ -141,6 +174,19 @@ de un dominio o debajo de una ruta.
 **Paletas.** La interfaz no tiene colores escritos: todo son variables de CSS
 que arma `lib/paletas.mjs` a partir de la paleta de la cuenta, con contraste
 garantizado. Ver [paletas.md](paletas.md).
+
+**Lo de todos los días adelante; lo de una vez, plegado.** La ficha de una
+planta llegó a ser diez paneles abiertos uno abajo del otro: cuatro pantallas
+de teléfono hasta el último. Ahora la cara, cómo está, el gráfico y el botón
+de hablar están siempre a la vista, y lo que se toca una vez —la especie y sus
+cuidados, el sensor y la maceta, el cuidador, el vínculo, los recuerdos, el
+aparato— vive en secciones plegadas (`seccion()` en `lib/ui.mjs`). Ajustes
+hace lo mismo con la paleta, la cuenta y el "sobre ROOTLAB". Cada título lleva
+al costado lo que se sabría abriendo (si el sensor está calibrado, en qué
+etapa va el vínculo, si el Rooti está enchufado), así casi nunca hay que
+abrir. Son `<details>` de verdad: el teclado los abre, el lector de pantalla
+dice si están abiertos y "buscar en la página" encuentra lo de adentro. Lo que
+cada persona deja abierto se recuerda en su teléfono.
 
 **Lo que el teléfono le agrega a la cara.** La luz de la planta sobre la
 cara, la caricia, la voz al escribir y el modo escritorio son sólo de la app:

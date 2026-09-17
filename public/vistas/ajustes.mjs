@@ -18,9 +18,9 @@
  * los que faltan se ven apagadas, con candado. Las cosméticas (OLED, Cristal,
  * Solar) se ganan cuidando: el candado dice con qué.
  */
-import { h, render, icono } from '../lib/ui.mjs';
+import { h, render, icono, seccion } from '../lib/ui.mjs';
 import { motivoSinAvisos, activarAvisos, avisosActivos } from '../lib/dispositivo.mjs';
-import { paletasDisponibles, PALETA_POR_DEFECTO } from '../lib/paletas.mjs';
+import { paletasDisponibles, paletaPorId, PALETA_POR_DEFECTO } from '../lib/paletas.mjs';
 import { estaSilenciado, silenciar, SILENCIO_DESDE, SILENCIO_HASTA } from '../lib/voz.mjs';
 import { MODOS, MODO_ES } from '../lib/reloj.mjs';
 import { modoActual, fijarModo } from '../lib/tema.mjs';
@@ -210,7 +210,6 @@ export function vistaAjustes(ctx) {
     h('header', { class: 'vista-cab' }, h('h2', {}, 'Ajustes')),
 
     h('section', { class: 'panel' },
-      h('h3', { class: 'panel-tit' }, 'Tu cuenta'),
       h('div', { class: 'fila-ajuste' },
         h('div', {}, h('b', {}, cuenta?.email || '—'), h('span', {}, 'Entrá con este email en cualquier teléfono y vas a ver tus plantas.')),
         h('button', { class: 'boton chico', type: 'button', onClick: () => ctx.salir() }, 'Salir')),
@@ -219,13 +218,13 @@ export function vistaAjustes(ctx) {
             h('span', {}, 'Confirmá tu email: así podés recuperar la contraseña.'), reenviar)
         : null),
 
-    h('section', { class: 'panel' },
-      h('h3', { class: 'panel-tit' }, 'Paleta'),
-      h('p', { class: 'nota', style: 'margin-bottom:12px' }, 'ROOTLAB se pinta con los colores de la piel de tu Rooti cuando sale del cofre. Podés cambiarla cuando quieras.'),
+    seccion('ajustes-paleta', 'Paleta', [
+      h('p', { class: 'nota' }, 'ROOTLAB se pinta con los colores de la piel de tu Rooti cuando sale del cofre. Podés cambiarla cuando quieras.'),
       paletas,
-      h('h3', { class: 'panel-tit', style: 'margin-top:16px' }, 'De día y de noche'),
+      h('h3', { class: 'panel-tit', style: 'margin:6px 0 0' }, 'De día y de noche'),
       modos,
-      notaModo),
+      notaModo,
+    ], { resumen: paletaPorId(cuenta?.paleta)?.nombre || '' }),
 
     h('section', { class: 'panel' },
       h('h3', { class: 'panel-tit' }, 'Notificaciones'),
@@ -255,27 +254,29 @@ export function vistaAjustes(ctx) {
           h('span', {}, `${limites.chat ?? 3} mensajes por día con tus plantas, ${limites.identificar ?? 3} reconocimientos y ${limites.diagnosticar ?? 2} diagnósticos por día por Rooti.`)),
         cuenta?.plan === 'pro' ? null : h('span', { class: 'pildora plan' }, 'Pro, pronto'))),
 
-    h('form', { class: 'panel form', onSubmit: guardarNombre },
-      h('h3', { class: 'panel-tit' }, 'Tu nombre'),
-      h('div', { class: 'con-boton' }, inputNombre, h('button', { class: 'boton chico', type: 'submit' }, 'Guardar'))),
+    /* Lo de la cuenta se toca una vez en la vida: plegado, y con el email a
+       la vista en el título para no tener que abrirlo para mirarlo. */
+    seccion('ajustes-cuenta', 'Nombre y contraseña', [
+      h('form', { class: 'form', onSubmit: guardarNombre },
+        h('div', { class: 'campo' }, h('label', { for: inputNombre.id }, 'Tu nombre'),
+          h('div', { class: 'con-boton' }, inputNombre, h('button', { class: 'boton chico', type: 'submit' }, 'Guardar')))),
+      h('form', { class: 'form', onSubmit: cambiarClave },
+        h('h3', { class: 'panel-tit', style: 'margin:0' }, 'Cambiar la contraseña'),
+        h('div', { class: 'campo' }, h('label', { for: 'ajustes-clave-actual' }, 'La actual'), claveActual),
+        h('div', { class: 'campo' },
+          h('label', { for: 'ajustes-clave-nueva' }, 'La nueva'), claveNueva,
+          h('span', { class: 'campo-ayuda' }, `Al menos ${claveMin} caracteres.`)),
+        errorClave,
+        h('button', { class: 'boton ancho', type: 'submit' }, 'Cambiar')),
+      zonaBorrar,
+    ], { resumen: cuenta?.nombre || '' }),
 
-    h('form', { class: 'panel form', onSubmit: cambiarClave },
-      h('h3', { class: 'panel-tit' }, 'Cambiar la contraseña'),
-      h('div', { class: 'campo' }, h('label', { for: 'ajustes-clave-actual' }, 'La actual'), claveActual),
-      h('div', { class: 'campo' },
-        h('label', { for: 'ajustes-clave-nueva' }, 'La nueva'), claveNueva,
-        h('span', { class: 'campo-ayuda' }, `Al menos ${claveMin} caracteres.`)),
-      errorClave,
-      h('button', { class: 'boton ancho', type: 'submit' }, 'Cambiar')),
-
-    h('section', { class: 'panel' },
-      h('h3', { class: 'panel-tit' }, 'Sobre ROOTLAB'),
+    seccion('ajustes-acerca', 'Sobre ROOTLAB', [
       h('dl', { class: 'datos' },
         h('div', {}, h('dt', {}, 'Versión'), h('dd', {}, config?.version || '—')),
         h('div', {}, h('dt', {}, 'Inteligencia'), h('dd', {}, config?.ia === 'claude' ? 'Claude' : config?.ia_visible ? 'Simulada (de prueba)' : 'Todavía no disponible'))),
-      h('p', { class: 'nota', style: 'margin-top:12px' }, 'Tus datos personales (email, nombre y charlas) se guardan cifrados. Para desvincular un Rooti, entrá a su planta y bajá hasta el final; en el Rooti, mantener apretado el botón 10 segundos lo reinicia por completo.')),
-
-    h('section', { class: 'panel' }, zonaBorrar));
+      h('p', { class: 'nota' }, 'Tus datos personales (email, nombre y charlas) se guardan cifrados. Para desvincular un Rooti, entrá a su planta y abrí "Tu Rooti"; en el Rooti, mantener apretado el botón 10 segundos lo reinicia por completo.'),
+    ], { resumen: config?.version || '' }));
 
   return cont;
 }

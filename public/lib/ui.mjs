@@ -95,6 +95,8 @@ const TRAZOS = {
   compartir: 'M12 3 v12 M7 8 l5-5 5 5 M5 13 v7 h14 v-7',
   telefono: 'M7 2 h10 v20 H7 Z M11 18 h2',
   flecha: 'M5 12 h14 M13 6 l6 6 -6 6',
+  volver: 'M19 12 H6 M12 5 l-7 7 7 7',
+  desplegar: 'M6 9 l6 6 6-6',
   basura: 'M4 7 h16 M9 7 V4 h6 v3 M6 7 l1 13 h10 l1-13',
   enchufe: 'M9 2 v6 M15 2 v6 M6 8 h12 v4 a6 6 0 0 1-12 0 Z M12 18 v4',
   chat: 'M4 5 h16 v11 H10 l-5 4 v-4 H4 Z M8 9.5 h8 M8 12.5 h5',
@@ -123,6 +125,61 @@ export function icono(nombre, lado = 20) {
   path.setAttribute('d', d);
   svg.append(path);
   return svg;
+}
+
+/**
+ * El botón de volver, uno solo para toda la app.
+ *
+ * Antes cada vista escribía un `‹` suelto: un carácter que el navegador
+ * dibuja del tamaño que quiere y que quien usa un lector de pantalla oye como
+ * "menor que". Ahora es la misma flecha dibujada que el resto de los iconos, y
+ * siempre dice qué hace.
+ */
+export function botonVolver(alVolver, etiqueta = 'Volver') {
+  return h('button', {
+    class: 'boton chico volver', type: 'button', onClick: alVolver,
+    'aria-label': etiqueta, title: etiqueta,
+  }, icono('volver', 20));
+}
+
+/* Lo que cada persona dejó abierto o cerrado, por sección, en este teléfono.
+   Una sección de la que no se sabe nada usa lo que diga la vista; una que se
+   abrió o se cerró a mano manda, y eso es distinto de no haberla tocado. */
+const CLAVE_SECCIONES = 'rootlab:secciones';
+const recordadas = (() => {
+  try { return new Map(Object.entries(JSON.parse(localStorage.getItem(CLAVE_SECCIONES)) || {})); } catch { return new Map(); }
+})();
+const recordarSeccion = (id, abierta) => {
+  recordadas.set(id, abierta);
+  try { localStorage.setItem(CLAVE_SECCIONES, JSON.stringify(Object.fromEntries(recordadas))); } catch { /* privado */ }
+};
+
+/**
+ * Un panel que se abre y se cierra, con lo justo a la vista.
+ *
+ * La ficha de una planta tenía diez paneles abiertos, uno abajo del otro:
+ * cuatro pantallas de teléfono para llegar al último. Lo de todos los días
+ * (la cara, cómo está, el gráfico) sigue siempre a la vista; lo que se toca
+ * una vez —el sensor, la maceta, el cuidador, los cuidados— vive acá.
+ *
+ * Es un `<details>` de verdad: el teléfono ya sabe abrirlo, el teclado lo
+ * abre con Enter, el lector de pantalla dice si está abierto o cerrado, y
+ * "buscar en la página" lo encuentra igual. Lo que cada persona dejó abierto
+ * se recuerda en su teléfono, por sección.
+ */
+export function seccion(id, titulo, contenido, { abierta = false, resumen = '', clase = '' } = {}) {
+  const cuerpo = h('div', { class: 'seccion-cuerpo' }, contenido);
+  const det = h('details', {
+    class: `panel seccion ${clase}`.trim(),
+    ...((recordadas.has(id) ? recordadas.get(id) : abierta) ? { open: '' } : {}),
+  },
+  h('summary', { class: 'seccion-titulo' },
+    h('span', { class: 'seccion-nombre' }, titulo),
+    resumen ? h('span', { class: 'seccion-resumen' }, resumen) : null,
+    icono('desplegar', 20)),
+  cuerpo);
+  det.addEventListener('toggle', () => recordarSeccion(id, det.open));
+  return det;
 }
 
 /**
