@@ -36,7 +36,7 @@ export function fijarHoraDePrueba(hora, almacen = globalThis.localStorage) {
 export const MODOS = ['auto', 'sistema', 'dia', 'noche'];
 export const MODO_POR_DEFECTO = 'auto';
 export const MODO_ES = {
-  auto: 'Con tu Rooti: de noche de 22 a 8',
+  auto: 'Con tu Rooti, de noche de 22 a 8',
   sistema: 'Como el teléfono',
   dia: 'Siempre de día',
   noche: 'Siempre de noche',

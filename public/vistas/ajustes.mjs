@@ -122,7 +122,7 @@ export function vistaAjustes(ctx) {
       },
     }, { auto: 'Auto', sistema: 'Sistema', dia: 'Día', noche: 'Noche' }[m])));
   const notaModo = h('p', { class: 'nota', style: 'margin-top:10px' },
-    MODOS.map((m) => `${{ auto: 'Auto', sistema: 'Sistema', dia: 'Día', noche: 'Noche' }[m]}: ${MODO_ES[m].toLowerCase()}`).join(' · '));
+    MODOS.map((m) => `${{ auto: 'Auto', sistema: 'Sistema', dia: 'Día', noche: 'Noche' }[m]}: ${MODO_ES[m][0].toLowerCase()}${MODO_ES[m].slice(1)}`).join(' · '));
 
   /* -------------------------------------------------------------- nombre --- */
   const inputNombre = h('input', { type: 'text', id: 'ajustes-nombre', maxlength: '40', value: cuenta?.nombre || '', autocomplete: 'given-name' });

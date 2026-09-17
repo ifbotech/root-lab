@@ -506,7 +506,10 @@ async function inicio() {
     history.replaceState(null, '', enBase(`v/${app.alta.codigo}`));
     await entrarConCodigo(app.alta.codigo);
   }
-  if (!app.estado) await recargar();
+  /* Lo guardado ya está en pantalla; ahora, lo de verdad. Antes esto sólo
+     corría sin nada guardado, y lo viejo (una planta que ya no está, la que
+     se sumó desde otro teléfono) quedaba hasta el primer refresco. */
+  await recargar();
   pintar();
   setInterval(refrescar, REFRESCO_MS);
 }
