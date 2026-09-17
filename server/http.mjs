@@ -118,6 +118,10 @@ export function crearServidorHttp({ api, raiz, base = '', registro = null }) {
   const BASE = normalizarBase(base);
   const PUBLICO = join(raiz, 'public');
   const EMULADOR = join(raiz, 'emulador');
+  /* La trastienda: el panel de quien hace el producto (docs/trastienda.md).
+     Vive aparte de la app, como el emulador, y no se ve sin la clave de
+     administración: la página carga y lo primero que hay es una puerta. */
+  const ADMIN = join(raiz, 'admin');
   const comprimidos = crearCacheComprimidos();
 
   /**
@@ -278,6 +282,16 @@ export function crearServidorHttp({ api, raiz, base = '', registro = null }) {
         return await pagina(req, res, join(PUBLICO, 'index.html'));
       }
       if (ruta === '/manifest.webmanifest') return await manifest(req, res, url);
+      if (/^\/admin\/?$/i.test(ruta)) {
+        if (!ruta.endsWith('/')) {
+          res.writeHead(301, { location: `${BASE}/admin/` }).end();
+          return;
+        }
+        return await pagina(req, res, join(ADMIN, 'index.html'));
+      }
+      if (ruta.toLowerCase().startsWith('/admin/')) {
+        return await archivo(req, res, ADMIN, ruta.slice('/admin'.length));
+      }
       if (/^\/emulador\/?$/i.test(ruta)) {
         if (!ruta.endsWith('/')) {
           res.writeHead(301, { location: `${BASE}/emulador/` }).end();

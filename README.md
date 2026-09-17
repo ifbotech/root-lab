@@ -65,7 +65,8 @@ El firmware, el hardware y las carcasas están en
 ## En línea
 
 **https://ifbotech.com/rootkit/** · emulador en
-**https://ifbotech.com/rootkit/emulador/**. Cómo se instala, se actualiza y
+**https://ifbotech.com/rootkit/emulador/** · la trastienda (el panel de quien
+hace el producto) en **https://ifbotech.com/rootkit/admin/**. Cómo se instala, se actualiza y
 se verifica: [docs/despliegue.md](docs/despliegue.md).
 
 ## Probarlo en la compu
@@ -81,6 +82,7 @@ npm start
 |---|---|
 | **App** | http://localhost:8080 |
 | **Emulador** | http://localhost:8080/emulador/ |
+| **La trastienda** | http://localhost:8080/admin/ (con `ROOTLAB_ADMIN_CLAVE`) |
 
 El **emulador** es un Rooti en el navegador que corre el firmware real
 compilado a WebAssembly y habla con este servidor igual que la placa:
@@ -128,7 +130,7 @@ exigen HTTPS. Ver [docs/despliegue.md](docs/despliegue.md).
 ## Pruebas
 
 ```bash
-npm test          # 469 pruebas
+npm test          # 493 pruebas
 ```
 
 Flujo completo con un Rooti virtual, cuentas y aislamiento entre cuentas,
@@ -207,6 +209,7 @@ docs/
 | [operacion.md](docs/operacion.md) | Administración, firmware firmado, fábrica, respaldos que se prueban, vigía y métricas |
 | [paletas.md](docs/paletas.md) | Las paletas de las pieles, las cosméticas y el motor de contraste |
 | [accesibilidad.md](docs/accesibilidad.md) | WCAG AA: qué se garantiza, qué se arregló y cómo se audita |
+| [trastienda.md](docs/trastienda.md) | El panel de quien hace el producto (`/admin`) y el vivero de ideas |
 | [notificaciones.md](docs/notificaciones.md) | Cuándo se avisa y cuándo no |
 | [sensorial.md](docs/sensorial.md) | La cara en el teléfono: luz, caricias, voz y modo escritorio |
 | [clima.md](docs/clima.md) | Regar antes con el pronóstico; VPD y DLI |

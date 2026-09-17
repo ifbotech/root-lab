@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { detectarCaidaMasiva, VIGIA } from '../server/vigia.mjs';
 import { alertaOperacion, informeRespaldo } from '../server/plantillas-correo.mjs';
 import { escenario, aparato, cuenta, conRooti, FOTO } from './ayudas.mjs';
+import { VERSION_ESQUEMA } from '../server/db.mjs';
 
 const ADMIN = 'una-clave-de-administracion-bien-larga';
 const admin = (esc, metodo, ruta, cuerpo = null) => esc.llamar(metodo, ruta, { cuerpo, token: ADMIN });
@@ -104,7 +105,7 @@ describe('métricas anónimas', () => {
     assert.equal(e.tofu, 'emulador');
     assert.equal(e.ia.proveedor, 'simulada');
     assert.equal(e.vigia.alarma, false);
-    assert.equal(e.esquema, 7);
+    assert.equal(e.esquema, VERSION_ESQUEMA);
   });
 });
 

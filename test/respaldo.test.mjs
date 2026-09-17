@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 import { cifrarRespaldo, descifrarRespaldo, ordenDeEnvio } from '../server/respaldo.mjs';
 import { verificar } from '../tools/restaurar.mjs';
-import { abrirBase } from '../server/db.mjs';
+import { abrirBase, VERSION_ESQUEMA } from '../server/db.mjs';
 import { crearCripto } from '../server/cripto.mjs';
 
 const RAIZ = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -64,7 +64,7 @@ describe('respaldar y probar la restauración', () => {
 
       process.env.ROOTLAB_RESPALDO_CLAVE = CLAVE;
       const conteo = verificar(join(dir, 'respaldos', cifrado));
-      assert.deepEqual([conteo.cuentas, conteo.plantas, conteo.esquema], [1, 0, 7]);
+      assert.deepEqual([conteo.cuentas, conteo.plantas, conteo.esquema], [1, 0, VERSION_ESQUEMA]);
       process.env.ROOTLAB_RESPALDO_CLAVE = 'otra clave, también larga, pero no es';
       assert.throws(() => verificar(join(dir, 'respaldos', cifrado)), /clave no es/);
       writeFileSync(join(dir, 'respaldos', 'roto.db'), 'esto no es sqlite');

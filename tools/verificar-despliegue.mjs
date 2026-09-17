@@ -5,7 +5,8 @@
  *   node tools/verificar-despliegue.mjs https://ifbotech.com/rootkit --flujo --ia
  *
  * Sin --flujo sólo lee: salud y esquema, página con su base, QR en
- * mayúsculas, manifest, service worker, renderer, fuentes, emulador y
+ * mayúsculas, manifest, service worker, renderer, fuentes, emulador, la
+ * trastienda y
  * cabeceras de seguridad.
  *
  * Con --flujo recorre el camino completo con un aparato de prueba: cuenta,
@@ -20,6 +21,7 @@
  * alrededor de un centavo de dólar, para confirmar que la clave, el modelo y
  * el tope funcionan.
  */
+import { VERSION_ESQUEMA } from '../server/db.mjs';
 import { randomBytes } from 'node:crypto';
 import { codigoVinculo, tokenApi } from '../server/codigo.mjs';
 
@@ -47,7 +49,7 @@ const basePath = new URL(BASE).pathname.replace(/\/+$/, '');
 
 const salud = await json('/api/salud').catch((e) => [0, { error: e.message }]);
 ok('responde /api/salud', salud[0] === 200 && salud[1]?.ok, JSON.stringify(salud));
-ok('base de datos en el esquema 7 (firmware, fábrica, calibración; datos personales cifrados)', salud[1]?.esquema === 7, `esquema ${salud[1]?.esquema}`);
+ok(`base de datos en el esquema ${VERSION_ESQUEMA} (datos personales cifrados)`, salud[1]?.esquema === VERSION_ESQUEMA, `esquema ${salud[1]?.esquema}`);
 if (salud[1]?.version) console.log(`    versión ${salud[1].version}, ${salud[1].cuentas} cuentas, ${salud[1].plantas} plantas, ${salud[1].dispositivos} aparatos`);
 
 const pagina = await pedir('/');
@@ -88,6 +90,14 @@ ok('fuente servida desde la app', fuente.status === 200 && fuente.headers.get('c
 
 const emu = await pedir('/emulador/');
 ok('emulador', emu.status === 200 && (await emu.text()).includes('<base href='));
+
+/* La trastienda existe, pero lo primero que hay es la puerta: nada del panel
+   se ve sin la clave de administración (docs/trastienda.md). */
+const tras = await pedir('/admin/');
+const trasHtml = tras.status === 200 ? await tras.text() : '';
+ok('la trastienda pide la clave antes de mostrar nada',
+  tras.status === 200 && trasHtml.includes('Clave de administración') && trasHtml.includes('noindex'),
+  `respondió ${tras.status}`);
 
 ok('HTTPS', BASE.startsWith('https://') || BASE.includes('localhost'), 'sin HTTPS no se instala ni avisa');
 

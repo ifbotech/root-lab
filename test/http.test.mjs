@@ -109,6 +109,21 @@ describe('servidor en /rootkit', () => {
     assert.match(js.headers.get('content-type'), /javascript/);
   });
 
+  test('la trastienda se sirve aparte de la app', async () => {
+    const r = await pedir(`${s.url}/rootkit/admin`);
+    assert.equal(r.status, 301);
+    assert.equal(r.headers.get('location'), '/rootkit/admin/');
+    const html = await (await pedir(`${s.url}/rootkit/admin/`)).text();
+    assert.match(html, /<base href="\/rootkit\/">/);
+    assert.match(html, /la trastienda/i);
+    assert.match(html, /noindex/, 'no se indexa');
+    assert.match(html, /Clave de administración/, 'lo primero que hay es la puerta');
+    assert.doesNotMatch(html, /sw\.js|serviceWorker/, 'no registra el service worker de la app');
+    const js = await pedir(`${s.url}/rootkit/admin/admin.mjs`);
+    assert.equal(js.status, 200);
+    assert.match(js.headers.get('content-type'), /javascript/);
+  });
+
   test('el manifest abre en el código del QR, con rutas relativas', async () => {
     const m = await (await pedir(`${s.url}/rootkit/manifest.webmanifest?codigo=k7q2m9xa`)).json();
     assert.equal(m.start_url, 'v/K7Q2M9XA');

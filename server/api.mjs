@@ -118,6 +118,47 @@ export const EVENTOS_ALTA = ['hola', 'instalar', 'cuenta', 'avisos', 'wifi', 'vi
 export const EVENTOS_VISTA = ['pasaporte', 'album', 'gif', 'desk', 'invernadero', 'coleccion', 'botanica', 'chat', 'diagnostico', 'calibrar', 'sitter'];
 const ESTADOS_OTA = ['bajando', 'verificando', 'ok', 'fallo'];
 
+/* EL VIVERO (docs/trastienda.md)
+ *
+ * Las áreas por las que se mira el proyecto. Cada agente que da vueltas mira
+ * una y propone ideas ahí; el área es lo que hace que la lista se pueda leer
+ * cuando tenga cien. */
+export const AREAS = ['infraestructura', 'experiencia', 'firmware', 'producto', 'seguridad'];
+export const IMPACTOS = ['alto', 'medio', 'bajo'];
+export const ESFUERZOS = ['bajo', 'medio', 'alto'];
+export const ESTADOS_IDEA = ['nueva', 'en_curso', 'plantada', 'descartada'];
+
+/**
+ * La huella de una idea: con qué se decide que dos ideas son la misma.
+ *
+ * Un agente que mira el proyecto para siempre va a volver a encontrar lo
+ * mismo, dicho de otra manera. Sin esto, la lista se llena de repetidas y
+ * deja de servir.
+ *
+ * Se normaliza el título —sin acentos, sin signos, sin palabras de relleno—
+ * y se ordenan las palabras, así "mover los respaldos fuera del VPS" y
+ * "fuera del VPS, mover los respaldos" son la misma idea. El precio de
+ * ordenarlas es que dos títulos con las mismas palabras en otro orden caen
+ * juntos; se paga barato porque lo que trae la segunda —su título, su
+ * detalle y su evidencia— se le suma a la primera en vez de perderse
+ * (`ideaProponer` en db.mjs), y en la lista se ve "propuesta N veces".
+ */
+export function huellaDeIdea(area, titulo) {
+  const palabras = String(titulo || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !['los', 'las', 'del', 'para', 'con', 'que', 'una', 'uno', 'por', 'sin'].includes(w));
+  return `${area}:${palabras.sort().join('-')}`.slice(0, 160);
+}
+
+/* Cuándo un aparato cuenta como activo y cuándo como callado, en la flota. */
+const FLOTA_ACTIVO_MS = 7 * DIA;
+const FLOTA_CALLADO_MS = 3 * DIA;
+/* Una sesión de la trastienda: se entra una vez por jornada de trabajo. */
+export const ADMIN_SESION_MS = 12 * H;
+
 class ErrorApi extends Error {
   constructor(codigo, mensaje, extra = null) {
     super(mensaje);
@@ -214,12 +255,27 @@ export function crearApi({
   };
 
   /* La administración: una clave larga en el entorno del servidor. Sin ella,
-     las rutas no existen (404, igual que cualquier ruta inventada). */
+     las rutas no existen (404, igual que cualquier ruta inventada).
+
+     Para la trastienda en el navegador hay además sesiones: se entra una vez
+     con la clave y queda un token que vence a las doce horas. Así la clave
+     maestra no vive en el almacenamiento de un navegador, y cerrar el
+     servidor cierra todas las sesiones. */
+  const sesionesAdmin = new Map();   /* hash del token -> vence */
+
+  function sesionAdminValida(token) {
+    const h = hash(token);
+    const vence = sesionesAdmin.get(h);
+    if (!vence) return false;
+    if (reloj() > vence) { sesionesAdmin.delete(h); return false; }
+    return true;
+  }
+
   function exigirAdmin(headers, ip) {
     if (!adminClave) falla(404, 'Ruta desconocida');
-    limitar(`admin:${ip}`, 120, MIN);
+    limitar(`admin:${ip}`, 240, MIN);
     const token = bearer(headers);
-    if (!token || !igualesSeguro(hash(token), hash(adminClave))) {
+    if (!token || !(igualesSeguro(hash(token), hash(adminClave)) || sesionAdminValida(token))) {
       limitar(`admin-mal:${ip}`, 10, 10 * MIN);
       falla(401, 'Clave de administración inválida');
     }
@@ -947,6 +1003,123 @@ export function crearApi({
       return [200, { lote: m[1], aparatos: delLote.length }];
     }
 
+    if (metodo === 'DELETE' && ruta === '/api/admin/sesion') {
+      const token = bearer(headers);
+      sesionesAdmin.delete(hash(token));
+      return [204, null];
+    }
+
+    /* --- la flota: qué hay en la calle y cómo le va --------------------- */
+    if (metodo === 'GET' && ruta === '/api/admin/flota') {
+      return [200, {
+        resumen: db.flotaResumen(t, FLOTA_ACTIVO_MS, FLOTA_CALLADO_MS),
+        por: {
+          lote: db.flotaPor('lote', t, FLOTA_ACTIVO_MS),
+          fw: db.flotaPor('fw', t, FLOTA_ACTIVO_MS),
+          placa: db.flotaPor('placa', t, FLOTA_ACTIVO_MS),
+          canal: db.flotaPor('canal', t, FLOTA_ACTIVO_MS),
+          origen: db.flotaPor('origen', t, FLOTA_ACTIVO_MS),
+        },
+        aparatos: db.flota(Math.min(1000, Math.max(1, entero(query?.limite, 300)))).map((d) => ({
+          ...aparatoAdmin({ ...d, planta: d.vinculado ? 'si' : null }),
+          lecturas: d.lecturas,
+          bat_mv: d.bat_mv || null,
+          usb: Boolean(d.usb),
+          rssi: d.rssi ?? null,
+          arranques: d.arranques,
+          callado: Boolean(d.vinculado) && (!d.visto || t - d.visto > FLOTA_CALLADO_MS),
+        })),
+        ventanas: { activo_ms: FLOTA_ACTIVO_MS, callado_ms: FLOTA_CALLADO_MS },
+      }];
+    }
+
+    /* --- las lecturas: ¿el producto está midiendo bien? ----------------- */
+    if (metodo === 'GET' && ruta === '/api/admin/lecturas') {
+      const dias = Math.min(120, Math.max(1, entero(query?.dias, 30)));
+      const desde = t - dias * DIA;
+      const porDia = db.lecturasPorDia(desde, t + DIA);
+      const porAparato = db.lecturasPorAparato(desde);
+      /* Cuántas lecturas por día manda cada aparato: un ROOTKIT sano manda
+         unas 96 (una cada quince minutos). Mucho menos es un aparato que se
+         queda sin wifi, sin batería o colgado. */
+      const esperadasPorDia = DIA / (15 * MIN);
+      const ritmos = porAparato.map((a) => {
+        const dias_vivo = Math.max(1, (a.ultima - a.primera) / DIA);
+        return { dispositivo: a.dispositivo, n: a.n, por_dia: Math.round((a.n / dias_vivo) * 10) / 10, ultima: a.ultima };
+      });
+      return [200, {
+        dias,
+        por_dia: porDia,
+        total: porDia.reduce((n, d) => n + d.n, 0),
+        sensores: db.saludSensores(desde),
+        esperadas_por_dia: esperadasPorDia,
+        ritmos: ritmos.slice(0, 100),
+        flojos: ritmos.filter((r) => r.por_dia < esperadasPorDia / 2).length,
+      }];
+    }
+
+    /* --- el vivero: las ideas de los agentes ---------------------------- */
+    if (metodo === 'GET' && ruta === '/api/admin/ideas') {
+      const area = AREAS.includes(query?.area) ? query.area : null;
+      const estado = ESTADOS_IDEA.includes(query?.estado) ? query.estado : null;
+      return [200, {
+        areas: AREAS,
+        resumen: db.ideasResumen(),
+        ideas: db.ideas({ area, estado, limite: Math.min(1000, Math.max(1, entero(query?.limite, 500))) }),
+      }];
+    }
+
+    if (metodo === 'POST' && ruta === '/api/admin/ideas') {
+      const area = texto(cuerpo?.area, 20).toLowerCase();
+      if (!AREAS.includes(area)) falla(400, `área desconocida: ${AREAS.join(', ')}`);
+      const titulo = texto(cuerpo?.titulo, 120);
+      if (titulo.length < 8) falla(400, 'el título tiene que decir qué mejorar (8 caracteres o más)');
+      const impacto = IMPACTOS.includes(cuerpo?.impacto) ? cuerpo.impacto : 'medio';
+      const esfuerzo = ESFUERZOS.includes(cuerpo?.esfuerzo) ? cuerpo.esfuerzo : 'medio';
+      const r = db.ideaProponer({
+        area, titulo, impacto, esfuerzo,
+        detalle: texto(cuerpo?.detalle, 4000),
+        evidencia: texto(cuerpo?.evidencia, 1000),
+        autor: texto(cuerpo?.autor, 40),
+        huella: huellaDeIdea(area, titulo),
+        t,
+      });
+      contar(`idea:${area}`);
+      return [r.repetida ? 200 : 201, { ...r, idea: db.idea(r.id) }];
+    }
+
+    if (metodo === 'PATCH' && (m = ruta.match(/^\/api\/admin\/ideas\/(\d{1,9})$/))) {
+      const i = db.idea(Number(m[1]));
+      if (!i) falla(404, 'No existe esa idea');
+      if (cuerpo?.estado !== undefined) {
+        if (!ESTADOS_IDEA.includes(cuerpo.estado)) falla(400, `estado: ${ESTADOS_IDEA.join(', ')}`);
+        i.estado = cuerpo.estado;
+        i.cerrada = ['plantada', 'descartada'].includes(i.estado) ? t : null;
+      }
+      if (cuerpo?.impacto !== undefined) {
+        if (!IMPACTOS.includes(cuerpo.impacto)) falla(400, `impacto: ${IMPACTOS.join(', ')}`);
+        i.impacto = cuerpo.impacto;
+      }
+      if (cuerpo?.esfuerzo !== undefined) {
+        if (!ESFUERZOS.includes(cuerpo.esfuerzo)) falla(400, `esfuerzo: ${ESFUERZOS.join(', ')}`);
+        i.esfuerzo = cuerpo.esfuerzo;
+      }
+      if (cuerpo?.area !== undefined) {
+        if (!AREAS.includes(cuerpo.area)) falla(400, `área: ${AREAS.join(', ')}`);
+        i.area = cuerpo.area;
+      }
+      if (cuerpo?.motivo !== undefined) i.motivo = texto(cuerpo.motivo, 500);
+      if (cuerpo?.detalle !== undefined) i.detalle = texto(cuerpo.detalle, 4000);
+      i.movida = t;
+      db.ideaGuardar(i);
+      return [200, db.idea(i.id)];
+    }
+
+    if (metodo === 'DELETE' && (m = ruta.match(/^\/api\/admin\/ideas\/(\d{1,9})$/))) {
+      if (!db.ideaBorrar(Number(m[1]))) falla(404, 'No existe esa idea');
+      return [204, null];
+    }
+
     /* --- firmware ---------------------------------------------------------- */
     if (metodo === 'GET' && ruta === '/api/admin/firmware') {
       return [200, { firmware: db.firmwareLista().map(firmwareAdmin) }];
@@ -1003,6 +1176,21 @@ export function crearApi({
       return [200, { binario: Buffer.from(contenido), mime: 'application/octet-stream', cache: 'private, no-store' }];
     }
 
+    /* Entrar a la trastienda: la única ruta de administración que no pide
+       ya estar adentro. La clave se manda una vez y queda un token. */
+    if (metodo === 'POST' && ruta === '/api/admin/sesion') {
+      if (!adminClave) falla(404, 'Ruta desconocida');
+      limitar(`admin-entrar:${ip}`, 10, 10 * MIN);
+      const clave = String(cuerpo?.clave || '');
+      if (!clave || !igualesSeguro(hash(clave), hash(adminClave))) falla(401, 'Clave de administración inválida');
+      const token = randomBytes(32).toString('hex');
+      const vence = reloj() + ADMIN_SESION_MS;
+      sesionesAdmin.set(hash(token), vence);
+      /* Las que ya vencieron no se quedan ocupando memoria. */
+      for (const [h, v] of sesionesAdmin) if (v < reloj()) sesionesAdmin.delete(h);
+      contar('trastienda:entrar');
+      return [201, { token, vence }];
+    }
     if (ruta.startsWith('/api/admin/')) return administrar({ metodo, ruta, query, cuerpo, headers, ip });
 
     if (metodo === 'GET' && ruta === '/api/config') {

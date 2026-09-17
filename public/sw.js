@@ -10,7 +10,7 @@
  */
 
 /* Subir la versión invalida el caché entero. */
-const CACHE = 'rootlab-v18';
+const CACHE = 'rootlab-v19';
 
 /* La app puede estar montada en una subruta (/rootkit/): todo se resuelve
    contra el alcance del service worker, nunca contra la raíz del dominio. */
@@ -97,7 +97,9 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   const rel = relativa(url);
-  if (url.origin !== location.origin || rel === null || rel.startsWith('api/') || e.request.method !== 'GET') {
+  /* La trastienda no es la app: no se cachea ni se le sirve el armazón. */
+  if (url.origin !== location.origin || rel === null || rel.startsWith('api/')
+      || rel.startsWith('admin/') || e.request.method !== 'GET') {
     return;
   }
   /* Las rutas v/<código>, desk/<id> y sitter/<token> son la misma app. */

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<!-- El servidor escribe acá la base de la app (ROOTLAB_BASE). -->
+<base href="/">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>La trastienda · ROOTLAB</title>
+<link rel="icon" href="iconos/icono-192.png">
+<link rel="stylesheet" href="admin/admin.css">
+</head>
+<body>
+
+<!-- La puerta: sin la clave de administración no hay nada que ver. -->
+<div class="puerta" id="puerta" hidden>
+  <form class="puerta-caja" id="form-entrar">
+    <h1>ROOT<span>LAB</span> <small>la trastienda</small></h1>
+    <p>El panel de quien hace el producto. Hace falta la clave de administración
+       del servidor (<code>ROOTLAB_ADMIN_CLAVE</code>).</p>
+    <label for="clave">Clave de administración</label>
+    <input type="password" id="clave" autocomplete="current-password" required>
+    <p class="error" id="error-entrar" hidden></p>
+    <button class="boton primario" type="submit">Entrar</button>
+  </form>
+</div>
+
+<div class="app" id="app" hidden>
+  <header class="cab">
+    <h1>ROOT<span>LAB</span> <small>la trastienda</small></h1>
+    <div class="cab-der">
+      <span class="pildora" id="d-reloj">—</span>
+      <button class="boton chico" type="button" id="b-refrescar">Refrescar</button>
+      <button class="boton chico" type="button" id="b-salir">Salir</button>
+    </div>
+  </header>
+
+  <nav class="pestanas" id="pestanas" aria-label="Secciones">
+    <button type="button" class="pestana" data-vista="resumen">Resumen</button>
+    <button type="button" class="pestana" data-vista="flota">La flota</button>
+    <button type="button" class="pestana" data-vista="firmware">Firmware</button>
+    <button type="button" class="pestana" data-vista="uso">Uso</button>
+    <button type="button" class="pestana" data-vista="vivero">El vivero</button>
+  </nav>
+
+  <main id="vista" class="vista" tabindex="-1"></main>
+</div>
+
+<p class="aviso" id="aviso" role="status" hidden></p>
+
+<script type="module" src="admin/admin.mjs"></script>
+</body>
+</html>

@@ -67,7 +67,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { crearCripto } from './cripto.mjs';
 import { LEGADO } from './cofre.mjs';
 
-export const VERSION_ESQUEMA = 7;
+export const VERSION_ESQUEMA = 8;
 
 export const normalizarEmail = (e) => String(e || '').trim().toLowerCase();
 
@@ -294,6 +294,36 @@ CREATE TABLE IF NOT EXISTS eventos (
   n       INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (dia, evento)
 );
+`;
+
+/* El vivero: las ideas que proponen los agentes que miran el proyecto, y lo
+   que decidimos con cada una (docs/trastienda.md). No tiene nada de ninguna
+   cuenta: es la libreta de quien hace el producto, no de quien lo usa.
+
+   `huella` es lo que hace que un agente que da vueltas para siempre no llene
+   la lista con la misma idea veinte veces: si vuelve a proponerla, se cuenta
+   (`vista`) en vez de duplicarse, y que tres agentes distintos la propongan
+   es en sí una señal. */
+const NUEVAS_V8 = `
+CREATE TABLE IF NOT EXISTS ideas (
+  id         INTEGER PRIMARY KEY,
+  area       TEXT NOT NULL,
+  titulo     TEXT NOT NULL,
+  detalle    TEXT NOT NULL DEFAULT '',
+  evidencia  TEXT NOT NULL DEFAULT '',
+  impacto    TEXT NOT NULL DEFAULT 'medio',
+  esfuerzo   TEXT NOT NULL DEFAULT 'medio',
+  estado     TEXT NOT NULL DEFAULT 'nueva',
+  autor      TEXT NOT NULL DEFAULT '',
+  huella     TEXT NOT NULL,
+  vista      INTEGER NOT NULL DEFAULT 1,
+  creada     INTEGER NOT NULL,
+  movida     INTEGER NOT NULL,
+  cerrada    INTEGER,
+  motivo     TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ideas_huella ON ideas(huella);
+CREATE INDEX IF NOT EXISTS ideas_area_estado ON ideas(area, estado, movida);
 `;
 
 const json = (s, def = null) => {
@@ -738,6 +768,145 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
     },
     eventosDesde(dia) { return q('SELECT dia, evento, n FROM eventos WHERE dia >= ? ORDER BY dia, evento').all(dia); },
 
+    /* ------------------------------------------------- la trastienda ---- */
+    /* Lo que sigue es para quien hace el producto, no para quien lo usa: la
+       salud de la flota, cómo se usa la app y el vivero de ideas. Todo
+       agregado o del aparato; nada de cuentas, nombres ni plantas. */
+
+    /** Cuántos aparatos hay de cada cosa, para el resumen. */
+    flotaResumen(ahora, activoMs, silencioMs) {
+      const una = (sql, ...args) => q(sql).get(...args).n;
+      return {
+        total: una('SELECT COUNT(*) n FROM dispositivos'),
+        de_fabrica: una("SELECT COUNT(*) n FROM dispositivos WHERE origen = 'fabrica'"),
+        emuladores: una("SELECT COUNT(*) n FROM dispositivos WHERE origen = 'emulador'"),
+        vinculados: una('SELECT COUNT(*) n FROM dispositivos WHERE planta IS NOT NULL'),
+        /* Estuvo vinculado alguna vez, aunque ahora no lo esté: es un aparato
+           que llegó a manos de alguien. */
+        estrenados: una('SELECT COUNT(DISTINCT dispositivo) n FROM plantas'),
+        activos: una('SELECT COUNT(*) n FROM dispositivos WHERE visto > ?', ahora - activoMs),
+        callados: una('SELECT COUNT(*) n FROM dispositivos WHERE planta IS NOT NULL AND (visto IS NULL OR visto < ?)', ahora - silencioMs),
+        deshabilitados: una('SELECT COUNT(*) n FROM dispositivos WHERE deshabilitado = 1'),
+      };
+    },
+
+    /** Cómo se reparte la flota por lote, versión, placa y canal. */
+    flotaPor(campo, ahora, activoMs) {
+      const columnas = { lote: 'lote', fw: 'fw', placa: 'placa', canal: 'canal', origen: 'origen' };
+      const c = columnas[campo];
+      if (!c) return [];
+      return q(`SELECT COALESCE(NULLIF(${c}, ''), '—') valor,
+                       COUNT(*) total,
+                       SUM(CASE WHEN planta IS NOT NULL THEN 1 ELSE 0 END) vinculados,
+                       SUM(CASE WHEN visto > ? THEN 1 ELSE 0 END) activos
+                  FROM dispositivos GROUP BY valor ORDER BY total DESC, valor`).all(ahora - activoMs);
+    },
+
+    /** La flota, aparato por aparato, sin el hash del token ni la planta. */
+    flota(limite = 500) {
+      return q(`SELECT id, creado, visto, fw, placa, estado, canal, ota, lote, origen, deshabilitado,
+                       bat_mv, usb, rssi, arranques, persona_fabrica,
+                       (planta IS NOT NULL) vinculado,
+                       (SELECT COUNT(*) FROM lecturas l WHERE l.dispositivo = dispositivos.id) lecturas
+                  FROM dispositivos ORDER BY COALESCE(visto, creado) DESC LIMIT ?`).all(limite);
+    },
+
+    /** Lecturas por día: si el producto está midiendo, se ve acá. */
+    lecturasPorDia(desde, hasta) {
+      return q(`SELECT strftime('%Y-%m-%d', t / 1000, 'unixepoch') dia,
+                       COUNT(*) n, COUNT(DISTINCT dispositivo) aparatos
+                  FROM lecturas WHERE t >= ? AND t < ? GROUP BY dia ORDER BY dia`).all(desde, hasta);
+    },
+
+    /**
+     * Salud de los sensores en una ventana: cuántas lecturas llegaron sin cada
+     * medida (un sensor que no responde manda null) y cuántas llegaron con el
+     * capacitivo en un extremo (desconectado o en corto).
+     */
+    saludSensores(desde) {
+      const r = q(`SELECT COUNT(*) n,
+                          SUM(CASE WHEN suelo IS NULL THEN 1 ELSE 0 END) sin_suelo,
+                          SUM(CASE WHEN temp IS NULL THEN 1 ELSE 0 END) sin_temp,
+                          SUM(CASE WHEN hr IS NULL THEN 1 ELSE 0 END) sin_hr,
+                          SUM(CASE WHEN lux IS NULL THEN 1 ELSE 0 END) sin_lux,
+                          SUM(CASE WHEN crudo IS NOT NULL AND (crudo <= 150 OR crudo >= 4000) THEN 1 ELSE 0 END) crudo_extremo,
+                          SUM(CASE WHEN usb = 0 AND bat > 0 AND bat < 3400 THEN 1 ELSE 0 END) bateria_baja
+                     FROM lecturas WHERE t >= ?`).get(desde);
+      /* Sin lecturas, SUM devuelve null: acá un cero es más honesto. */
+      return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v || 0]));
+    },
+
+    /** Cuánto mide cada aparato: el que mide de menos se nota como un hueco. */
+    lecturasPorAparato(desde, limite = 200) {
+      return q(`SELECT dispositivo, COUNT(*) n, MIN(t) primera, MAX(t) ultima
+                  FROM lecturas WHERE t >= ? GROUP BY dispositivo ORDER BY n DESC LIMIT ?`).all(desde, limite);
+    },
+
+    /* ------------------------------------------------------- el vivero --- */
+    /**
+     * Propone una idea. Si ya estaba (misma huella), la cuenta otra vez en
+     * lugar de duplicarla, y todo lo que traiga de distinto —otro título,
+     * otro detalle, otra evidencia— se le suma a la que ya estaba. Así una
+     * segunda mirada nunca se pierde, ni siquiera cuando dos ideas distintas
+     * caen en la misma huella.
+     */
+    ideaProponer(i) {
+      const previa = q('SELECT id, vista, estado, titulo, detalle, evidencia FROM ideas WHERE huella = ?').get(i.huella);
+      if (previa) {
+        const sumar = (viejo, nuevo, como) => {
+          const v = viejo || '';
+          if (!nuevo || v.includes(nuevo)) return v;
+          return `${v ? `${v}\n\n` : ''}${como}${nuevo}`.slice(0, 4000);
+        };
+        let detalle = sumar(previa.detalle, i.detalle || '', '— también: ');
+        if (i.titulo && i.titulo !== previa.titulo) {
+          detalle = sumar(detalle, i.titulo, '— también propuesta como: ');
+        }
+        q('UPDATE ideas SET vista = vista + 1, movida = ?, detalle = ?, evidencia = ? WHERE id = ?')
+          .run(i.t, detalle, sumar(previa.evidencia, i.evidencia || '', '— también: '), previa.id);
+        return { id: previa.id, repetida: true, estado: previa.estado };
+      }
+      const r = q(`INSERT INTO ideas (area, titulo, detalle, evidencia, impacto, esfuerzo, estado, autor, huella, vista, creada, movida)
+                   VALUES (?, ?, ?, ?, ?, ?, 'nueva', ?, ?, 1, ?, ?)`)
+        .run(i.area, i.titulo, i.detalle || '', i.evidencia || '', i.impacto, i.esfuerzo, i.autor || '', i.huella, i.t, i.t);
+      return { id: Number(r.lastInsertRowid), repetida: false, estado: 'nueva' };
+    },
+
+    idea(id) { return q('SELECT * FROM ideas WHERE id = ?').get(id) || null; },
+
+    /** Las ideas, filtradas y ordenadas por lo que más conviene mirar. */
+    ideas({ area = null, estado = null, limite = 500 } = {}) {
+      const donde = [];
+      const args = [];
+      if (area) { donde.push('area = ?'); args.push(area); }
+      if (estado) { donde.push('estado = ?'); args.push(estado); }
+      args.push(limite);
+      return q(`SELECT * FROM ideas ${donde.length ? `WHERE ${donde.join(' AND ')}` : ''}
+                ORDER BY CASE estado WHEN 'en_curso' THEN 0 WHEN 'nueva' THEN 1 WHEN 'plantada' THEN 2 ELSE 3 END,
+                         CASE impacto WHEN 'alto' THEN 0 WHEN 'medio' THEN 1 ELSE 2 END,
+                         CASE esfuerzo WHEN 'bajo' THEN 0 WHEN 'medio' THEN 1 ELSE 2 END,
+                         vista DESC, id DESC
+                LIMIT ?`).all(...args);
+    },
+
+    /** Cuántas hay de cada área y de cada estado. */
+    ideasResumen() {
+      return {
+        por_area: q('SELECT area, COUNT(*) n FROM ideas GROUP BY area ORDER BY n DESC').all(),
+        por_estado: q('SELECT estado, COUNT(*) n FROM ideas GROUP BY estado').all(),
+        por_impacto: q("SELECT impacto, COUNT(*) n FROM ideas WHERE estado = 'nueva' GROUP BY impacto").all(),
+      };
+    },
+
+    ideaGuardar(i) {
+      q(`UPDATE ideas SET area = ?, titulo = ?, detalle = ?, evidencia = ?, impacto = ?, esfuerzo = ?,
+                          estado = ?, movida = ?, cerrada = ?, motivo = ? WHERE id = ?`)
+        .run(i.area, i.titulo, i.detalle || '', i.evidencia || '', i.impacto, i.esfuerzo,
+          i.estado, i.movida, nulo(i.cerrada), i.motivo || '', i.id);
+    },
+
+    ideaBorrar(id) { return Number(q('DELETE FROM ideas WHERE id = ?').run(id).changes) > 0; },
+
     /* -------------------------------------------------------------- fotos */
     fotoGuardar(f) {
       const r = q(`INSERT INTO fotos (planta, cuenta, t, mime, bytes, ancho, alto, nota, origen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
@@ -766,7 +935,7 @@ function migrar(db, cripto) {
   const hayCuentas = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cuentas'").get();
   if (!hayCuentas) {
     /* Base nueva: el esquema actual de una. */
-    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} ${NUEVAS_V7} COMMIT;`);
+    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} ${NUEVAS_V7} ${NUEVAS_V8} COMMIT;`);
     db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', ?)").run(String(VERSION_ESQUEMA));
     return;
   }
@@ -774,12 +943,22 @@ function migrar(db, cripto) {
   if (v > VERSION_ESQUEMA) throw new Error(`la base es de una versión más nueva (${v}) que este servidor (${VERSION_ESQUEMA})`);
   if (v < 2) migrarV1aV2(db, cripto);
   /* Idempotente: una base vieja o incompleta recibe las tablas que le falten. */
-  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} ${NUEVAS_V7}`);
+  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} ${NUEVAS_V7} ${NUEVAS_V8}`);
   if (v < 3) migrarV2aV3(db);
   if (v < 4) migrarV3aV4(db);
   if (v < 5) db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '5')").run();   /* v5: la tabla fotos, creada arriba */
   if (v < 6) migrarV5aV6(db);
   if (v < 7) migrarV6aV7(db);
+  if (v < 8) migrarV7aV8(db);
+}
+
+/* v7 -> v8: el vivero de ideas de la trastienda.
+ *
+ * Sólo agrega la tabla `ideas`, que ya se creó más arriba (`CREATE TABLE IF
+ * NOT EXISTS`): acá sólo queda anotar la versión. Nada de lo que había se
+ * toca, así que no hace falta transacción para mover datos. */
+function migrarV7aV8(db) {
+  db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '8')").run();
 }
 
 /* v6 -> v7: actualizaciones por aire, fábrica, calibración y métricas.
