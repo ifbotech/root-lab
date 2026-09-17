@@ -34,6 +34,7 @@ import { alertaGasto, alertaOperacion } from './plantillas-correo.mjs';
 import { crearPush } from './push.mjs';
 import { crearClima } from './clima.mjs';
 import { crearServidorHttp, normalizarBase } from './http.mjs';
+import { crearRegistro } from './registro.mjs';
 
 const RAIZ = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -141,7 +142,15 @@ const api = crearApi({
   },
 });
 
-const servidor = crearServidorHttp({ api, raiz: RAIZ, base: BASE });
+/* Lo que queda escrito de cada pedido: los errores, los frenos, lo lento y un
+   resumen cada diez minutos. Sin IPs ni ids (server/registro.mjs). Para
+   mirar una hora movida de cerca: ROOTLAB_REGISTRO_CADA_MS=60000. */
+const registro = crearRegistro({
+  ...(Number(process.env.ROOTLAB_REGISTRO_CADA_MS) > 0
+    ? { cada: Number(process.env.ROOTLAB_REGISTRO_CADA_MS) }
+    : {}),
+});
+const servidor = crearServidorHttp({ api, raiz: RAIZ, base: BASE, registro });
 servidor.listen(PUERTO, HOST, () => {
   const local = `http://localhost:${PUERTO}${BASE}`;
   console.log(`\n  ROOTLAB ${VERSION}`);
@@ -181,6 +190,7 @@ if (correo.transporte === 'smtp') {
 for (const senal of ['SIGINT', 'SIGTERM']) {
   process.on(senal, async () => {
     servidor.close();
+    registro.cerrar();
     /* Los emails en cola salen antes de apagar (hasta 10 s). */
     await Promise.race([correo.esperar(), new Promise((ok) => setTimeout(ok, 10000))]);
     correo.cerrar();

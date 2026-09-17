@@ -292,6 +292,7 @@ clave nueva.
 | `ROOTLAB_RESPALDO_DESTINO` | — | a dónde mandarla: un remoto de rclone (`afuera:rootlab`) o `usuario@host:/ruta` |
 | `RCLONE_CONFIG` | — | la configuración de rclone para el respaldo (por ejemplo `/etc/root-lab-rclone.conf`) |
 | `ROOTLAB_LATIDO_URL` | — | un GET cada 5 minutos a esa URL (healthchecks.io o similar): avisa quien deja de oírlo |
+| `ROOTLAB_REGISTRO_CADA_MS` | 600000 | cada cuánto sale el renglón de resumen en el journal ([operacion.md](operacion.md)) |
 | `ROOTLAB_DATOS` | `data` | carpeta de la base (`rootkit.db`), respaldos, claves VAPID y emails de desarrollo |
 | `ROOTLAB_CONTACTO` | URL del repo | contacto VAPID (`mailto:` o `https:`) |
 

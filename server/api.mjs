@@ -119,9 +119,15 @@ export const EVENTOS_VISTA = ['pasaporte', 'album', 'gif', 'desk', 'invernadero'
 const ESTADOS_OTA = ['bajando', 'verificando', 'ok', 'fallo'];
 
 class ErrorApi extends Error {
-  constructor(codigo, mensaje) { super(mensaje); this.codigo = codigo; }
+  constructor(codigo, mensaje, extra = null) {
+    super(mensaje);
+    this.codigo = codigo;
+    /* Lo que el cliente necesita para portarse bien: hoy, cuántos segundos
+       esperar antes de volver a intentar. */
+    if (extra) Object.assign(this, extra);
+  }
 }
-const falla = (codigo, mensaje) => { throw new ErrorApi(codigo, mensaje); };
+const falla = (codigo, mensaje, extra) => { throw new ErrorApi(codigo, mensaje, extra); };
 
 const entero = (v, def = 0) => (Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : def);
 const texto = (v, max) => String(v ?? '').trim().slice(0, max);
@@ -196,7 +202,10 @@ export function crearApi({
       return;
     }
     l.n += 1;
-    if (l.n > max) falla(429, 'Demasiados intentos. Esperá unos minutos.');
+    if (l.n > max) {
+      const faltan = Math.max(1, Math.ceil((ventanaMs - (t - l.desde)) / 1000));
+      falla(429, 'Demasiados intentos. Esperá unos minutos.', { reintentar_en: faltan });
+    }
   }
 
   const bearer = (headers) => {
@@ -1646,7 +1655,9 @@ export function crearApi({
       try {
         return await manejar(pedido);
       } catch (e) {
-        if (e instanceof ErrorApi) return [e.codigo, { error: e.message }];
+        if (e instanceof ErrorApi) {
+          return [e.codigo, { error: e.message, ...(e.reintentar_en ? { reintentar_en: e.reintentar_en } : {}) }];
+        }
         /* Errores con código propio (cuotas y tope de la IA). */
         if (Number.isInteger(e.codigo) && e.codigo >= 400 && e.codigo < 600) {
           return [e.codigo, { error: e.message, ...(e.cuota ? { cuota: e.cuota } : {}) }];

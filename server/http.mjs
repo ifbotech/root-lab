@@ -114,7 +114,7 @@ function leerCuerpo(req) {
   });
 }
 
-export function crearServidorHttp({ api, raiz, base = '' }) {
+export function crearServidorHttp({ api, raiz, base = '', registro = null }) {
   const BASE = normalizarBase(base);
   const PUBLICO = join(raiz, 'public');
   const EMULADOR = join(raiz, 'emulador');
@@ -208,6 +208,12 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
 
   return createServer(async (req, res) => {
     for (const [k, v] of Object.entries(CABECERAS_SEGURIDAD)) res.setHeader(k, v);
+    if (registro) {
+      const empezo = Date.now();
+      res.once('finish', () => registro.anotar({
+        metodo: req.method, ruta: req.url, codigo: res.statusCode, ms: Date.now() - empezo,
+      }));
+    }
 
     let url;
     try {
@@ -233,6 +239,11 @@ export function crearServidorHttp({ api, raiz, base = '' }) {
           headers: req.headers,
           ip: String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim(),
         });
+        /* Un `429` dice tambien cuando volver: un aparato o un telefono
+           bien educado espera en vez de insistir. */
+        if (codigo === 429 && Number.isFinite(respuesta?.reintentar_en)) {
+          res.setHeader('retry-after', String(Math.max(1, respuesta.reintentar_en)));
+        }
         if (codigo === 204 || respuesta === null) {
           res.writeHead(codigo).end();
           return;

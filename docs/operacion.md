@@ -48,6 +48,36 @@ curl -s -H "Authorization: Bearer $ROOTLAB_ADMIN_CLAVE" $B/api/admin/aparatos \
 curl -s -X DELETE -H "Authorization: Bearer $ROOTLAB_ADMIN_CLAVE" $B/api/admin/aparatos/A1B2C3D4E5F6
 ```
 
+## Qué queda escrito
+
+El servicio escribe a journald (`journalctl -u root-lab`). Además de lo que
+cuenta al arrancar, anota **sólo lo que alguien querría leer**: los errores del
+servidor, los frenos por límite (`429`), lo que tardó de más —con más paciencia
+para las rutas que llaman a la IA, que tardan segundos por diseño— y, cada diez
+minutos con tráfico, un renglón de resumen:
+
+```
+1240 pedidos en 600 s · 2xx 1230, 4xx 9, 5xx 1 · mediana 3 ms, p95 48 ms · el más lento: POST /api/plantas/:id/chat 4200 ms
+```
+
+Una línea por pedido sería ruido —cada aparato habla cada quince minutos y
+cada app relee el tablero cada quince segundos— y además una base de datos de
+quién hizo qué. **Nunca entran IPs, emails ni ids**: la ruta se anota por su
+forma (`/api/plantas/:id/historial`). Está en `server/registro.mjs`, probado
+en `test/registro.test.mjs`.
+
+Para mirar:
+
+```bash
+journalctl -u root-lab -n 200 --no-pager          # lo último
+journalctl -u root-lab --since "1 hour ago" | grep -E 'error|freno|lento'
+journalctl -u root-lab --since today | grep pedidos   # sólo los resúmenes
+```
+
+**Cuando el servidor frena a alguien** (`429`) la respuesta lleva
+`Retry-After` con los segundos que faltan, y el cuerpo `reintentar_en`: un
+aparato o un teléfono bien educado espera en vez de insistir.
+
 ## Actualizaciones por aire
 
 El lado del aparato está en
