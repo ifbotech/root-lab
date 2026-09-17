@@ -5,7 +5,13 @@
 | | Cuándo | Para qué |
 |---|---|---|
 | **Claude** | hay `ANTHROPIC_API_KEY` | uso real; modelo en `ROOTLAB_IA_MODELO` (por defecto `claude-opus-5`) |
-| **Simulada** | no hay clave | desarrollo y pruebas: respuestas estables derivadas de la foto; la app avisa que es simulada |
+| **Simulada** | no hay clave (o es inválida) | desarrollo y pruebas: respuestas estables derivadas de la foto; la app avisa que es simulada |
+
+**En producción la simulada no se muestra.** Sin una clave válida, y salvo
+que se pida con `ROOTLAB_IA_DEMO=1`, `/api/config` dice `ia_visible: false`:
+la app no ofrece charlar ni diagnosticar, la especie se elige de la lista, y
+las tres rutas responden `503`. Una planta que contesta frases de prueba es
+peor que una que todavía no habla.
 
 La app achica la foto a 1280 px en JPEG antes de subirla: sube diez veces más
 rápido y alcanza para reconocer una planta.

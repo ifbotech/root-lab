@@ -137,15 +137,44 @@ CSRF posible.
 - Habla por HTTPS **verificando el certificado** contra las raíces de Let's
   Encrypt y ZeroSSL (`root-kit/firmware/esp32/certificados.h`): nadie en el
   camino puede hacerse pasar por la nube.
-- Confianza al primer uso (`ROOTLAB_TOFU=1`) mientras no haya estación de
-  fábrica: cualquiera que invente un aparato puede registrarlo. El tope de
-  gasto de la IA acota el daño; `ROOTLAB_TOFU=0` lo cierra (roadmap, fase 3).
+- **Sólo entra si lo registró la fábrica.** En producción
+  (`ROOTLAB_TOFU=emulador`) una placa desconocida recibe `401`: la estación
+  de fábrica registra antes el hash de su token (`tools/fabrica.py` en
+  root-kit). Los únicos que se registran solos son los emuladores del
+  navegador, que no son clientes: 20 nuevos por IP por día, no cuentan para
+  nada y se borran a los 30 días sin uso. Un aparato o un lote se pueden
+  deshabilitar.
+- **Sus actualizaciones van firmadas.** Cada firmware se publica con una
+  firma ECDSA P-256 hecha con una clave que **no está en el servidor**. El
+  servidor verifica con la pública antes de aceptar un binario, y el aparato
+  vuelve a verificar con la misma pública compilada adentro antes de
+  instalar: tomar el servidor no alcanza para instalarle nada a una maceta.
+  El binario se baja sólo con el token del aparato.
+
+## La administración
+
+`/api/admin/*` (fábrica, firmware, métricas) usa una clave larga del entorno
+(`ROOTLAB_ADMIN_CLAVE`), comparada en tiempo constante. Sin ella las rutas no
+existen; diez intentos fallidos en diez minutos bloquean la IP. No hay
+"usuarios administradores" en la base: una cuenta de la app nunca puede
+volverse administradora.
+
+## Los respaldos que salen del servidor
+
+Van cifrados **enteros** (AES-256-GCM, clave derivada con scrypt) con
+`ROOTLAB_RESPALDO_CLAVE`, que no es la clave maestra: quien custodia los
+respaldos no puede leer producción, y al revés. Una prueba mensual los
+descifra y los abre. Ver [operacion.md](operacion.md).
+
+## Las métricas
+
+Contadores por día con el nombre del evento y cuántas veces: ni cuenta, ni
+planta, ni IP, ni nada de terceros. La lista de eventos es cerrada.
 
 ## Pendiente
 
 - Rotación de la clave maestra (`tools/rotar-secreto.mjs`).
-- Respaldos fuera del VPS (snapshots del proveedor o un bucket cifrado).
-- Registro de fábrica y `ROOTLAB_TOFU=0`.
+- Elegir el destino de los respaldos cifrados (`ROOTLAB_RESPALDO_DESTINO`).
 - Segundo factor opcional (passkeys) para las cuentas.
 - Cambiar el email de una cuenta (con verificación del nuevo).
 - Auditoría externa antes de vender.

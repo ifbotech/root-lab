@@ -14,7 +14,7 @@ Del QR del Rooti a la primera cara. La implementación está en
 | 6 | **vincular** | **ojos dormidos, grises** | "¡Conectaste a tu Brote!": el Rooti de la figura, dormido y en gris |
 | 7 | **cofre** | **abre los ojos con su piel** | tres toques, luz, sale la piel (común, rara o épica) con su cinta y confeti; **la app se pinta con esos colores** |
 | 8 | **nombre** | la cara | sugerencias según el Rooti |
-| 9 | **foto** | la cara | reconocimiento (pide el Rooti y cuenta para la cuota), rangos y cuidados; o elegir de la lista |
+| 9 | **foto** | la cara | reconocimiento (pide el Rooti y cuenta para la cuota), rangos y cuidados; o elegir de la lista. Sin una IA de verdad en el servidor, va directo a la lista |
 | 10 | **listo** | la cara, con umbrales | "Ver a Rulo": ficha de cuidados y "Hablar con Rulo" |
 
 ## Por qué en este orden

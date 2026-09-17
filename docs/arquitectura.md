@@ -58,8 +58,8 @@ sólo cambia `db.mjs`.
 | `cuentas` | id | email **cifrado** + índice ciego (único), nombre **cifrado**, hash Argon2id, zona horaria, colección de pieles (`brote-epico`...), paleta, plan, email verificado, ciudad **cifrada** (para el pronóstico) |
 | `sesiones` | SHA-256 del token | cuenta, creada, último uso, navegador |
 | `tokens_cuenta` | SHA-256 del token | enlaces de un uso: restablecer la contraseña, verificar el email; vencimiento |
-| `dispositivos` | id del aparato | hash del token, último estado, código actual y su época, última lectura |
-| `plantas` | id | cuenta, aparato, época del vínculo, Rooti (`persona`), cofre, **rareza** de la piel, **mascota** (felicidad, polvo, gotas de rocío), nombre, especie, días sanos, pantalla, `desvinculada`, **ficha** de cuidados, **prompt** del chat, último reconocimiento |
+| `dispositivos` | id del aparato | hash del token, último estado, código actual y su época, última lectura, **canal** de firmware, estado de su última actualización, **lote**, **origen** (fábrica, tofu o emulador) y si está deshabilitado |
+| `plantas` | id | cuenta, aparato, época del vínculo, Rooti (`persona`), cofre, **rareza** de la piel, **mascota** (felicidad, polvo, gotas de rocío), **calibración** del sensor, **maceta**, nombre, especie, días sanos, pantalla, `desvinculada`, **ficha** de cuidados, **prompt** del chat, último reconocimiento |
 | `lecturas` | id | planta, aparato, hora, suelo, temperaturas, humedad, luz, batería, ánimo y severidad |
 | `chat` | id | planta, cuenta, hora, quién habla, mensaje **cifrado** |
 | `ia_uso` | id | cada llamada a la IA: tipo, modelo, tokens, costo en micro-dólares, día local |
@@ -69,7 +69,9 @@ sólo cambia `db.mjs`.
 | `cuidadores` | SHA-256 del token | planta, cuenta, nombre, hasta cuándo vale, usos: el enlace `/sitter/<token>` |
 | `riegos` | id | planta, hora, origen, quién: los riegos anotados a mano |
 | `fotos` | id | planta, cuenta, hora, tipo, **los bytes** (hasta 450 KB, 60 por planta), nota, origen: el álbum |
-| `meta` | clave | versión del esquema (6), marcas de alertas de gasto |
+| `firmware` | id | versión, placa, canal, SHA-256, **firma**, tamaño, notas, el binario; retirado |
+| `eventos` | día + evento | contadores anónimos: cuántas veces pasó cada cosa cada día, sin cuenta ni planta |
+| `meta` | clave | versión del esquema (7), marcas de alertas (gasto, vigía) |
 
 **Migraciones.** `db.mjs` sabe llevar una base v1 (email en claro, scrypt) a
 v2: reconstruye `cuentas` cifrando cada email con la receta de 12 pasos de
@@ -80,7 +82,9 @@ botánicos: se agregan `rareza` y `mascota` a `plantas`, los Rooties de la
 primera tanda pasan al más parecido de los nuevos con una rareza equivalente
 (`LEGADO` en `server/cofre.mjs`: el secreto pasa a Bulbo épico) en plantas,
 aparatos y colecciones, y las paletas de Chico Malo y Chica Chill pasan a la
-piel común del Pinchito y del Musgo.
+piel común del Pinchito y del Musgo. De v6 a v7 (actualizaciones por aire,
+fábrica, calibración y métricas) sólo se agregan columnas y tablas; los
+aparatos que se presentaron como emulador quedan marcados como tales.
 
 **Cada cuenta ve sólo lo suyo.** Toda consulta de la app parte de la cuenta
 de la sesión: `plantasDe(cuenta)`, y una planta pedida por id se compara con
@@ -125,7 +129,7 @@ de un dominio o debajo de una ruta.
 | `/#invernadero` | todos los Rooties en un estante, mirándose |
 | `/#album/<id>`, `/#pasaporte/<id>` | el álbum de fotos y el pasaporte botánico de una planta |
 | `/#camara`, `/#charla` | los atajos del ícono: van a la primera planta que sirva |
-| `/#hoy` | caras, tareas, contadores, nivel |
+| `/#hoy` | caras, tareas, contadores y el vínculo de cada planta |
 | `/#plantas`, `/#planta/<id>` | lista y detalle (con la ficha de cuidados) |
 | `/#chat/<id>` | charla con la planta |
 | `/#diagnostico/<id>`, `/#especie/<id>` | cámara |

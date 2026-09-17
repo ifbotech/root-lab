@@ -15,7 +15,10 @@ documentados con ejemplos y vectores de prueba en
 Lo que hace el servidor con cada pedido:
 
 1. Autentica el token contra el id. Un id desconocido se registra con su
-   token (confianza al primer uso) salvo que `ROOTLAB_TOFU=0`.
+   token (confianza al primer uso) según `ROOTLAB_TOFU`: `1` cualquiera
+   (desarrollo), `emulador` sólo los emuladores (producción: las placas las
+   registra la fábrica) o `0` nadie. Un aparato deshabilitado recibe `403`.
+   Ver [operacion.md](operacion.md).
 2. Si el aparato está vinculado pero llega con otra **época**, alguien lo
    reinició con el botón: se rompe el vínculo.
 3. Guarda el estado y, si viene, el código actual con su época.
@@ -26,10 +29,20 @@ Lo que hace el servidor con cada pedido:
    tramo con la planta cómoda (`HAPPY` y `OK`) suma tiempo para las gotas de
    rocío de la mascota ([mascota.md](mascota.md)).
 6. Manda las notificaciones que correspondan.
+   Guarda también lo que el aparato cuenta de su actualización por aire
+   (`ota: { version, estado }`) y su lote.
 7. Responde vínculo, cofre, qué Rooti es (`persona`, desde que se vincula:
    lo dice la figura), la piel que salió del cofre (`rareza`: `comun`, `raro`
    o `epico`, sólo con el cofre abierto), nombre, especie, días sanos, brillo
-   y modo de pantalla.
+   y modo de pantalla; la `calibracion` del sensor si se hizo desde la app, y
+   `calibrando: true` mientras la app la está haciendo ([riego.md](riego.md));
+   y, si hay una versión nueva para su placa y su canal, el manifiesto
+   `firmware: { version, url, sha256, firma, tamano }`.
+
+### `GET /api/d/firmware/:id`
+
+El binario de una actualización, con el token del aparato (no es público:
+sin token de aparato, `401`). `404` si esa publicación se retiró.
 
 ### `POST /api/d/demo`
 
@@ -106,7 +119,8 @@ no hace falta regalar intentos.
 |---|---|
 | `GET /api/estado` | `{ cuenta, nodes, especies, coleccion, avisos, hora }` |
 | `GET /api/plantas/:id` | la planta |
-| `PATCH /api/plantas/:id` | `{ nombre?, especie?, pantalla?, brillo? }`. Con la especie nace la ficha de cuidados; con nombre y especie, el prompt del chat |
+| `PATCH /api/plantas/:id` | `{ nombre?, especie?, pantalla?, brillo?, calibracion?, maceta? }`. Con la especie nace la ficha de cuidados; con nombre y especie, el prompt del chat. `calibracion: { seco, mojado }` (o `null` para volver a la de fábrica; `400` con el motivo si no sirve) y `maceta: { diametro_cm, alto_cm? }` (o `null`): ver [riego.md](riego.md) |
+| `POST /api/plantas/:id/calibrar` | `{ activo? }`: abre (o cierra, con `false`) la ventana de 10 minutos en la que el Rooti mide y cuenta cada 5 s → la planta |
 | `DELETE /api/plantas/:id` | desvincula: la maceta vuelve al QR con código nuevo. La planta y sus lecturas quedan guardadas en la cuenta |
 | `POST /api/cofre/abrir` | `{ planta }`: abre el cofre, que sortea la **piel** del Rooti que ya se sabe cuál es (común 70 %, rara 25 %, épica 5 %), una sola vez por vínculo → `{ id, nombre, lema, rareza, piel: { id, nombre, fondo, ojos, piel, rubor, adornos }, fondo, nuevo, probabilidad, de_fabrica, planta, paleta, pinta }`. `nuevo`: la piel no estaba en la colección; `pinta`: la cuenta pasó a usar la paleta de la piel (sólo la primera vez que se abre). Ver [rooties.md](rooties.md) |
 | `POST /api/plantas/:id/cofre` | lo mismo, con la planta en la ruta |
@@ -138,11 +152,14 @@ Una planta en `nodes`:
   "link": "VIVO", "mood": "THIRSTY", "severity": "URGENT", "reason": "tengo sed",
   "tel": { "soil_pct": 12, "temp_dc": 231, "rh_pct": 58, "lux": 5200,
            "suelo_dc": null, "batt_mv": 3900, "usb": false, "age_s": 30,
-           "escurre": false },
+           "escurre": false, "suelo_raw": 2175 },
   "nodo": { "id": "A1B2...", "batt_pct": 76, "usb": false, "rssi": -60,
-            "fw": "0.5.0", "placa": "c3-supermini", "en_linea": true },
+            "fw": "0.6.0", "placa": "c3-supermini", "en_linea": true,
+            "actualizacion": { "version": "0.6.0", "canal": "estable", "disponible": null, "estado": "ok", "intento": "0.6.0" } },
   "bond": { "dias_vividos": 40, "dias_sanos": 34, "racha": 8, "mejor_racha": 19 },
   "pantalla": "toque", "brillo": 80,
+  "calibracion": { "seco": 2950, "mojado": 1400, "t": 1789000000000 }, "calibrando": false,
+  "maceta": { "diametro_cm": 16 }, "agua_ml": 540,
   "mascota": { "felicidad": 72, "polvo": 0, "gotas": 2, "caricia_en_ms": 0,
                "optimo_pct": 40, "ultima_interaccion": 1789000000000 },
   "salud": 100
@@ -181,7 +198,12 @@ Sin cuota: `429` con `cuota` en el cuerpo. Con el tope de gasto alcanzado:
 `503`. Si la IA falla: `502` con un mensaje para la persona. Límites, precios
 y el prompt: [ia.md](ia.md).
 
-### Colección y avisos
+`chat` es `false` también cuando el servidor no tiene una IA de verdad
+(`ia_visible` en `/api/config`): entonces `GET …/chat` responde
+`{ disponible: false, motivo: "ia" }` y reconocer, diagnosticar y charlar dan
+`503`.
+
+### Colección, avisos y métricas
 
 | | |
 |---|---|
@@ -190,5 +212,13 @@ y el prompt: [ia.md](ia.md).
 | `POST /api/push/suscripcion` | `{ suscripcion }` |
 | `DELETE /api/push/suscripcion` | `{ endpoint }` |
 | `POST /api/push/probar` | manda una de prueba: `{ enviados }` |
-| `GET /api/config` *(sin sesión)* | `{ version, ia, push, url_publica, probabilidades, clave_min, chat_max, cuotas }` |
+| `POST /api/evento` *(sin sesión)* | `{ evento }`: un contador anónimo, `alta:<paso>` o `vista:<pantalla>` → `204` · `400` si no está en la lista. Ver [operacion.md](operacion.md) |
+| `GET /api/config` *(sin sesión)* | `{ version, ia, ia_visible, firmware_publica, push, url_publica, probabilidades, clave_min, chat_max, cuotas }` |
 | `GET /api/salud` *(sin sesión)* | `{ ok, version, esquema, activo_s, cuentas, dispositivos, plantas, lecturas }` |
+
+## De la administración
+
+`/api/admin/*`, con `Authorization: Bearer <ROOTLAB_ADMIN_CLAVE>`: estado,
+métricas, aparatos (la estación de fábrica, canales, deshabilitar) y firmware
+(publicar firmado, listar, retirar). Sin la clave configurada, esas rutas no
+existen. La tabla completa y cómo se usa cada una: [operacion.md](operacion.md).

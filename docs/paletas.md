@@ -5,13 +5,19 @@ diseña (Rocío) y para quien toca el código.
 
 ## Cómo funciona para quien usa la app
 
-- La primera vez, la app usa **Vibrant Tones**, la paleta de ROOTLAB.
+- La primera vez, la app usa **ROOTLAB**: papel, hoja y miel, clara como un
+  libro de cuentos.
+- **De día y de noche.** La paleta ROOTLAB y las quince pieles son claras y
+  cada una tiene su versión de noche (los mismos colores, sobre fondo
+  profundo). En **Ajustes → De día y de noche** se elige: *Auto* (de noche de
+  22 a 8, cuando el Rooti se sienta a dormir), *Sistema* (lo que diga el
+  teléfono), *Día* o *Noche*. Es de esa pantalla, no de la cuenta.
 - Cada Rooti tiene tres **pieles** (común, rara, épica) y cada piel es una
   paleta. Cuando abrís el cofre y sale la piel, apenas aparece la app se pinta
   con sus colores: un círculo que crece desde el cofre hasta cubrir la
   pantalla. La paleta queda guardada en la cuenta y se ve igual en todos tus
   teléfonos (y en los emails). Reabrir un cofre ya abierto no la cambia.
-- En **Ajustes → Paleta** podés volver a Vibrant Tones, elegir cualquier piel
+- En **Ajustes → Paleta** podés volver a la de ROOTLAB, elegir cualquier piel
   que ya te salió o una cosmética que ganaste. Las que faltan se ven apagadas,
   con candado y el motivo.
 
@@ -42,12 +48,31 @@ el destacado. Los estados (bien `#2e7d32`, atención `#e65100`, urgente
 pantalla, paneles casi blancos, tinta de los ojos oscurecida. Llevan
 `estilo: 'claro'` (`<html data-estilo="claro">`) para suavizar sombras.
 
+**De noche, los roles de una piel se dan vuelta** (`rolesDeNoche`): la piel
+—pastel— pasa a ser el botón que brilla, sobre un fondo profundo teñido con
+el color de los ojos; el rubor sigue siendo el acento, y los estados usan un
+verde, un ámbar y un rojo que se leen sobre oscuro.
+
+## ROOTLAB, la paleta por defecto
+
+Papel `#f5f8ee` (fondo), Hoja `#2f7d3a` (botón principal), Brote tierno
+`#cfe3bd` (paneles y bordes), Río `#2b6f9e` (enlaces), Miel `#e0a526`
+(logros), Pétalo `#e2718a` (acento). De noche: fondo teñido de `#3f6b4a`, con
+`#9ccc65`, `#64b5f6`, `#ffd54f` y `#f48fb1`. Son datos en `PALETAS`
+(`roles` y `noche`): Rocío los cambia sin tocar nada más.
+
+Antes la app era oscura hasta abrir el cofre y pastel después: dos productos.
+Ahora es el mismo libro de cuentos de punta a punta, y lo oscuro es la noche.
+
 ## Vibrant Tones
+
+La primera paleta de ROOTLAB, nocturna. Queda como cosmética libre: se elige
+en Ajustes y es oscura a toda hora, igual que OLED, Cristal y Solar.
 
 Strawberry Red `#f94144`, Pumpkin Spice `#f3722c`, Carrot Orange `#f8961e`,
 Atomic Tangerine `#f9844a`, Tuscan Sun `#f9c74f`, Willow Green `#90be6d`,
 Seaweed `#43aa8b`, Dark Cyan `#4d908e`, Blue Slate `#577590`, Cerulean
-`#277da1`. Tema oscuro: el fondo se deriva de Blue Slate.
+`#277da1`. El fondo se deriva de Blue Slate.
 
 | Rol | Qué pinta | Vibrant Tones |
 |---|---|---|
@@ -103,9 +128,9 @@ sobre crema— se aclara (en los temas oscuros) o se oscurece (en los claros)
 tiene su versión `-texto`: `--urgente` es el color lleno de un chip y
 `--urgente-texto` el mismo rojo, garantizado legible como letra.
 
-`test/paletas.test.mjs` recorre las 19 paletas y falla si algún par no
-cumple, si un tema claro no es claro o si una piel no tiene exactamente los
-colores del firmware.
+`test/paletas.test.mjs` recorre las 20 paletas **de día y de noche** y falla
+si algún par no cumple, si un tema claro no es claro, si uno de noche no es
+oscuro o si una piel no tiene exactamente los colores del firmware.
 
 ## Cambiar una piel
 
@@ -125,9 +150,10 @@ No hay que tocar CSS ni vistas.
 |---|---|
 | `public/lib/rooties.mjs` | generado: los cinco Rooties y sus tres pieles |
 | `public/lib/paletas.mjs` | datos + motor de color (OKLab, contraste WCAG); `paletaDeRooti(rooti, rareza)` |
-| `public/lib/tema.mjs` | `aplicarPaleta(id, { animar, origen })`: variables en `<html>`, `theme-color`, recuerdo en el teléfono, animación con View Transitions |
-| `public/tema.js` | script clásico en el `<head>`: aplica la paleta guardada antes de la primera pintada (sin parpadeo) |
-| `public/style.css` | `:root` con los valores de Vibrant Tones (por si no carga JS); todo lo demás usa variables |
+| `public/lib/tema.mjs` | `aplicarPaleta(id, { animar, origen })`: variables en `<html>`, `theme-color`, recuerdo en el teléfono (los tokens de día y los de noche), animación con View Transitions; `fijarModo`, `vigilarNoche` |
+| `public/lib/reloj.mjs` | `esModoNoche(modo, hora, oscuroDelSistema)`: la regla, pura; respeta la hora de prueba del emulador |
+| `public/tema.js` | script clásico en el `<head>`: aplica la paleta guardada, de día o de noche con la misma regla, antes de la primera pintada (sin parpadeo) |
+| `public/style.css` | `:root` con los valores de ROOTLAB de día (por si no carga JS); todo lo demás usa variables |
 | `server/api.mjs` | `cuentas.paleta`; el cofre la cambia a la piel que salió; `PATCH /api/cuenta {paleta}` valida que tengas esa piel o el requisito |
 | `server/plantillas-correo.mjs` | los emails usan la paleta de la cuenta |
 

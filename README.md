@@ -17,8 +17,9 @@ que reaccionan a cómo está tu planta.
   Rooti y lo que miden sus sensores en ese momento.
 - **Tablero** con tareas del día, gráficos, diagnóstico por foto y
   **notificaciones** cuando la planta necesita algo.
-- **Paletas dinámicas**: la app se pinta con los colores de la piel de tu
-  Rooti; quince pieles pastel, de libro de cuentos.
+- **Paletas dinámicas**: clara como un libro de cuentos, la app se pinta con
+  los colores de la piel de tu Rooti (quince pieles pastel) y **de noche** se
+  apaga sola: de 22 a 8, con el sistema, o como elijas.
 - **El Rooti entero**: en el teléfono se ve el personaje completo, con la
   cara del firmware en la ventana de su pantalla. Es una **mascota**: dos
   barras (salud, que dan los sensores, y felicidad, que dan los mimos),
@@ -29,6 +30,9 @@ que reaccionan a cómo está tu planta.
   se deja **acariciar** (ojos en `^ ^`, vibración, corazones), habla con **su
   voz** mientras escribe y se queda a pantalla completa en el **modo
   escritorio**, sin que la pantalla se apague.
+- **Cuánta agua, no sólo "regá"**: el sensor de tierra se **calibra** en dos
+  pasos desde la ficha (con el número crudo en vivo), y con el diámetro de la
+  maceta las tareas dicen "unos 540 ml, medio litro".
 - **Regar antes**: con la ciudad, ROOTLAB cruza la velocidad a la que se
   seca la tierra con el pronóstico (Open-Meteo) y avisa un día antes del
   calor. Y para quien quiere ir a fondo, **VPD** y **DLI** en la pestaña
@@ -40,11 +44,20 @@ que reaccionan a cómo está tu planta.
 - **Recuerdos**: el álbum de fotos con fantasma de encuadre, antes/después
   y un GIF de evolución hecho en el teléfono; y el **pasaporte botánico**,
   una hoja A4 para guardar como PDF.
-- **Tres paletas que se ganan** (OLED Midnight, Cristal, Solar Gold), todas
-  legibles (WCAG AA).
+- **Una sola progresión**: la mascota es lo de hoy, el **vínculo** (días
+  sanos → etapas → adornos en la cara) lo de meses. Sin XP ni niveles.
+- **Paletas nocturnas** (Vibrant Tones, OLED Midnight, Cristal, Solar Gold),
+  libres o ganadas cuidando; las veinte, legibles de día y de noche (WCAG AA).
+- **Rooties que se actualizan solos**: firmware **firmado** por canales
+  (beta y estable); la ficha muestra qué versión corre y si hay una nueva.
+- **Operación**: fábrica que registra cada aparato (sin eso, una placa no
+  entra), respaldos cifrados fuera del servidor con prueba de restauración
+  mensual, vigía de caídas masivas y métricas anónimas sin terceros.
 - **Sin red**: abre al instante con lo último que vio, los cambios esperan
   en una cola, el ícono muestra las tareas pendientes y tiene atajos.
-- **Datos personales cifrados**, IA con **tope de gasto** y cuotas diarias.
+- **Datos personales cifrados**, IA con **tope de gasto** y cuotas diarias; y
+  si el servidor no tiene una IA de verdad, la app la esconde en vez de
+  simularla.
 
 El firmware, el hardware y las carcasas están en
 [root-kit](https://github.com/ifbotech/root-kit).
@@ -99,9 +112,12 @@ lleva días:
 | +3 gotas de rocío | el snack |
 | Ir a | la ficha con los mimos, el modo escritorio, el álbum, el pasaporte, el invernadero y la colección |
 | Otro Rooti | abre `emulador/?n=2` (y así): otro aparato con su propia identidad, para el invernadero |
+| Sensor sin calibrar | el capacitivo lee de menos hasta que se calibra desde la ficha ([docs/riego.md](docs/riego.md)) |
+| Firmware | publicar cualquier archivo para la placa `emulador` y verlo bajar, verificar la firma y "reiniciar" ([docs/operacion.md](docs/operacion.md)) |
 
-Sin configuración, todo funciona en local: la IA es **simulada** (la app lo
-avisa), los emails quedan como `.eml` en `data/correos` (los enlaces andan) y
+Sin configuración, todo funciona en local: la IA simulada se ve con
+`ROOTLAB_IA_DEMO=1` (si no, la app esconde las funciones de IA, como en
+producción), los emails quedan como `.eml` en `data/correos` (los enlaces andan) y
 la clave maestra se genera en `data/secreto.key`. Para usar Claude y un relay
 de correo, copiá `.env.example` a `.env`.
 
@@ -112,7 +128,7 @@ exigen HTTPS. Ver [docs/despliegue.md](docs/despliegue.md).
 ## Pruebas
 
 ```bash
-npm test          # 367 pruebas
+npm test          # 426 pruebas
 ```
 
 Flujo completo con un Rooti virtual, cuentas y aislamiento entre cuentas,
@@ -124,7 +140,10 @@ subruta, avisos, diagnóstico, tareas, caras, lo que el teléfono le agrega a
 la cara (luz, voz, caricia, modo escritorio), el pronóstico y la previsión
 de riego, VPD y DLI, el enlace del cuidador, las pieles y el cofre (70/25/5),
 la mascota, y que las siluetas de los cuerpos se puedan imprimir sin
-soportes (voladizos de 45° como máximo, base plana, centro de masa bajo).
+soportes (voladizos de 45° como máximo, base plana, centro de masa bajo), el
+firmware firmado y sus canales, la fábrica y los modos de confianza, la
+calibración y el riego por volumen, los respaldos cifrados y su restauración,
+el vigía, las métricas y las veinte paletas de día y de noche.
 
 Contra un servidor desplegado: `node tools/verificar-despliegue.mjs <url> --flujo`.
 
@@ -146,6 +165,9 @@ server/
   avisos.mjs             qué notificación mandar y cuándo callarse
   clima.mjs              el pronóstico (Open-Meteo) y el riego que se anticipa
   cofre.mjs              qué Rooti es cada aparato y qué piel sale del cofre
+  firmware.mjs           versiones, canales y firma de las actualizaciones por aire
+  vigia.mjs              muchos Rooties callados a la vez: avisar a quien opera
+  respaldo.mjs           cifrar y abrir los respaldos que salen del servidor
   catalogo.mjs           especies curadas y Rooties (generados desde el firmware)
   codigo.mjs             código de vinculación, igual que el firmware
   push.mjs               Web Push con claves VAPID
@@ -153,16 +175,18 @@ server/
 public/                  la app (PWA sin build)
   app.js                 rutas, sesión, alta
   tema.js                la paleta guardada antes de la primera pintada
-  vistas/                alta, cuenta, cofre, hoy, plantas, mascota, botánica, chat, escáner, Rooties,
+  vistas/                alta, cuenta, cofre, hoy, plantas, mascota, calibrar, botánica, chat, escáner, Rooties,
                          ajustes, modo escritorio, cuidador, invernadero, álbum, pasaporte
-  lib/                   rooties (generado), cuerpo, mascota, reloj, paletas y tema, tareas, diagnóstico,
+  lib/                   rooties (generado), cuerpo, mascota, riego, reloj, paletas y tema, tareas, diagnóstico,
                          gamificación, caras, luz, caricias, voz, botánica, miradas, gif, pasaporte,
                          almacén y cola (sin red), API
   caras/                 el firmware en WebAssembly y las imágenes de las caras
   fuentes/               Nunito (OFL), servida desde la app
 emulador/                el Rooti virtual
-deploy/                  instalación en el VPS: script, servicios systemd, respaldo diario, Caddy
-tools/                   verificar un despliegue, respaldar, uso de la IA, probar el correo, sincronizar el firmware
+deploy/                  instalación en el VPS: script, servicios systemd (respaldo diario y su prueba mensual),
+                         Caddy y la clave pública del firmware
+tools/                   verificar un despliegue, respaldar y restaurar, publicar firmware, uso de la IA,
+                         probar el correo, sincronizar el firmware
 test/
 docs/
 ```
@@ -179,6 +203,8 @@ docs/
 | [correo.md](docs/correo.md) | Nodemailer + Brevo, SPF/DKIM/DMARC, plantillas |
 | [rooties.md](docs/rooties.md) | Los cinco Rooties, sus pieles, el cofre y el cuerpo que se imprime sin soportes |
 | [mascota.md](docs/mascota.md) | Salud y felicidad: caricias, polvo, gotas de rocío y la noche |
+| [riego.md](docs/riego.md) | Calibrar el sensor de tierra y decir cuánta agua |
+| [operacion.md](docs/operacion.md) | Administración, firmware firmado, fábrica, respaldos que se prueban, vigía y métricas |
 | [paletas.md](docs/paletas.md) | Las paletas de las pieles, las cosméticas y el motor de contraste |
 | [notificaciones.md](docs/notificaciones.md) | Cuándo se avisa y cuándo no |
 | [sensorial.md](docs/sensorial.md) | La cara en el teléfono: luz, caricias, voz y modo escritorio |

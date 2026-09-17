@@ -40,10 +40,10 @@ El VPS ya sirve `ifbotech.com` con **Caddy** delante de la app principal
 | Código | `/opt/root-lab` (clon de GitHub) |
 | Node 24 propio | `/opt/root-lab-node` (el del sistema no se toca) |
 | Configuración y clave maestra | `/etc/root-lab.env` (640, grupo `rootlab`) |
-| Base de datos | `/var/lib/root-lab/rootkit.db` (SQLite, esquema 2: cuentas, plantas, lecturas, charlas; datos personales cifrados) |
+| Base de datos | `/var/lib/root-lab/rootkit.db` (SQLite: cuentas, plantas, lecturas, charlas, firmware; datos personales cifrados) |
 | Claves VAPID | `/var/lib/root-lab/vapid.json` |
-| Respaldos | `/var/lib/root-lab/respaldos/`, uno por día, 14 días |
-| Servicios | `root-lab` y `root-lab-respaldo.timer` (systemd), usuario `rootlab` sin privilegios |
+| Respaldos | `/var/lib/root-lab/respaldos/`, uno por día, 14 días, con su copia cifrada (`.db.enc`) para sacar del servidor ([operacion.md](operacion.md)) |
+| Servicios | `root-lab`, `root-lab-respaldo.timer` (diario) y `root-lab-verificar-respaldo.timer` (prueba de restauración mensual), usuario `rootlab` sin privilegios |
 | Proxy | un bloque `handle` en el Caddyfile del sitio |
 
 ### ¿Por qué un VPS?
@@ -281,8 +281,15 @@ clave nueva.
 | `ROOTLAB_IA_PRECIOS` | ver [ia.md](ia.md) | precios por millón de tokens (JSON) |
 | `ROOTLAB_SMTP_HOST`, `_PORT`, `_USUARIO`, `_CLAVE` | — | relay SMTP; sin él, emails a `data/correos` |
 | `ROOTLAB_CORREO_REMITENTE` | `ROOTLAB <no-reply@ifbotech.com>` | |
-| `ROOTLAB_ADMIN_EMAIL` | — | alertas de gasto de la IA |
-| `ROOTLAB_TOFU` | `1` | `0`: rechaza aparatos que no registró la fábrica |
+| `ROOTLAB_IA_DEMO` | — | `1`: mostrar las funciones de IA aunque sea simulada (desarrollo). Sin esto y sin clave válida, la app las esconde |
+| `ROOTLAB_ADMIN_EMAIL` | — | alertas para quien opera: gasto de la IA, caídas masivas, prueba de restauración |
+| `ROOTLAB_ADMIN_CLAVE` | la genera el instalador | la clave de `/api/admin/*` (fábrica, firmware, métricas); sin ella esas rutas no existen ([operacion.md](operacion.md)) |
+| `ROOTLAB_FIRMWARE_PUBLICA` | `deploy/firmware-publica.pem` | la pública con la que se verifica cada firmware que se publica |
+| `ROOTLAB_TOFU` | `1` (`emulador` en el VPS) | quién se registra solo: `1` cualquiera, `emulador` sólo emuladores (las placas, por fábrica), `0` nadie |
+| `ROOTLAB_RESPALDO_CLAVE` | la genera el instalador | cifra la copia del respaldo que sale del servidor |
+| `ROOTLAB_RESPALDO_DESTINO` | — | a dónde mandarla: un remoto de rclone (`afuera:rootlab`) o `usuario@host:/ruta` |
+| `RCLONE_CONFIG` | — | la configuración de rclone para el respaldo (por ejemplo `/etc/root-lab-rclone.conf`) |
+| `ROOTLAB_LATIDO_URL` | — | un GET cada 5 minutos a esa URL (healthchecks.io o similar): avisa quien deja de oírlo |
 | `ROOTLAB_DATOS` | `data` | carpeta de la base (`rootkit.db`), respaldos, claves VAPID y emails de desarrollo |
 | `ROOTLAB_CONTACTO` | URL del repo | contacto VAPID (`mailto:` o `https:`) |
 
@@ -325,8 +332,10 @@ el dominio nuevo, entra con su email y vuelve a activar los avisos.
 
 - **Una clave de Anthropic válida** (la actual está revocada) y un límite de
   gasto para ella en la consola de Anthropic.
-- `ROOTLAB_TOFU=0` y registro de tokens desde la estación de fábrica.
-- Respaldos fuera del VPS (snapshots del proveedor o copia a un bucket), con
-  la clave maestra guardada aparte.
+- **Un destino para los respaldos cifrados** (`ROOTLAB_RESPALDO_DESTINO`): la
+  copia cifrada y la prueba mensual ya corren; falta elegir a dónde mandarla
+  ([operacion.md](operacion.md)). Y guardar aparte la clave maestra, la de
+  respaldos, la de administración y la privada del firmware.
+- Un latido externo (`ROOTLAB_LATIDO_URL`) para enterarse si el VPS se cae.
 - DMARC en `p=quarantine` cuando los reportes de Brevo estén limpios.
 - Rotación de la clave maestra.
