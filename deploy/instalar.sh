@@ -89,7 +89,9 @@ chown -R rootlab:rootlab "$DATOS"
 chmod 750 "$DATOS" "$DATOS/respaldos"
 
 paso "Respaldo antes de actualizar"
-if [ -f "$DATOS/rootkit.db" ] && [ -f "$DIR/tools/respaldar.mjs" ]; then
+if [ -n "${ROOTLAB_REEJECUTADO:-}" ]; then
+  echo "ya se hizo"
+elif [ -f "$DATOS/rootkit.db" ] && [ -f "$DIR/tools/respaldar.mjs" ]; then
   # Antes de una actualización que puede migrar el esquema: siempre copia.
   runuser -u rootlab -- "$NODE" --disable-warning=ExperimentalWarning "$DIR/tools/respaldar.mjs" "$DATOS" \
     || echo "no se pudo respaldar (se sigue igual)"
@@ -98,6 +100,8 @@ else
 fi
 
 paso "Código ($RAMA)"
+INSTALADOR_ANTES=""
+[ -f "$DIR/deploy/instalar.sh" ] && INSTALADOR_ANTES="$(sha256sum "$DIR/deploy/instalar.sh" | cut -d' ' -f1)"
 if [ -d "$DIR/.git" ]; then
   git -C "$DIR" fetch --quiet origin "$RAMA"
   git -C "$DIR" reset --quiet --hard "origin/$RAMA"
@@ -105,6 +109,13 @@ else
   git clone --quiet --branch "$RAMA" "$REPO" "$DIR"
 fi
 git -C "$DIR" log --oneline -1
+# bash sigue leyendo el instalador VIEJO (git lo reemplazó por un archivo
+# nuevo): si cambió, lo que falta —configuración, servicios— lo hace el nuevo.
+if [ -z "${ROOTLAB_REEJECUTADO:-}" ] && [ -n "$INSTALADOR_ANTES" ] \
+   && [ "$(sha256sum "$DIR/deploy/instalar.sh" | cut -d' ' -f1)" != "$INSTALADOR_ANTES" ]; then
+  echo "el instalador cambió: sigo con el nuevo"
+  ROOTLAB_REEJECUTADO=1 exec bash "$DIR/deploy/instalar.sh"
+fi
 cd "$DIR"
 PATH="$NODE_DIR/bin:$PATH" "$NPM" ci --omit=dev --no-audit --no-fund --loglevel=error
 chown -R root:root "$DIR"
@@ -152,14 +163,11 @@ fi
 # quedar en ningún log. Se leen con: sudo grep NOMBRE /etc/root-lab.env
 generar_clave() {   # nombre, bytes, comentario
   if ! grep -qE "^$1=.{24,}" "$ENV_FILE"; then
-    printf '
-# %s
-%s=%s
-' "$3" "$1" "$(head -c "$2" /dev/urandom | base64 | tr -d '
-/+=' )" >> "$ENV_FILE"
-    printf '[1;33m!![0m %s nueva en %s. Guardá una copia fuera del servidor:
-     sudo grep %s %s
-' "$1" "$ENV_FILE" "$1" "$ENV_FILE"
+    local valor
+    valor="$(head -c "$2" /dev/urandom | base64 | tr -d '\n/+=')"
+    printf '\n# %s\n%s=%s\n' "$3" "$1" "$valor" >> "$ENV_FILE"
+    unset valor
+    printf '\033[1;33m!!\033[0m %s nueva en %s (no se muestra). Guardá una copia fuera del servidor:\n     sudo grep %s %s\n' "$1" "$ENV_FILE" "$1" "$ENV_FILE"
   fi
 }
 generar_clave ROOTLAB_ADMIN_CLAVE 36 'Administración (/api/admin/*): fábrica, firmware y métricas. docs/operacion.md'

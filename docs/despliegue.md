@@ -86,7 +86,9 @@ repo, escribe `/etc/root-lab.env`, **genera la clave maestra** si falta y
 activa el servicio y el respaldo diario; las siguientes respaldan la base,
 traen `main`, instalan dependencias y reinician (si el esquema cambió, la
 migración corre sola al arrancar). Nunca pisa la configuración, la clave ni
-los datos.
+los datos. Si la actualización trae un instalador distinto, el que estaba
+corriendo le pasa la posta al nuevo apenas baja el código: lo que agregue una
+versión (una clave que falta, un temporizador) se aplica en esa misma corrida.
 
 **Después de la primera instalación, guardá la clave maestra fuera del
 servidor** (gestor de contraseñas): `sudo grep ROOTLAB_SECRETO
