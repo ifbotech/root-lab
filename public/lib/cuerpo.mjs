@@ -549,7 +549,8 @@ export function cuerpo({
       adornos.includes('brillos') ? DESTELLOS.map(([x, y], i) => s('path', { class: 'chispa', d: DESTELLO, fill: adornos.includes('corona') ? '#ffd54f' : brillo, transform: `translate(${x} ${y}) scale(${0.8 + (i % 3) * 0.25})`, style: `animation-delay:${(i * 0.45).toFixed(2)}s` })) : null,
       adornos.includes('luces') ? LUCES.map(([x, y], i) => s('circle', { class: 'luz-flota', cx: x, cy: y, r: 3 + (i % 2), fill: col.rubor, style: `animation-delay:${(i * 0.6).toFixed(1)}s` })) : null,
       estado.noche ? s('g', { class: 'cuerpo-zzz', fill: col.ojos },
-        ['z', 'z', 'Z'].map((z, i) => s('text', { x: sil.gorro.x + 34 + i * 12, y: sil.gorro.y - 20 - i * 16, 'font-size': 12 + i * 5, style: `animation-delay:${(i * 0.7).toFixed(1)}s` }, document.createTextNode(z)))) : null);
+        /* Arriba del gorrito, pero nunca fuera del lienzo (el Pinchito es alto). */
+        ['z', 'z', 'Z'].map((z, i) => s('text', { x: sil.gorro.x + 34 + i * 12, y: Math.max(sil.gorro.y, 58) - 18 - i * 14, 'font-size': 12 + i * 5, style: `animation-delay:${(i * 0.7).toFixed(1)}s` }, document.createTextNode(z)))) : null);
 
     if (estatico) {
       lienzo.src = imagenCara({ persona: id, rareza: estado.rareza, animo: animoVisible(), modo: estado.dormido ? 'dormida' : 'cara' });
