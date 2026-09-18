@@ -158,6 +158,17 @@ const FLOTA_ACTIVO_MS = 7 * DIA;
 const FLOTA_CALLADO_MS = 3 * DIA;
 /* Una sesión de la trastienda: se entra una vez por jornada de trabajo. */
 export const ADMIN_SESION_MS = 12 * H;
+/* El código que llega por email es corto, así que vive poco y aguanta poco. */
+export const ADMIN_CODIGO_MS = 10 * MIN;
+export const ADMIN_CODIGO_INTENTOS = 5;
+/* Lo que puede un token de agente. `vivero` sólo lee y propone ideas: un
+   agente que da vueltas solo no tiene por qué poder borrar cuentas ni
+   publicar firmware (docs/trastienda.md). */
+export const ALCANCES = ['vivero', 'jardinero'];
+const RUTAS_VIVERO = /^\/api\/admin\/ideas(\/\d{1,9})?$/;
+/* El jardinero además manda su informe por correo cuando termina la vuelta. */
+const RUTAS_JARDINERO = /^\/api\/admin\/(ideas(\/\d{1,9})?|informe)$/;
+const ALCANCE_RUTAS = { vivero: RUTAS_VIVERO, jardinero: RUTAS_JARDINERO };
 
 class ErrorApi extends Error {
   constructor(codigo, mensaje, extra = null) {
@@ -210,6 +221,11 @@ export function crearApi({
   clima = crearClima(),
   /* La clave de /api/admin/*. Vacía: esas rutas no existen. */
   adminClave = '',
+  /* Los emails que SIEMPRE pueden entrar a la trastienda (ROOTLAB_ADMINS).
+     Es el arranque y la red de seguridad: desde el panel se le da y se le
+     saca el rol a cualquiera, menos a estos, así que no hay forma de dejar el
+     panel sin nadie que pueda entrar. */
+  adminsDeArranque = [],
   /* La pública con la que se verifica cada firmware que se publica (PEM). */
   firmwarePublica = '',
   /* Mostrar las funciones de IA aunque sea simulada (desarrollo y tests). En
@@ -261,24 +277,51 @@ export function crearApi({
      con la clave y queda un token que vence a las doce horas. Así la clave
      maestra no vive en el almacenamiento de un navegador, y cerrar el
      servidor cierra todas las sesiones. */
-  const sesionesAdmin = new Map();   /* hash del token -> vence */
+  const sesionesAdmin = new Map();   /* hash del token -> { vence, email } */
+
+  const ARRANQUE = new Set(adminsDeArranque.map((e) => normalizarEmail(String(e || ''))).filter(Boolean));
+  /** Si ese email puede entrar a la trastienda. */
+  function esAdmin(email) {
+    const e = normalizarEmail(String(email || ''));
+    if (!e) return false;
+    if (ARRANQUE.has(e)) return true;
+    return db.cuentaPorEmail(e)?.rol === 'admin';
+  }
+  /** El rol que hay que mostrar: el de arranque no se puede sacar. */
+  const rolDe = (c) => (ARRANQUE.has(normalizarEmail(c.email)) ? 'admin' : c.rol || 'persona');
 
   function sesionAdminValida(token) {
     const h = hash(token);
-    const vence = sesionesAdmin.get(h);
-    if (!vence) return false;
-    if (reloj() > vence) { sesionesAdmin.delete(h); return false; }
-    return true;
+    const s = sesionesAdmin.get(h);
+    if (!s) return null;
+    if (reloj() > s.vence) { sesionesAdmin.delete(h); return null; }
+    return s;
   }
 
-  function exigirAdmin(headers, ip) {
+  /**
+   * Quién está pidiendo algo de administración. Tres formas, de más a menos
+   * poder: la clave del servidor (las herramientas y la fábrica), una sesión
+   * de la trastienda (una persona con su código), o un token de agente, que
+   * sólo alcanza para el vivero.
+   */
+  function exigirAdmin(headers, ip, ruta = '') {
     if (!adminClave) falla(404, 'Ruta desconocida');
     limitar(`admin:${ip}`, 240, MIN);
     const token = bearer(headers);
-    if (!token || !(igualesSeguro(hash(token), hash(adminClave)) || sesionAdminValida(token))) {
-      limitar(`admin-mal:${ip}`, 10, 10 * MIN);
-      falla(401, 'Clave de administración inválida');
+    if (token) {
+      if (igualesSeguro(hash(token), hash(adminClave))) return { quien: 'clave' };
+      const sesion = sesionAdminValida(token);
+      if (sesion) return { quien: 'sesion', email: sesion.email };
+      const agente = db.agentePorToken(hash(token));
+      if (agente) {
+        const permitidas = ALCANCE_RUTAS[agente.alcance] || RUTAS_VIVERO;
+        if (!permitidas.test(ruta)) falla(403, `Ese token sólo sirve para: ${agente.alcance}.`);
+        db.agenteUsado(agente.id, reloj());
+        return { quien: 'agente', nombre: agente.nombre, alcance: agente.alcance };
+      }
     }
+    limitar(`admin-mal:${ip}`, 10, 10 * MIN);
+    return falla(401, 'Clave de administración inválida');
   }
 
   /** Qué le pasa al firmware de un aparato: qué corre, qué hay, cómo le fue. */
@@ -918,7 +961,7 @@ export function crearApi({
   const firmwareAdmin = ({ contenido: _c, ...f }) => ({ ...f, retirado: f.retirado || null });
 
   function administrar({ metodo, ruta, query, cuerpo, headers, ip }) {
-    exigirAdmin(headers, ip);
+    const quien = exigirAdmin(headers, ip, ruta);
     const t = reloj();
     let m;
 
@@ -1006,6 +1049,104 @@ export function crearApi({
     if (metodo === 'DELETE' && ruta === '/api/admin/sesion') {
       const token = bearer(headers);
       sesionesAdmin.delete(hash(token));
+      return [204, null];
+    }
+
+    /* --- el informe de una vuelta de un agente -------------------------- */
+    /* El agente que implementa mejoras cuenta qué hizo, y eso llega al correo
+       de quien administra. Usa el relay del producto: no hace falta que el
+       agente sepa nada de SMTP ni tenga credenciales de correo. */
+    if (metodo === 'POST' && ruta === '/api/admin/informe') {
+      const asunto = texto(cuerpo?.asunto, 120);
+      const texto_ = texto(cuerpo?.cuerpo, 20000);
+      if (texto_.length < 10) falla(400, 'el informe está vacío');
+      const quienEscribe = quien.nombre || (quien.email ? quien.email : 'la trastienda');
+      limitar(`informe:${quienEscribe}`, 6, H);
+      const destinos = [...new Set([
+        ...ARRANQUE,
+        ...db.cuentas(2000).filter((c) => rolDe(c) === 'admin').map((c) => normalizarEmail(c.email)),
+      ])];
+      if (!destinos.length) falla(409, 'No hay ninguna dirección de administración a la que mandarlo.');
+      for (const para of destinos) {
+        correo.enviar({ tipo: 'informe', para, ...plantillas.informeDeAgente({ agente: quienEscribe, asunto, cuerpo: texto_ }) });
+      }
+      contar('trastienda:informe');
+      return [202, { enviado_a: destinos.length }];
+    }
+
+    /* --- quién soy, para que el panel sepa qué mostrar ------------------ */
+    if (metodo === 'GET' && ruta === '/api/admin/yo') {
+      return [200, { quien: quien.quien, email: quien.email || null, nombre: quien.nombre || null }];
+    }
+
+    /* --- las cuentas: el ABM ------------------------------------------- */
+    /* Es la única pantalla que muestra emails. Está para poder avisar de una
+       actualización, ofrecer servicio técnico cuando un aparato falla y dar o
+       sacar el rol de administración. Nada de plantas, charlas ni fotos. */
+    if (metodo === 'GET' && ruta === '/api/admin/cuentas') {
+      const cuentas = db.cuentas(Math.min(2000, Math.max(1, entero(query?.limite, 500))));
+      return [200, {
+        cuentas: cuentas.map((c) => ({
+          id: c.id,
+          email: c.email,
+          nombre: c.nombre || '',
+          creada: c.creada,
+          email_verificado: c.email_verificado || null,
+          plan: c.plan,
+          rol: rolDe(c),
+          /* Quién no se le puede sacar el rol: viene del entorno del servidor. */
+          fijo: ARRANQUE.has(normalizarEmail(c.email)),
+          plantas: c.plantas,
+          plantas_totales: c.plantas_totales,
+          ultima_sesion: c.ultima_sesion || null,
+        })),
+        arranque: [...ARRANQUE],
+      }];
+    }
+
+    if (metodo === 'PATCH' && (m = ruta.match(/^\/api\/admin\/cuentas\/([A-Za-z0-9]+)$/))) {
+      const c = db.cuenta(m[1]);
+      if (!c) falla(404, 'No existe esa cuenta');
+      if (cuerpo?.rol !== undefined) {
+        if (!['persona', 'admin'].includes(cuerpo.rol)) falla(400, 'rol: persona o admin');
+        if (ARRANQUE.has(normalizarEmail(c.email)) && cuerpo.rol !== 'admin') {
+          falla(409, 'Ese email es administrador desde el entorno del servidor (ROOTLAB_ADMINS): se saca de ahí.');
+        }
+        db.cuentaActualizar(c.id, { rol: cuerpo.rol });
+        contar(`trastienda:rol-${cuerpo.rol}`);
+      }
+      const d = db.cuenta(c.id);
+      return [200, { id: d.id, email: d.email, rol: rolDe(d) }];
+    }
+
+    if (metodo === 'DELETE' && (m = ruta.match(/^\/api\/admin\/cuentas\/([A-Za-z0-9]+)$/))) {
+      const c = db.cuenta(m[1]);
+      if (!c) falla(404, 'No existe esa cuenta');
+      if (ARRANQUE.has(normalizarEmail(c.email))) falla(409, 'Esa cuenta es administradora desde el entorno: no se borra desde acá.');
+      /* Lo mismo que cuando alguien se borra solo: se va todo lo suyo y sus
+         Rooties quedan libres para que otro los vincule. */
+      db.cuentaBorrar(c.id);
+      contar('trastienda:baja');
+      return [204, null];
+    }
+
+    /* --- los tokens de los agentes ------------------------------------- */
+    if (metodo === 'GET' && ruta === '/api/admin/agentes') {
+      return [200, { agentes: db.agentes(), alcances: ALCANCES }];
+    }
+
+    if (metodo === 'POST' && ruta === '/api/admin/agentes') {
+      const nombre = texto(cuerpo?.nombre, 40);
+      if (nombre.length < 3) falla(400, 'ponele un nombre al agente (3 caracteres o más)');
+      const alcance = ALCANCES.includes(cuerpo?.alcance) ? cuerpo.alcance : 'vivero';
+      /* El token se muestra UNA vez: después queda sólo su hash. */
+      const token = `agt_${randomBytes(24).toString('hex')}`;
+      const id = db.agenteCrear({ nombre, tokenHash: hash(token), alcance, t });
+      return [201, { id, nombre, alcance, token }];
+    }
+
+    if (metodo === 'DELETE' && (m = ruta.match(/^\/api\/admin\/agentes\/(\d{1,9})$/))) {
+      if (!db.agenteRevocar(Number(m[1]), t)) falla(404, 'No existe ese agente (o ya estaba revocado)');
       return [204, null];
     }
 
@@ -1176,20 +1317,66 @@ export function crearApi({
       return [200, { binario: Buffer.from(contenido), mime: 'application/octet-stream', cache: 'private, no-store' }];
     }
 
-    /* Entrar a la trastienda: la única ruta de administración que no pide
-       ya estar adentro. La clave se manda una vez y queda un token. */
+    /* Pedir el código para entrar a la trastienda. Contesta lo mismo exista
+       o no ese email y sea o no de administración: si no, esta ruta sería una
+       forma de averiguar quién administra el servidor. */
+    if (metodo === 'POST' && ruta === '/api/admin/codigo') {
+      if (!adminClave) falla(404, 'Ruta desconocida');
+      limitar(`admin-codigo:${ip}`, 10, 10 * MIN);
+      const email = normalizarEmail(texto(cuerpo?.email, 120));
+      const t0 = reloj();
+      db.adminCodigosLimpiar(t0 - DIA);
+      if (email && esAdmin(email)) {
+        limitar(`admin-codigo-email:${email}`, 5, 10 * MIN);
+        /* Seis dígitos sacados del generador de siempre, sin sesgo. */
+        const codigo = String(randomBytes(4).readUInt32BE(0) % 1000000).padStart(6, '0');
+        db.adminCodigoGuardar({ email, hash: hash(codigo), vence: t0 + ADMIN_CODIGO_MS, t: t0 });
+        correo.enviar({
+          tipo: 'trastienda', para: email,
+          ...plantillas.codigoTrastienda({ codigo, minutos: ADMIN_CODIGO_MS / MIN, ip }),
+        });
+        contar('trastienda:codigo');
+      }
+      return [202, { ok: true }];
+    }
+
+    /* Entrar: con el código que llegó al email, o con la clave del servidor
+       (que es como entran las herramientas y la fábrica). */
     if (metodo === 'POST' && ruta === '/api/admin/sesion') {
       if (!adminClave) falla(404, 'Ruta desconocida');
       limitar(`admin-entrar:${ip}`, 10, 10 * MIN);
-      const clave = String(cuerpo?.clave || '');
-      if (!clave || !igualesSeguro(hash(clave), hash(adminClave))) falla(401, 'Clave de administración inválida');
+      const t0 = reloj();
+      let email = '';
+
+      if (cuerpo?.codigo !== undefined) {
+        email = normalizarEmail(texto(cuerpo?.email, 120));
+        const guardado = email ? db.adminCodigo(email) : null;
+        const codigo = texto(cuerpo?.codigo, 12).replace(/\D/g, '');
+        if (!guardado || guardado.vence < t0) falla(401, 'Ese código no sirve: pedí uno nuevo.');
+        if (guardado.intentos >= ADMIN_CODIGO_INTENTOS) {
+          db.adminCodigoBorrar(email);
+          falla(429, 'Demasiados intentos con ese código: pedí uno nuevo.');
+        }
+        if (!igualesSeguro(hash(codigo), guardado.hash)) {
+          db.adminCodigoIntento(email);
+          falla(401, 'Ese código no sirve: pedí uno nuevo.');
+        }
+        /* Un código sirve una sola vez, y el rol se vuelve a mirar acá: si le
+           sacaron el rol entre que pidió el código y lo usó, no entra. */
+        db.adminCodigoBorrar(email);
+        if (!esAdmin(email)) falla(401, 'Ese código no sirve: pedí uno nuevo.');
+      } else {
+        const clave = String(cuerpo?.clave || '');
+        if (!clave || !igualesSeguro(hash(clave), hash(adminClave))) falla(401, 'Clave de administración inválida');
+      }
+
       const token = randomBytes(32).toString('hex');
-      const vence = reloj() + ADMIN_SESION_MS;
-      sesionesAdmin.set(hash(token), vence);
+      const vence = t0 + ADMIN_SESION_MS;
+      sesionesAdmin.set(hash(token), { vence, email });
       /* Las que ya vencieron no se quedan ocupando memoria. */
-      for (const [h, v] of sesionesAdmin) if (v < reloj()) sesionesAdmin.delete(h);
+      for (const [h, v] of sesionesAdmin) if (v.vence < t0) sesionesAdmin.delete(h);
       contar('trastienda:entrar');
-      return [201, { token, vence }];
+      return [201, { token, vence, email }];
     }
     if (ruta.startsWith('/api/admin/')) return administrar({ metodo, ruta, query, cuerpo, headers, ip });
 

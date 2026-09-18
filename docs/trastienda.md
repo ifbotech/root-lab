@@ -12,41 +12,70 @@ Contesta cinco preguntas:
 | **La flota** | Aparato por aparato: lote, firmware, batería, wifi, lecturas, cuándo habló |
 | **Firmware** | Qué se firmó y publicó, y quién corre qué |
 | **Uso** | Dónde se cae el alta y qué pantallas de la app se usan |
+| **Cuentas** | Quiénes se registraron, quién administra, y los tokens de los agentes |
 | **El vivero** | Todo lo que habría que mejorar, ordenado por lo que rinde |
 
 ## Cómo se entra
 
-Con la clave de administración del servidor:
+**Con tu email.** Ponés la dirección, te llega un código de seis dígitos y con
+eso entrás. El servidor devuelve un **token de doce horas** que vive sólo en
+esa pestaña del navegador (`sessionStorage`).
 
-```bash
-sudo grep ROOTLAB_ADMIN_CLAVE /etc/root-lab.env
-```
+Quién puede pedir un código:
 
-Se pone una vez y el servidor devuelve un **token de doce horas**, que vive
-sólo en esa pestaña del navegador (`sessionStorage`). La clave maestra no
-queda guardada en el navegador, cerrar el servidor cierra todas las sesiones, y
-"Salir" cierra la propia. Diez intentos fallidos desde una IP en diez minutos y
-se corta.
+- los emails de `ROOTLAB_ADMINS` (en `/etc/root-lab.env`), que son el arranque
+  y la red de seguridad: a esos **no** se les puede sacar el rol desde el
+  panel, así que la trastienda nunca queda sin nadie adentro;
+- cualquier cuenta a la que se le haya dado el rol de administración desde
+  **Cuentas**.
+
+Lo que cuida esa puerta:
+
+- Pedir un código contesta **lo mismo** exista o no ese email y sea o no de
+  administración: si contestara distinto, esta ruta sería una forma de
+  averiguar quién administra el servidor.
+- El código vence a los **diez minutos**, sirve **una sola vez** y aguanta
+  **cinco intentos**; al sexto se quema y hay que pedir otro.
+- El rol se vuelve a mirar **al entrar**, no al pedir: si se lo sacaron en el
+  medio, ese código ya no abre nada.
+- Diez pedidos de código por IP cada diez minutos, y cinco por email.
+- Del código se guarda el **hash**, nunca el código.
+
+**Con la clave del servidor** (`ROOTLAB_ADMIN_CLAVE`) sigue entrando quien la
+tenga: es la salida de emergencia para cuando el correo no anda, y es como
+entran las herramientas (`tools/fabrica.py`, `publicar-firmware.mjs`).
 
 Sin `ROOTLAB_ADMIN_CLAVE` configurada, las rutas de administración **no
 existen** (404, igual que cualquier ruta inventada) y la trastienda no se puede
 abrir. La página lleva `noindex` y no registra el service worker de la app.
 
-## Qué NO muestra, a propósito
+## Dónde está la línea
 
-Ni emails, ni nombres de plantas, ni charlas, ni fotos, ni el id de ninguna
-planta. Todo lo que se ve es **del aparato** —que es nuestro hasta que lo
-vendemos— o un **agregado**.
+**Los emails se ven; lo que la gente hace con sus plantas, no.**
 
-Se puede saber si el producto anda sin leerle la casa a nadie:
+En **Cuentas** están las direcciones, el nombre, cuándo se registró cada uno,
+si confirmó el email, cuántas plantas tiene y cuándo entró por última vez. Está
+para poder escribirles: avisar de una actualización de software o de firmware,
+y ofrecer servicio técnico cuando un aparato deja de hablar. Sin las
+direcciones, un ROOTKIT que falla es un cliente que se queda solo.
+
+Fuera de esa pantalla, **nada de ninguna cuenta**: ni en el resumen, ni en la
+flota, ni en las lecturas, ni en el uso. Ahí todo es del aparato —que es
+nuestro hasta que lo vendemos— o un agregado:
 
 - que un aparato mida poco se ve en el conteo de lecturas, sin mirar qué midió;
 - que un sensor esté roto se ve en el porcentaje de lecturas sin ese dato;
 - que la app se use se ve en contadores anónimos por día, sin cuenta ni planta.
 
-Esa línea es una decisión, no un olvido, y hay una prueba que la sostiene:
+Y lo que no se ve **desde ningún lado** del panel: las charlas con las plantas,
+las fotos del álbum, los nombres de las plantas, la ciudad de nadie. Eso sigue
+cifrado y es de cada quien.
+
+Esa línea es una decisión, no un olvido, y hay pruebas que la sostienen:
 `test/trastienda.test.mjs` verifica que la flota no devuelva ni el email de la
-cuenta, ni el nombre de la planta, ni su id.
+cuenta, ni el nombre de la planta, ni su id, y
+`test/trastienda-cuentas.test.mjs` que la lista de cuentas no traiga el hash de
+la contraseña, la colección ni la ubicación.
 
 ## "Vendidos" todavía no existe
 
@@ -104,6 +133,42 @@ Ordenar las palabras tiene un precio: dos títulos con las mismas palabras en
 otro orden caen juntos. Se paga barato porque **lo que trae la segunda no se
 pierde**: su título, su detalle y su evidencia se le suman a la primera.
 
+## Las cuentas
+
+La pantalla de **Cuentas** muestra quiénes se registraron y deja hacer tres
+cosas:
+
+**Dar o sacar el rol de administración.** Quien lo tenga puede entrar a la
+trastienda con un código a su email. A los de `ROOTLAB_ADMINS` no se les puede
+sacar desde acá (dice "del entorno"): eso se cambia en `/etc/root-lab.env`.
+
+**Borrar una cuenta.** Se lleva sus plantas, sus lecturas y sus charlas, y sus
+Rooties quedan libres para que otro los vincule. Pide dos confirmaciones y
+escribir el email: no se puede deshacer. Es lo mismo que pasa cuando alguien se
+borra solo desde la app.
+
+**Copiar las direcciones** para escribirles desde el correo, con copia oculta.
+
+Mandar avisos masivos **desde el servidor** todavía no existe, y no es un
+descuido: hace falta antes una forma de darse de baja de cada tipo de aviso, o
+los correos terminan en spam y se quema la reputación del dominio con el que
+salen también los emails de recuperar la contraseña. Está anotado en el vivero.
+
+## Los tokens de los agentes
+
+Los agentes que revisan el proyecto no usan la clave de administración: cada
+uno tiene su **token**, que se crea en Cuentas → Los agentes y se muestra una
+sola vez.
+
+| Alcance | Qué puede |
+|---|---|
+| `vivero` | leer y proponer ideas, y moverlas de estado. Nada más |
+| `jardinero` | lo mismo, y además mandar un informe por correo a quien administra |
+
+Un token de `vivero` que se filtre no sirve para ver cuentas, ni la flota, ni
+publicar firmware: lo peor que puede hacer quien lo tenga es escribir ideas en
+una lista. Se revoca desde la misma pantalla y deja de servir al instante.
+
 ### Desde la terminal
 
 ```bash
@@ -117,7 +182,11 @@ node tools/vivero.mjs proponer --area firmware \
      --detalle "La autonomía publicada es una estimación, no una medición." \
      --evidencia "root-kit/docs/hardware.md"
 node tools/vivero.mjs mover 12 --estado plantada --motivo "salió en la 0.7.0"
+node tools/vivero.mjs informe --asunto "Planté una idea" --texto "Qué cambié y cómo se prueba."
 ```
+
+En `ROOTLAB_ADMIN_CLAVE` va la clave del servidor **o** el token de un agente:
+la herramienta no distingue, y el servidor sí.
 
 ## Las rutas
 
@@ -125,8 +194,17 @@ Todas piden `Authorization: Bearer <clave o token de sesión>`.
 
 | Ruta | Qué hace |
 |---|---|
-| `POST /api/admin/sesion` | `{ clave }` → `201 { token, vence }`: entrar (la única que no pide estar adentro) |
+| `POST /api/admin/codigo` | `{ email }` → `202` **siempre**: si ese email puede entrar, le llega un código de seis dígitos |
+| `POST /api/admin/sesion` | `{ email, codigo }` o `{ clave }` → `201 { token, vence, email }` |
 | `DELETE /api/admin/sesion` | cierra esta sesión |
+| `GET /api/admin/yo` | con qué se está entrando: `clave`, `sesion` o `agente` |
+| `GET /api/admin/cuentas` | las cuentas, con su email y su rol |
+| `PATCH /api/admin/cuentas/:id` | `{ rol: "admin" \| "persona" }` |
+| `DELETE /api/admin/cuentas/:id` | borra la cuenta y todo lo suyo |
+| `GET /api/admin/agentes` | los tokens de agente que hay |
+| `POST /api/admin/agentes` | `{ nombre, alcance? }` → `201 { token }`, que se muestra una sola vez |
+| `DELETE /api/admin/agentes/:id` | revoca ese token |
+| `POST /api/admin/informe` | `{ asunto, cuerpo }`: se lo manda por correo a quien administra (alcance `jardinero`) |
 | `GET /api/admin/flota` | resumen, repartos por lote/versión/placa/canal/origen, y los aparatos |
 | `GET /api/admin/lecturas?dias=30` | lecturas por día, salud de los sensores, ritmo por aparato |
 | `GET /api/admin/ideas?area=&estado=` | el vivero |

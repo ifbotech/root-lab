@@ -12,6 +12,7 @@
  *
  *   node tools/vivero.mjs listar [--area X] [--estado nueva] [--json]
  *   node tools/vivero.mjs mover <id> --estado plantada [--motivo "..."]
+ *   node tools/vivero.mjs informe --asunto "..." --texto "..."
  *   node tools/vivero.mjs areas
  *
  * La clave va en ROOTLAB_ADMIN_CLAVE (nunca en la línea de comandos, que
@@ -118,6 +119,18 @@ switch (orden) {
     break;
   }
 
+  case 'informe': {
+    /* El jardinero cuenta qué hizo en su vuelta y el servidor se lo manda por
+       correo a quien administra, con el relay del producto: el agente no
+       necesita saber nada de SMTP. */
+    const asunto = String(opciones.asunto || '');
+    const cuerpo = String(opciones.texto || opciones.cuerpo || '');
+    if (cuerpo.length < 10) salir('Falta --texto con el informe.');
+    const r = await api('/informe', { metodo: 'POST', cuerpo: { asunto, cuerpo } });
+    console.log(`Informe mandado a ${r.enviado_a} ${r.enviado_a === 1 ? 'dirección' : 'direcciones'}.`);
+    break;
+  }
+
   case 'areas': {
     const r = await api('/ideas?limite=1');
     console.log(r.areas.join('\n'));
@@ -130,6 +143,7 @@ switch (orden) {
        [--esfuerzo bajo|medio|alto] [--detalle "..."] [--evidencia "..."] [--autor nombre]
   node tools/vivero.mjs listar [--area <área>] [--estado nueva|en_curso|plantada|descartada] [--json]
   node tools/vivero.mjs mover <id> --estado plantada [--motivo "..."]
+  node tools/vivero.mjs informe --asunto "..." --texto "..."
   node tools/vivero.mjs areas
 
   ROOTLAB_ADMIN_CLAVE   la clave de administración (obligatoria)

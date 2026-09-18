@@ -67,7 +67,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { crearCripto } from './cripto.mjs';
 import { LEGADO } from './cofre.mjs';
 
-export const VERSION_ESQUEMA = 8;
+export const VERSION_ESQUEMA = 9;
 
 export const normalizarEmail = (e) => String(e || '').trim().toLowerCase();
 
@@ -158,7 +158,9 @@ CREATE TABLE IF NOT EXISTS cuentas (
   plan             TEXT NOT NULL DEFAULT 'gratis',
   email_verificado INTEGER,
   creada           INTEGER NOT NULL,
-  ubicacion        TEXT
+  ubicacion        TEXT,
+  /* 'persona' o 'admin': quién puede entrar a la trastienda. */
+  rol              TEXT NOT NULL DEFAULT 'persona'
 );
 `;
 
@@ -326,6 +328,37 @@ CREATE UNIQUE INDEX IF NOT EXISTS ideas_huella ON ideas(huella);
 CREATE INDEX IF NOT EXISTS ideas_area_estado ON ideas(area, estado, movida);
 `;
 
+/* v9: quién entra a la trastienda y con qué.
+ *
+ *   admin_codigos  el código de seis dígitos que llega por email para entrar.
+ *                  Se guarda el HASH, no el código; vence a los diez minutos
+ *                  y aguanta cinco intentos. Uno por email a la vez: pedir
+ *                  otro pisa el anterior.
+ *
+ *   agentes        tokens largos para los agentes que escriben en el vivero
+ *                  sin cargar con la clave de administración. Cada uno tiene
+ *                  su alcance y se revoca solo (docs/trastienda.md).
+ */
+const NUEVAS_V9 = `
+CREATE TABLE IF NOT EXISTS admin_codigos (
+  email_indice TEXT PRIMARY KEY,
+  hash         TEXT NOT NULL,
+  vence        INTEGER NOT NULL,
+  intentos     INTEGER NOT NULL DEFAULT 0,
+  creado       INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agentes (
+  id         INTEGER PRIMARY KEY,
+  nombre     TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  alcance    TEXT NOT NULL DEFAULT 'vivero',
+  creado     INTEGER NOT NULL,
+  usado      INTEGER,
+  revocado   INTEGER
+);
+`;
+
 const json = (s, def = null) => {
   if (s === null || s === undefined) return def;
   try { return JSON.parse(s); } catch { return def; }
@@ -391,6 +424,7 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
     plan: f.plan,
     email_verificado: f.email_verificado,
     creada: f.creada,
+    rol: f.rol || 'persona',
     /* La ciudad para el pronóstico (server/clima.mjs), cifrada como el resto
        de lo personal: { nombre, pais, region, lat, lon }. */
     ubicacion: f.ubicacion ? json(cripto.descifrar(f.ubicacion)) : null,
@@ -441,11 +475,11 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
     cuentaCrear(c) {
       const email = normalizarEmail(c.email);
       q(`INSERT INTO cuentas (id, email_indice, email_cifrado, nombre_cifrado, clave_hash, tz, coleccion, paleta, plan,
-           email_verificado, creada)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+           email_verificado, creada, rol)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(c.id, cripto.indice(email), cripto.cifrar(email), c.nombre ? cripto.cifrar(c.nombre) : null,
           c.clave_hash, c.tz, JSON.stringify(c.coleccion || []), nulo(c.paleta), c.plan || 'gratis',
-          nulo(c.email_verificado), c.creada);
+          nulo(c.email_verificado), c.creada, c.rol || 'persona');
     },
     cuenta(id) { return filaCuenta(q('SELECT * FROM cuentas WHERE id = ?').get(id)); },
     cuentaPorEmail(email) {
@@ -457,11 +491,11 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
       const nombre = c.nombre ?? a.nombre;
       const ubicacion = c.ubicacion !== undefined ? c.ubicacion : a.ubicacion;
       q(`UPDATE cuentas SET nombre_cifrado = ?, tz = ?, clave_hash = ?, coleccion = ?, paleta = ?, plan = ?,
-           email_verificado = ?, ubicacion = ? WHERE id = ?`)
+           email_verificado = ?, ubicacion = ?, rol = ? WHERE id = ?`)
         .run(nombre ? cripto.cifrar(nombre) : null, c.tz ?? a.tz, c.clave_hash ?? a.clave_hash,
           JSON.stringify(c.coleccion ?? a.coleccion), c.paleta !== undefined ? c.paleta : a.paleta,
           c.plan ?? a.plan, c.email_verificado !== undefined ? c.email_verificado : a.email_verificado,
-          ubicacion ? cripto.cifrar(JSON.stringify(ubicacion)) : null, id);
+          ubicacion ? cripto.cifrar(JSON.stringify(ubicacion)) : null, c.rol ?? a.rol, id);
     },
     /** Las cuentas que dijeron dónde están sus plantas (para el pronóstico). */
     cuentasConUbicacion() {
@@ -768,6 +802,56 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
     },
     eventosDesde(dia) { return q('SELECT dia, evento, n FROM eventos WHERE dia >= ? ORDER BY dia, evento').all(dia); },
 
+    /** Todas las cuentas, para el ABM de la trastienda. Descifra el email y
+     *  el nombre: es la única pantalla que los muestra, y sólo la ve quien
+     *  entra con la clave o con un código (docs/trastienda.md). */
+    cuentas(limite = 1000) {
+      return q(`SELECT c.*,
+                       (SELECT COUNT(*) FROM plantas p WHERE p.cuenta = c.id AND p.desvinculada IS NULL) plantas,
+                       (SELECT COUNT(*) FROM plantas p WHERE p.cuenta = c.id) plantas_totales,
+                       (SELECT MAX(vista) FROM sesiones s WHERE s.cuenta = c.id) ultima_sesion
+                  FROM cuentas c ORDER BY c.creada DESC LIMIT ?`).all(limite)
+        .map((f) => ({ ...filaCuenta(f), plantas: f.plantas, plantas_totales: f.plantas_totales, ultima_sesion: f.ultima_sesion }));
+    },
+
+    /* ------------------------------------ el código para entrar al panel -- */
+    /** Guarda el código (su hash) para ese email; pisa el anterior. */
+    adminCodigoGuardar({ email, hash: h, vence, t }) {
+      q(`INSERT INTO admin_codigos (email_indice, hash, vence, intentos, creado) VALUES (?, ?, ?, 0, ?)
+         ON CONFLICT(email_indice) DO UPDATE SET hash = excluded.hash, vence = excluded.vence, intentos = 0, creado = excluded.creado`)
+        .run(cripto.indice(normalizarEmail(email)), h, vence, t);
+    },
+    adminCodigo(email) {
+      return q('SELECT * FROM admin_codigos WHERE email_indice = ?').get(cripto.indice(normalizarEmail(email))) || null;
+    },
+    adminCodigoIntento(email) {
+      q('UPDATE admin_codigos SET intentos = intentos + 1 WHERE email_indice = ?').run(cripto.indice(normalizarEmail(email)));
+    },
+    adminCodigoBorrar(email) {
+      q('DELETE FROM admin_codigos WHERE email_indice = ?').run(cripto.indice(normalizarEmail(email)));
+    },
+    /** Los que vencieron hace rato no se quedan ocupando lugar. */
+    adminCodigosLimpiar(antesDe) {
+      return Number(q('DELETE FROM admin_codigos WHERE vence < ?').run(antesDe).changes);
+    },
+
+    /* --------------------------------------- los tokens de los agentes --- */
+    agenteCrear({ nombre, tokenHash, alcance, t }) {
+      const r = q('INSERT INTO agentes (nombre, token_hash, alcance, creado) VALUES (?, ?, ?, ?)')
+        .run(nombre, tokenHash, alcance || 'vivero', t);
+      return Number(r.lastInsertRowid);
+    },
+    agentePorToken(tokenHash) {
+      return q('SELECT * FROM agentes WHERE token_hash = ? AND revocado IS NULL').get(tokenHash) || null;
+    },
+    agenteUsado(id, t) { q('UPDATE agentes SET usado = ? WHERE id = ?').run(t, id); },
+    agentes() {
+      return q('SELECT id, nombre, alcance, creado, usado, revocado FROM agentes ORDER BY creado DESC').all();
+    },
+    agenteRevocar(id, t) {
+      return Number(q('UPDATE agentes SET revocado = ? WHERE id = ? AND revocado IS NULL').run(t, id).changes) > 0;
+    },
+
     /* ------------------------------------------------- la trastienda ---- */
     /* Lo que sigue es para quien hace el producto, no para quien lo usa: la
        salud de la flota, cómo se usa la app y el vivero de ideas. Todo
@@ -935,7 +1019,7 @@ function migrar(db, cripto) {
   const hayCuentas = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cuentas'").get();
   if (!hayCuentas) {
     /* Base nueva: el esquema actual de una. */
-    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} ${NUEVAS_V7} ${NUEVAS_V8} COMMIT;`);
+    db.exec(`BEGIN; ${CUENTAS_V2} ${TABLAS_COMUNES} ${PLANTAS_V2} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} ${NUEVAS_V7} ${NUEVAS_V8} ${NUEVAS_V9} COMMIT;`);
     db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', ?)").run(String(VERSION_ESQUEMA));
     return;
   }
@@ -943,13 +1027,30 @@ function migrar(db, cripto) {
   if (v > VERSION_ESQUEMA) throw new Error(`la base es de una versión más nueva (${v}) que este servidor (${VERSION_ESQUEMA})`);
   if (v < 2) migrarV1aV2(db, cripto);
   /* Idempotente: una base vieja o incompleta recibe las tablas que le falten. */
-  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} ${NUEVAS_V7} ${NUEVAS_V8}`);
+  db.exec(`${TABLAS_COMUNES} ${NUEVAS_V2} ${NUEVAS_V4} ${NUEVAS_V5} ${NUEVAS_V7} ${NUEVAS_V8} ${NUEVAS_V9}`);
   if (v < 3) migrarV2aV3(db);
   if (v < 4) migrarV3aV4(db);
   if (v < 5) db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '5')").run();   /* v5: la tabla fotos, creada arriba */
   if (v < 6) migrarV5aV6(db);
   if (v < 7) migrarV6aV7(db);
   if (v < 8) migrarV7aV8(db);
+  if (v < 9) migrarV8aV9(db);
+}
+
+/* v8 -> v9: las cuentas tienen rol, y aparecen los códigos de acceso a la
+ * trastienda y los tokens de los agentes. Las tablas nuevas ya se crearon
+ * arriba; acá sólo se agrega la columna y se anota la versión. */
+function migrarV8aV9(db) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const columnas = db.prepare('PRAGMA table_info(cuentas)').all().map((c) => c.name);
+    if (!columnas.includes('rol')) db.exec("ALTER TABLE cuentas ADD COLUMN rol TEXT NOT NULL DEFAULT 'persona'");
+    db.prepare("INSERT OR REPLACE INTO meta (clave, valor) VALUES ('esquema', '9')").run();
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
 }
 
 /* v7 -> v8: el vivero de ideas de la trastienda.

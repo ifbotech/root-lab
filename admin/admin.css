@@ -33,7 +33,15 @@ a { color: var(--verde); }
   border-radius: var(--r); padding: 24px; display: flex; flex-direction: column; gap: 12px;
 }
 .puerta-caja p { margin: 0; color: var(--tinta-2); font-size: 14px; }
-.puerta-caja label { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-3); }
+.puerta-caja label { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-3); display: block; margin-bottom: 6px; }
+.puerta-caja form { display: block; }
+/* El código se escribe de a un dígito: grande y separado, como el del email. */
+.codigo { font: 900 26px/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .34em; text-align: center; }
+.enlace {
+  background: none; border: 0; padding: 4px; color: var(--tinta-3); cursor: pointer;
+  font: 700 13px/1.4 "Nunito", system-ui, sans-serif; text-decoration: underline; text-align: left;
+}
+.enlace:hover { color: var(--tinta-2); }
 
 /* ------------------------------------------------------------ armazón --- */
 .cab {
@@ -102,6 +110,8 @@ td.ancho { white-space: normal; min-width: 260px; }
 .boton.peligro { background: transparent; border-color: color-mix(in srgb, var(--rojo) 55%, transparent); color: #ff9a9b; }
 .boton.chico { min-height: 36px; padding: 6px 12px; font-size: 13px; border-radius: 11px; }
 .fila-botones { display: flex; flex-wrap: wrap; gap: 8px; }
+.lista-simple { margin: 0; padding-left: 20px; color: var(--tinta-2); font-size: 14px; }
+.lista-simple li { margin: 4px 0; }
 
 input, select, textarea {
   width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 12px;

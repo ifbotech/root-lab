@@ -125,6 +125,11 @@ function leerPublica() {
   try { return readFileSync(ruta, 'utf8'); } catch { return ''; }
 }
 const ADMIN_CLAVE = process.env.ROOTLAB_ADMIN_CLAVE || '';
+/* Quiénes entran a la trastienda con un código a su email, pase lo que pase.
+   Es el arranque y la red de seguridad: el rol se da y se saca desde el panel,
+   pero a estos no, así que nunca queda sin nadie adentro (docs/trastienda.md). */
+const ADMINS = (process.env.ROOTLAB_ADMINS || '')
+  .split(/[,\s]+/).map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@'));
 if (ADMIN_CLAVE && ADMIN_CLAVE.length < 24) {
   console.error('ROOTLAB_ADMIN_CLAVE es muy corta (mínimo 24 caracteres): la administración queda apagada.');
 }
@@ -134,6 +139,7 @@ const api = crearApi({
   urlPublica: () => URL_PUBLICA,
   version: VERSION,
   adminClave: ADMIN_CLAVE.length >= 24 ? ADMIN_CLAVE : '',
+  adminsDeArranque: ADMINS,
   firmwarePublica: leerPublica(),
   iaDemo: process.env.ROOTLAB_IA_DEMO === '1',
   alAlerta: (a) => {
@@ -165,6 +171,7 @@ servidor.listen(PUERTO, HOST, () => {
   console.log(`  clima      ${clima.activo ? 'Open-Meteo (sólo la ciudad de cada cuenta)' : 'apagado'}`);
   console.log(`  aparatos   se registran solos: ${TOFU === true ? 'todos (desarrollo)' : TOFU === 'emulador' ? 'sólo emuladores; las placas, por fábrica' : 'ninguno'}`);
   console.log(`  admin      ${ADMIN_CLAVE.length >= 24 ? '/api/admin/* con ROOTLAB_ADMIN_CLAVE' : 'apagada (sin ROOTLAB_ADMIN_CLAVE)'}; firmware ${leerPublica() ? 'con clave pública' : 'SIN clave pública: no se puede publicar'}`);
+  console.log(`  trastienda ${BASE}/admin/ · ${ADMINS.length ? `entran con un código por email: ${ADMINS.map(enmascararEmail).join(', ')}` : 'sin ROOTLAB_ADMINS: sólo con la clave'}`);
   console.log(`  base       ${join(DATOS, 'rootkit.db')} (esquema ${db.version()}, datos personales cifrados)\n`);
 });
 

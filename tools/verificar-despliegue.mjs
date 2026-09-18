@@ -95,9 +95,19 @@ ok('emulador', emu.status === 200 && (await emu.text()).includes('<base href='))
    se ve sin la clave de administración (docs/trastienda.md). */
 const tras = await pedir('/admin/');
 const trasHtml = tras.status === 200 ? await tras.text() : '';
-ok('la trastienda pide la clave antes de mostrar nada',
-  tras.status === 200 && trasHtml.includes('Clave de administración') && trasHtml.includes('noindex'),
+ok('la trastienda pide entrar antes de mostrar nada',
+  tras.status === 200 && trasHtml.includes('Mandame el código') && trasHtml.includes('noindex'),
   `respondió ${tras.status}`);
+
+/* Pedir un código contesta lo mismo para cualquier email: si contestara
+   distinto, sería una forma de averiguar quién administra el servidor. */
+const pedirCodigo = (email) => pedir('/api/admin/codigo', {
+  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email }),
+});
+const cod1 = await pedirCodigo('nadie@rootlab.invalid');
+const cod2 = await pedirCodigo('tampoco@rootlab.invalid');
+ok('pedir el código no dice quién administra', cod1.status === 202 && cod2.status === 202,
+  `${cod1.status} y ${cod2.status}`);
 
 ok('HTTPS', BASE.startsWith('https://') || BASE.includes('localhost'), 'sin HTTPS no se instala ni avisa');
 

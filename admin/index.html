@@ -12,17 +12,42 @@
 </head>
 <body>
 
-<!-- La puerta: sin la clave de administración no hay nada que ver. -->
+<!-- La puerta: sin entrar, no hay nada que ver. Primero el email; el código
+     de seis dígitos llega ahí. -->
 <div class="puerta" id="puerta" hidden>
-  <form class="puerta-caja" id="form-entrar">
+  <div class="puerta-caja">
     <h1>ROOT<span>LAB</span> <small>la trastienda</small></h1>
-    <p>El panel de quien hace el producto. Hace falta la clave de administración
-       del servidor (<code>ROOTLAB_ADMIN_CLAVE</code>).</p>
-    <label for="clave">Clave de administración</label>
-    <input type="password" id="clave" autocomplete="current-password" required>
+
+    <form id="form-email">
+      <p>El panel de quien hace el producto. Poné tu email y te mandamos un
+         código de seis dígitos para entrar.</p>
+      <label for="email">Tu email</label>
+      <input type="email" id="email" autocomplete="email" inputmode="email" required>
+      <button class="boton primario" type="submit" style="margin-top:12px">Mandame el código</button>
+    </form>
+
+    <form id="form-codigo" hidden>
+      <p>Si ese email puede entrar, le llegó un código de seis dígitos.
+         Vence en diez minutos.</p>
+      <label for="codigo">El código</label>
+      <input type="text" id="codigo" inputmode="numeric" autocomplete="one-time-code"
+             maxlength="6" pattern="[0-9]{6}" placeholder="· · · · · ·" class="codigo">
+      <button class="boton primario" type="submit" style="margin-top:12px">Entrar</button>
+      <button class="boton chico" type="button" id="b-otro-email" style="margin-top:8px">Con otro email</button>
+    </form>
+
+    <form id="form-clave" hidden>
+      <p>La clave de administración del servidor
+         (<code>ROOTLAB_ADMIN_CLAVE</code>). Es la salida de emergencia para
+         cuando el correo no anda.</p>
+      <label for="clave">Clave de administración</label>
+      <input type="password" id="clave" autocomplete="current-password">
+      <button class="boton primario" type="submit" style="margin-top:12px">Entrar</button>
+    </form>
+
     <p class="error" id="error-entrar" hidden></p>
-    <button class="boton primario" type="submit">Entrar</button>
-  </form>
+    <button class="enlace" type="button" id="b-con-clave">Entrar con la clave del servidor</button>
+  </div>
 </div>
 
 <div class="app" id="app" hidden>
@@ -40,6 +65,7 @@
     <button type="button" class="pestana" data-vista="flota">La flota</button>
     <button type="button" class="pestana" data-vista="firmware">Firmware</button>
     <button type="button" class="pestana" data-vista="uso">Uso</button>
+    <button type="button" class="pestana" data-vista="cuentas">Cuentas</button>
     <button type="button" class="pestana" data-vista="vivero">El vivero</button>
   </nav>
 

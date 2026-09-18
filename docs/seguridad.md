@@ -5,6 +5,24 @@ están en `test/seguridad.test.mjs`, `test/db.test.mjs`,
 `test/recuperar.test.mjs`, `test/http.test.mjs` y en
 `tools/verificar-despliegue.mjs`, que las repite contra producción.
 
+
+## La trastienda ve los emails
+
+El panel de administración (`/admin`, [trastienda.md](trastienda.md)) tiene una
+pantalla —y sólo una— que muestra las direcciones de las cuentas, con su
+nombre, cuándo se registraron y cuántas plantas tienen. Está para poder
+escribirles: avisar de una actualización de firmware, u ofrecer servicio
+técnico cuando un aparato deja de hablar.
+
+Lo que **no** se ve desde ningún lado del panel: las charlas con las plantas,
+las fotos, los nombres de las plantas y la ciudad de cada cuenta. Eso sigue
+cifrado y no lo descifra ninguna pantalla de administración.
+
+Quién puede abrir esa pantalla: los emails de `ROOTLAB_ADMINS` y las cuentas a
+las que se les haya dado el rol, entrando con un código de seis dígitos que
+llega por correo (vence en diez minutos, sirve una vez, aguanta cinco intentos
+y del código se guarda sólo el hash). Y quien tenga la clave del servidor.
+
 ## Datos personales, cifrados en la base
 
 | Dato | Cómo se guarda | Por qué así |

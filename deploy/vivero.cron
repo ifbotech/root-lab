@@ -1,0 +1,30 @@
+# El vivero: un agente por día, y el jardinero los fines de semana.
+#
+# Se instala con:  crontab deploy/vivero.cron
+# (o se pegan las líneas en `crontab -e`, si ya hay otras cosas ahí).
+#
+# Antes hace falta:
+#   1. Claude Code instalado y conectado en esta máquina (`claude` a secas
+#      abre una sesión: si pide entrar, entrá una vez y listo).
+#   2. Los dos repos clonados en la misma carpeta:
+#        $PROYECTO/root-kit  y  $PROYECTO/root-lab
+#   3. /etc/rootlab-vivero.env con PROYECTO, ROOTLAB_NUBE y el token del
+#      agente en ROOTLAB_ADMIN_CLAVE (chmod 600).
+#
+# De lunes a viernes miran y proponen; el sábado el jardinero elige la mejor
+# idea, la implementa en una rama y manda el informe por correo. El domingo no
+# corre nada: si el sábado salió algo, el lunes hay una rama esperando, y si
+# no, no hay nada que apurar.
+#
+# 4 de la mañana: la casa duerme, el VPS está tranquilo y el informe está
+# esperando cuando alguien se levanta.
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+0 4 * * 1  /home/rootlab/proyecto/root-lab/deploy/vivero.sh infraestructura >> /var/log/vivero.log 2>&1
+0 4 * * 2  /home/rootlab/proyecto/root-lab/deploy/vivero.sh experiencia     >> /var/log/vivero.log 2>&1
+0 4 * * 3  /home/rootlab/proyecto/root-lab/deploy/vivero.sh firmware        >> /var/log/vivero.log 2>&1
+0 4 * * 4  /home/rootlab/proyecto/root-lab/deploy/vivero.sh producto        >> /var/log/vivero.log 2>&1
+0 4 * * 5  /home/rootlab/proyecto/root-lab/deploy/vivero.sh seguridad       >> /var/log/vivero.log 2>&1
+0 4 * * 6  /home/rootlab/proyecto/root-lab/deploy/vivero.sh jardinero       >> /var/log/vivero.log 2>&1

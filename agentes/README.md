@@ -1,73 +1,108 @@
 # Los agentes del vivero
 
-Cinco agentes que miran el proyecto sin parar, cada uno por su lado, y dejan
-lo que encuentran anotado en **el vivero** de la trastienda
-(`/rootkit/admin` → El vivero). Nadie toca el código: proponen, y desde la
-trastienda se decide qué se planta.
+Cinco agentes miran el proyecto sin parar, cada uno por su lado, y dejan lo que
+encuentran anotado en **el vivero** de la trastienda (`/rootkit/admin` → El
+vivero). Un sexto, **el jardinero**, elige la mejor idea de la lista y la
+implementa.
 
-| Agente | Área | Qué mira |
-|---|---|---|
-| [infraestructura.md](infraestructura.md) | `infraestructura` | el servidor, el despliegue, los respaldos, el costo, lo que tarda |
-| [experiencia.md](experiencia.md) | `experiencia` | las pantallas, los textos, el alta, la accesibilidad, lo que la gente usa |
-| [firmware.md](firmware.md) | `firmware` | el consumo, los sensores, la OTA, la fábrica, las carcasas |
-| [producto.md](producto.md) | `producto` | qué funciona del producto, qué falta, qué sobra, qué se cobra |
-| [seguridad.md](seguridad.md) | `seguridad` | los datos de la gente, las claves, lo que se expone, la privacidad |
+| Agente | Área | Qué mira | Cuándo |
+|---|---|---|---|
+| [infraestructura.md](infraestructura.md) | `infraestructura` | el servidor, el despliegue, los respaldos, el costo | lunes |
+| [experiencia.md](experiencia.md) | `experiencia` | las pantallas, los textos, el alta, la accesibilidad | martes |
+| [firmware.md](firmware.md) | `firmware` | el consumo, los sensores, la OTA, la fábrica | miércoles |
+| [producto.md](producto.md) | `producto` | qué funciona, qué falta, qué sobra, qué se cobra | jueves |
+| [seguridad.md](seguridad.md) | `seguridad` | los datos de la gente, las claves, lo que se expone | viernes |
+| [jardinero.md](jardinero.md) | — | **implementa** la mejor idea del vivero y manda el informe | sábado |
 
-## Cómo se les habla
+Los cinco primeros **no tocan el código**: proponen, y desde la trastienda se
+decide. El jardinero sí, pero deja su trabajo en una rama, nunca en `main`, y
+nunca despliega.
 
-Cada archivo es el prompt entero: se le pasa a Claude tal cual. Necesita dos
-cosas del entorno:
+## Lo que necesita cada agente
 
 ```bash
-export ROOTLAB_NUBE=https://ifbotech.com/rootkit
-export ROOTLAB_ADMIN_CLAVE=...        # sudo grep ROOTLAB_ADMIN_CLAVE /etc/root-lab.env
+ROOTLAB_NUBE=https://ifbotech.com/rootkit
+ROOTLAB_ADMIN_CLAVE=agt_...    # el TOKEN del agente, no la clave del servidor
 ```
 
-Una vuelta a mano, desde la carpeta del proyecto:
+El token se crea en **la trastienda → Cuentas → Los agentes**, se muestra una
+sola vez, y sólo sirve para escribir en el vivero (el del jardinero, además,
+para mandar el informe). Si se filtra, lo peor que puede hacer quien lo tenga
+es anotar ideas en una lista; y se revoca desde la misma pantalla.
+
+Una vuelta a mano, desde la carpeta que tiene los dos repos:
 
 ```bash
 claude -p "$(cat root-lab/agentes/infraestructura.md)"
 ```
 
-## Cómo se los deja dando vueltas
+## Dejarlos dando vueltas
 
-**En una sesión abierta.** Lo más simple para empezar: abrir Claude Code en la
-carpeta del proyecto, pegar el prompt y pedirle `/loop` para que lo repita
-cada tanto. Sirve para ver qué proponen antes de soltarlos solos.
+Hay dos formas, y las dos sirven.
 
-**Solos, todos los días.** Una tarea programada por agente, en días u horas
-distintas para que no se pisen ni gasten todo junto:
+### Con cron, en una máquina propia
 
-*En Linux (el VPS, o cualquier máquina con el repo clonado), `crontab -e`:*
+Es lo que está armado en el repositorio:
 
-```cron
-# El vivero: un agente por día, a las 4 de la mañana.
-0 4 * * 1  cd /ruta/al/proyecto && ROOTLAB_NUBE=... ROOTLAB_ADMIN_CLAVE=... claude -p "$(cat root-lab/agentes/infraestructura.md)" >> /var/log/vivero.log 2>&1
-0 4 * * 2  cd /ruta/al/proyecto && ... claude -p "$(cat root-lab/agentes/experiencia.md)"     >> /var/log/vivero.log 2>&1
-0 4 * * 3  cd /ruta/al/proyecto && ... claude -p "$(cat root-lab/agentes/firmware.md)"        >> /var/log/vivero.log 2>&1
-0 4 * * 4  cd /ruta/al/proyecto && ... claude -p "$(cat root-lab/agentes/producto.md)"        >> /var/log/vivero.log 2>&1
-0 4 * * 5  cd /ruta/al/proyecto && ... claude -p "$(cat root-lab/agentes/seguridad.md)"       >> /var/log/vivero.log 2>&1
+- `deploy/vivero.sh` — una vuelta de un agente: carga la configuración, deja
+  los dos repos al día y le pasa el prompt a Claude.
+- `deploy/vivero.cron` — de lunes a sábado, 4 de la mañana, uno por día.
+
+```bash
+# 1. Claude Code instalado y conectado en esa máquina
+claude            # si pide entrar, entrás una vez y listo
+
+# 2. Los dos repos en una misma carpeta
+mkdir -p ~/proyecto && cd ~/proyecto
+git clone https://github.com/ifbotech/root-kit.git
+git clone https://github.com/ifbotech/root-lab.git
+
+# 3. La configuración, que sólo lee su dueño
+sudo tee /etc/rootlab-vivero.env >/dev/null <<'FIN'
+PROYECTO=/home/USUARIO/proyecto
+ROOTLAB_NUBE=https://ifbotech.com/rootkit
+ROOTLAB_ADMIN_CLAVE=agt_...
+FIN
+sudo chown USUARIO /etc/rootlab-vivero.env && sudo chmod 600 /etc/rootlab-vivero.env
+
+# 4. El cron (ajustá las rutas de deploy/vivero.cron antes)
+crontab root-lab/deploy/vivero.cron
+crontab -l
 ```
 
-*En Windows*, lo mismo con el Programador de tareas: una tarea por agente, con
-acción `claude -p ...` y las variables de entorno cargadas.
+Se mira con `tail -f /var/log/vivero.log`.
 
-La clave de administración no va escrita en el crontab a la vista de todos:
-conviene dejarla en un archivo que sólo lea ese usuario (`chmod 600`) y
-cargarla con `set -a; . /ruta/vivero.env; set +a` antes del comando.
+**En qué máquina.** En cualquiera que tenga los repos y Claude Code: la de
+trabajo, una Raspberry, un VPS. **Conviene que no sea el servidor de
+producción**: ahí corre lo que usan los clientes, y no hace falta sumarle un
+agente con permisos de escritura en los repos.
 
-## Por qué uno por día y no todos todo el tiempo
+*En Windows* es lo mismo con el Programador de tareas: una tarea por agente,
+acción `claude -p ...`, con las variables de entorno cargadas.
 
-Un agente que da vueltas encuentra lo mismo muchas veces. El vivero lo
-aguanta —una idea repetida se cuenta, no se duplica— pero cada vuelta cuesta
-plata y atención. Una vuelta por área por semana ya llena la lista más rápido
-de lo que se puede plantar. Si el proyecto se mueve mucho (una semana de
-cambios grandes), se los puede correr más seguido a mano.
+### Con routines de Claude Code
+
+Claude Code tiene su propio programador —**routines**— que corre en la nube de
+Anthropic, así que no hace falta dejar una máquina prendida. Se arma en
+[claude.ai/code/routines](https://claude.ai/code/routines), desde la aplicación
+de escritorio o con `/schedule` en la terminal, y se le da el prompt, el
+repositorio y la cadencia.
+
+Es más simple que el cron y no depende de que haya una máquina encendida. A
+cambio, el agente corre en un entorno que no es el nuestro: hay que darle el
+token del agente como variable de ese entorno, que es justamente para lo que
+existen los tokens de alcance limitado.
 
 ## Qué hacer con lo que proponen
 
-Entrar a la trastienda una vez por semana, mirar **El vivero** ordenado como
-viene (impacto alto y esfuerzo bajo primero) y mover cada idea: *en curso*,
+Entrar a la trastienda una vez por semana, mirar **El vivero** como viene
+(impacto alto y esfuerzo bajo primero) y mover cada idea: *en curso*,
 *plantada* o *descartada* con su motivo. Descartar no es fracasar: una lista
-que sólo crece deja de leerse. Lo que se descarta con un motivo escrito
-también le enseña al que la propuso, si algún día se le vuelve a ocurrir.
+que sólo crece deja de leerse, y un motivo escrito le enseña al agente que la
+propuso.
+
+El sábado, el jardinero elige una de las que quedaron en *nueva*, la
+implementa, corre las pruebas, la deja en una rama y manda un informe por
+correo. El lunes se revisa con `git diff`, se mergea y se despliega. Esa última
+parte es a mano **a propósito**: un agente que corre solo un sábado a la noche
+no tiene por qué poder tocar lo que usan los clientes.

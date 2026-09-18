@@ -53,6 +53,12 @@ nube, trastienda). En producción: https://ifbotech.com/rootkit/
    curl -s -H "Authorization: Bearer $ROOTLAB_ADMIN_CLAVE" "$ROOTLAB_NUBE/api/admin/metricas?dias=30"
    ```
 
+## Con qué credencial
+
+En `ROOTLAB_ADMIN_CLAVE` viene **tu token de agente**, no la clave del
+servidor: sólo sirve para el vivero. Si algo te contesta `403`, no es un error
+a arreglar: es que estás pidiendo algo que no te toca.
+
 ## Cómo se anota una idea
 
 ```bash

@@ -171,6 +171,16 @@ generar_clave() {   # nombre, bytes, comentario
   fi
 }
 generar_clave ROOTLAB_ADMIN_CLAVE 36 'Administración (/api/admin/*): fábrica, firmware y métricas. docs/operacion.md'
+# Quiénes entran a la trastienda con un código a su email. Se pregunta una
+# sola vez, cuando todavía no está: sin esto sólo se entra con la clave.
+if ! grep -qE '^ROOTLAB_ADMINS=' "$ENV_FILE"; then
+  printf '
+# Quiénes entran a la trastienda (/admin) con un código a su email.
+# A estos no se les puede sacar el rol desde el panel. docs/trastienda.md
+ROOTLAB_ADMINS=%s
+'     "$(grep -E '^ROOTLAB_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)" >> "$ENV_FILE"
+  echo "ROOTLAB_ADMINS quedó en $ENV_FILE: agregá ahí los emails que entran a la trastienda"
+fi
 generar_clave ROOTLAB_RESPALDO_CLAVE 36 'Cifra los respaldos que salen del servidor. Sin ella no se pueden abrir. docs/operacion.md'
 # La confianza al primer uso abierta a cualquiera era del prototipo: desde que
 # existe la estación de fábrica, sólo los emuladores se registran solos.

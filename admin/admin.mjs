@@ -17,9 +17,17 @@
  *
  * CÓMO SE ENTRA
  *
- * Con la clave de administración del servidor, una sola vez: el servidor
- * devuelve un token de doce horas que vive en el almacenamiento de esta
- * pestaña. La clave maestra no queda guardada en ningún lado del navegador.
+ * Con el email: quien pueda entrar recibe un código de seis dígitos y con eso
+ * el servidor devuelve un token de doce horas, que vive sólo en esta pestaña.
+ * Queda además la clave del servidor como salida de emergencia, para cuando el
+ * correo no anda. Ni la clave ni el código quedan guardados en el navegador.
+ *
+ * LAS CUENTAS
+ *
+ * La pantalla de cuentas es la única de todo el sistema que muestra emails.
+ * Está para poder avisar de una actualización, ofrecer servicio técnico cuando
+ * un aparato falla, y dar o sacar el rol de administración. No muestra plantas,
+ * charlas ni fotos: eso sigue siendo de cada quien (docs/trastienda.md).
  */
 
 const CLAVE_SESION = 'rootlab:trastienda';
@@ -321,6 +329,146 @@ function bloqueLecturas(l) {
   ];
 }
 
+/* ============================================================ CUENTAS === */
+function vistaCuentas() {
+  const c = app.datos.cuentas;
+  if (!c) return panel(null, h('p', { class: 'nota' }, 'Cargando…'));
+  const admins = c.cuentas.filter((x) => x.rol === 'admin');
+  const verificadas = c.cuentas.filter((x) => x.email_verificado).length;
+  const conRooti = c.cuentas.filter((x) => x.plantas > 0).length;
+
+  const cambiarRol = async (cta, rol) => {
+    try {
+      await api(`/cuentas/${cta.id}`, { metodo: 'PATCH', cuerpo: { rol } });
+      avisar(rol === 'admin' ? `${cta.email} ahora administra.` : `${cta.email} ya no administra.`);
+      await cargar('cuentas');
+      pintar();
+    } catch (e) { avisar(e.message, true); }
+  };
+  const borrar = async (cta) => {
+    /* Dos preguntas, y la segunda pide escribir el email: se borran las
+       plantas, las lecturas y las charlas de alguien, y no vuelven. */
+    if (!confirm(`¿Borrar la cuenta de ${cta.email}?\n\nSe van sus ${cta.plantas_totales} plantas con todas sus lecturas y charlas. Sus Rooties quedan libres. No se puede deshacer.`)) return;
+    const escrito = prompt(`Escribí el email para confirmar:\n${cta.email}`);
+    if ((escrito || '').trim().toLowerCase() !== cta.email.toLowerCase()) {
+      avisar('No coincide: no se borró nada.');
+      return;
+    }
+    try {
+      await api(`/cuentas/${cta.id}`, { metodo: 'DELETE' });
+      avisar('Cuenta borrada.');
+      await cargar('cuentas');
+      pintar();
+    } catch (e) { avisar(e.message, true); }
+  };
+
+  const emails = c.cuentas.map((x) => x.email).join(', ');
+
+  return [
+    h('div', { class: 'tarjetas' },
+      tarjeta(num(c.cuentas.length), 'cuentas'),
+      tarjeta(num(conRooti), 'con al menos un Rooti', conRooti > 0 ? 'bien' : ''),
+      tarjeta(num(verificadas), 'con el email confirmado'),
+      tarjeta(num(admins.length), 'administran')),
+
+    panel('Las cuentas',
+      h('div', { class: 'tabla-marco' }, tabla(
+        ['email', 'nombre', 'rol', 'plantas', 'creada', 'última sesión', ''],
+        c.cuentas.map((x) => [
+          h('span', {}, x.email, x.email_verificado ? null : marca(' sin confirmar', 'ambar')),
+          x.nombre || '—',
+          x.rol === 'admin' ? marca(x.fijo ? 'admin (del entorno)' : 'admin', 'verde') : marca('persona', 'gris'),
+          `${num(x.plantas)}${x.plantas_totales > x.plantas ? ` (${num(x.plantas_totales)})` : ''}`,
+          fechaHora(x.creada),
+          x.ultima_sesion ? hace(x.ultima_sesion) : 'nunca',
+          h('div', { class: 'fila-botones' },
+            x.fijo
+              ? h('span', { class: 'nota-chica' }, 'del entorno')
+              : x.rol === 'admin'
+                ? h('button', { class: 'boton chico', type: 'button', onClick: () => cambiarRol(x, 'persona') }, 'Sacar admin')
+                : h('button', { class: 'boton chico', type: 'button', onClick: () => cambiarRol(x, 'admin') }, 'Hacer admin'),
+            x.fijo ? null : h('button', { class: 'boton chico peligro', type: 'button', onClick: () => borrar(x) }, 'Borrar')),
+        ]),
+        [false, false, false, true, false, false, false])),
+      h('p', { class: 'nota' },
+        'Es la única pantalla que muestra emails, y está para poder escribirles: avisarles de una '
+        + 'actualización, o ofrecerles servicio técnico cuando su aparato deja de hablar. Las plantas, las charlas '
+        + 'y las fotos no se ven desde acá.')),
+
+    panel('Escribirles',
+      h('p', { class: 'nota', style: 'margin-top:0' },
+        'Todavía no hay una forma de mandar un aviso desde acá. Mientras tanto, las direcciones, '
+        + 'para copiar y pegar en el correo (con copia oculta, que nadie vea la lista de los demás):'),
+      h('textarea', { readonly: true, rows: '3', onFocus: (e) => e.target.select() }, emails),
+      h('p', { class: 'nota-chica' },
+        `${num(c.cuentas.length)} direcciones. Mandar avisos masivos desde el servidor necesita antes `
+        + 'una forma de darse de baja, o los correos terminan en spam y la reputación del dominio se quema.')),
+
+    panel('Quién entra a la trastienda',
+      h('ul', { class: 'lista-simple' },
+        (c.arranque || []).map((e) => h('li', {}, h('code', {}, e), ' — desde el entorno del servidor (', h('code', {}, 'ROOTLAB_ADMINS'), '), no se le puede sacar')),
+        admins.filter((a) => !a.fijo).map((a) => h('li', {}, h('code', {}, a.email), ' — con el rol puesto desde acá'))),
+      h('p', { class: 'nota' },
+        'Cada uno entra pidiendo un código de seis dígitos a su email. Los del entorno son la red de '
+        + 'seguridad: no se les puede sacar el rol desde el panel, así que la trastienda nunca queda sin nadie adentro.')),
+
+    panel('Los agentes', bloqueAgentes()),
+  ];
+}
+
+function bloqueAgentes() {
+  const a = app.datos.agentes;
+  if (!a) return h('p', { class: 'nota' }, 'Cargando…');
+  const vivos = a.agentes.filter((x) => !x.revocado);
+
+  const crear = async () => {
+    const nombre = prompt('¿Cómo se llama el agente? (agente-infra, agente-ux…)');
+    if (!nombre) return;
+    try {
+      const r = await api('/agentes', { metodo: 'POST', cuerpo: { nombre, alcance: 'vivero' } });
+      await cargar('cuentas');
+      pintar();
+      /* El token se ve una vez: se muestra grande y se copia. */
+      const caja = h('section', { class: 'panel' },
+        h('h2', {}, `El token de ${r.nombre}`),
+        h('p', { class: 'nota', style: 'margin-top:0' }, 'Copialo ahora: no se vuelve a mostrar. Va en la variable ROOTLAB_ADMIN_CLAVE del agente, y sólo sirve para el vivero.'),
+        h('textarea', { readonly: true, rows: '2', onFocus: (e) => e.target.select() }, r.token),
+        h('button', { class: 'boton', type: 'button', onClick: () => pintar() }, 'Listo, lo copié'));
+      render($('#vista'), caja);
+      caja.querySelector('textarea').select();
+    } catch (e) { avisar(e.message, true); }
+  };
+  const revocar = async (x) => {
+    if (!confirm(`¿Revocar el token de ${x.nombre}? El agente deja de poder escribir en el vivero.`)) return;
+    try {
+      await api(`/agentes/${x.id}`, { metodo: 'DELETE' });
+      avisar('Revocado.');
+      await cargar('cuentas');
+      pintar();
+    } catch (e) { avisar(e.message, true); }
+  };
+
+  return [
+    h('p', { class: 'nota', style: 'margin-top:0' },
+      'Los agentes que revisan el proyecto escriben en el vivero con su propio token, no con la clave de '
+      + 'administración: lo único que pueden hacer es leer y proponer ideas. Si uno se filtra, se revoca y listo.'),
+    vivos.length === 0
+      ? h('p', { class: 'nota' }, 'Todavía no hay ninguno.')
+      : h('div', { class: 'tabla-marco' }, tabla(
+        ['nombre', 'alcance', 'creado', 'última vez', ''],
+        vivos.map((x) => [
+          x.nombre,
+          marca(x.alcance, 'violeta'),
+          fechaHora(x.creado),
+          x.usado ? hace(x.usado) : 'nunca',
+          h('button', { class: 'boton chico peligro', type: 'button', onClick: () => revocar(x) }, 'Revocar'),
+        ]),
+        [false, false, false, false, false])),
+    h('div', { class: 'fila-botones' },
+      h('button', { class: 'boton chico', type: 'button', onClick: crear }, 'Crear un token de agente')),
+  ];
+}
+
 /* ============================================================= VIVERO === */
 const AREA_ES = {
   infraestructura: 'Infraestructura', experiencia: 'Experiencia', firmware: 'Firmware',
@@ -449,6 +597,10 @@ const CARGAS = {
     const [metricas, lecturas] = await Promise.all([api('/metricas?dias=30'), api('/lecturas?dias=30')]);
     Object.assign(app.datos, { metricas, lecturas });
   },
+  cuentas: async () => {
+    const [cuentas, agentes] = await Promise.all([api('/cuentas'), api('/agentes')]);
+    Object.assign(app.datos, { cuentas, agentes });
+  },
   ideas: async () => {
     const q = new URLSearchParams();
     if (app.filtro.area) q.set('area', app.filtro.area);
@@ -463,7 +615,10 @@ async function cargar(que = app.vista) {
 }
 
 /* ------------------------------------------------------------ pintar --- */
-const VISTAS = { resumen: vistaResumen, flota: vistaFlota, firmware: vistaFirmware, uso: vistaUso, vivero: vistaVivero };
+const VISTAS = {
+  resumen: vistaResumen, flota: vistaFlota, firmware: vistaFirmware,
+  uso: vistaUso, cuentas: vistaCuentas, vivero: vistaVivero,
+};
 
 function pintar() {
   for (const b of document.querySelectorAll('.pestana')) {
@@ -486,24 +641,32 @@ async function irA(vista) {
 }
 
 /* ------------------------------------------------------------ puerta --- */
-function puerta(mensaje = '') {
+/* Tres pasos posibles: el email, el código que llegó ahí, y la clave del
+   servidor como salida de emergencia. */
+const paso = (cual, mensaje = '') => {
   $('#app').hidden = true;
   $('#puerta').hidden = false;
+  for (const [id, es] of [['#form-email', 'email'], ['#form-codigo', 'codigo'], ['#form-clave', 'clave']]) {
+    $(id).hidden = cual !== es;
+  }
+  $('#b-con-clave').hidden = cual === 'clave';
   const err = $('#error-entrar');
   err.textContent = mensaje;
   err.hidden = !mensaje;
-  $('#clave').focus();
-}
+  const foco = { email: '#email', codigo: '#codigo', clave: '#clave' }[cual];
+  $(foco)?.focus();
+};
+const puerta = (mensaje = '') => paso('email', mensaje);
 
-async function entrar(clave) {
-  const r = await fetch(`${base()}api/admin/sesion`.replace(/([^:])\/\//g, '$1/'), {
+async function sinSesion(ruta, cuerpo) {
+  const r = await fetch(`${base()}api/admin${ruta}`.replace(/([^:])\/\//g, '$1/'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ clave }),
+    body: JSON.stringify(cuerpo),
   });
   const datos = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(datos.error || `Error ${r.status}`);
-  guardarToken(datos.token);
+  return datos;
 }
 
 async function adentro() {
@@ -526,16 +689,53 @@ $('#b-salir').addEventListener('click', async () => {
   guardarToken(null);
   puerta('Cerraste la sesión.');
 });
-$('#form-entrar').addEventListener('submit', async (e) => {
+$('#form-email').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = $('#email').value.trim();
+  if (!email) return;
+  try {
+    await sinSesion('/codigo', { email });
+    /* Contesta lo mismo exista o no ese email: el mensaje también. */
+    paso('codigo');
+  } catch (err) {
+    paso('email', err.message);
+  }
+});
+
+$('#form-codigo').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const codigo = $('#codigo').value.replace(/\D/g, '');
+  if (codigo.length !== 6) {
+    paso('codigo', 'Son seis dígitos.');
+    return;
+  }
+  try {
+    const r = await sinSesion('/sesion', { email: $('#email').value.trim(), codigo });
+    guardarToken(r.token);
+    $('#codigo').value = '';
+    await adentro();
+  } catch (err) {
+    $('#codigo').value = '';
+    paso('codigo', err.message);
+  }
+});
+
+$('#b-otro-email').addEventListener('click', () => { $('#codigo').value = ''; puerta(); });
+$('#b-con-clave').addEventListener('click', () => paso('clave'));
+
+$('#form-clave').addEventListener('submit', async (e) => {
   e.preventDefault();
   try {
-    await entrar($('#clave').value);
+    const r = await sinSesion('/sesion', { clave: $('#clave').value });
+    guardarToken(r.token);
     $('#clave').value = '';
     await adentro();
   } catch (err) {
-    puerta(err.message);
+    $('#clave').value = '';
+    paso('clave', err.message);
   }
 });
+
 window.addEventListener('hashchange', () => {
   const v = (location.hash || '').replace('#', '');
   if (VISTAS[v] && v !== app.vista && !$('#app').hidden) irA(v);

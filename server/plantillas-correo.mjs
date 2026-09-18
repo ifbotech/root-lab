@@ -113,6 +113,59 @@ Si no fuiste vos, restablecela ya desde ${url} ("¿Olvidaste tu contraseña?").
   return { asunto, texto, html };
 }
 
+/**
+ * El código de seis dígitos para entrar a la trastienda.
+ *
+ * No lleva enlace: quien entra ya está en el panel esperando, y un enlace que
+ * abre una sesión de administración desde el correo es una puerta de más.
+ */
+export function codigoTrastienda({ codigo, minutos, ip = '' }) {
+  const asunto = `${codigo} es tu código para entrar a la trastienda`;
+  const espaciado = String(codigo).split('').join(' ');
+  const texto = `Hola.
+
+Alguien pidió entrar a la trastienda de ROOTLAB (el panel de administración) con este email.
+
+Tu código es: ${codigo}
+
+Vence en ${minutos} minutos y sirve una sola vez.${ip ? `
+
+El pedido vino de ${ip}.` : ''}
+
+Si no fuiste vos, no hagas nada: sin el código nadie entra. Pero avisale a quien administra el servidor, porque alguien sabe que este email es de administración.
+
+— ROOTLAB`;
+  const html = marco({
+    titulo: 'Tu código para la trastienda',
+    parrafos: [
+      'Alguien pidió entrar a la trastienda de ROOTLAB (el panel de administración) con este email.',
+      `<div style="font:900 34px/1.2 Nunito,system-ui,sans-serif;letter-spacing:.24em;text-align:center;margin:18px 0;padding:14px;border-radius:14px;background:#f1f4ec">${escapar(espaciado)}</div>`,
+      `Vence en ${minutos} minutos y sirve una sola vez.${ip ? ` El pedido vino de ${escapar(ip)}.` : ''}`,
+    ],
+    pie: 'Si no fuiste vos, no hagas nada: sin el código nadie entra. Pero avisale a quien administra el servidor.',
+  });
+  return { asunto, texto, html };
+}
+
+/**
+ * El informe de un agente: lo que hizo en su vuelta.
+ *
+ * Llega como texto, tal cual lo escribió el agente, porque lo que importa es
+ * qué cambió y por qué; el marco sólo lo hace legible en un cliente de correo.
+ */
+export function informeDeAgente({ agente, asunto, cuerpo }) {
+  const titulo = asunto || `Informe de ${agente}`;
+  const texto = `${cuerpo}\n\n— ${agente}, desde la trastienda de ROOTLAB`;
+  const html = marco({
+    titulo,
+    parrafos: [
+      `<pre style="white-space:pre-wrap;font:600 14px/1.5 ui-monospace,Menlo,Consolas,monospace;margin:0">${escapar(cuerpo)}</pre>`,
+    ],
+    pie: `${escapar(agente)}, desde la trastienda de ROOTLAB.`,
+  });
+  return { asunto: titulo, texto, html };
+}
+
 export function alertaGasto({ gastado, tope, periodo }) {
   const pct = tope > 0 ? Math.round((gastado / tope) * 100) : 100;
   const asunto = `ROOTLAB: la IA lleva ${pct}% del tope ${periodo}`;
