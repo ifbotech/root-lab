@@ -54,7 +54,7 @@ desde la trastienda → **Cuentas → Los agentes**.
    entorno*.
    ```
    ROOTLAB_NUBE=https://ifbotech.com/rootkit
-   ROOTLAB_ADMIN_CLAVE=<UN token de alcance vivero, uno solo para los seis>
+   ROOTLAB_ADMIN_CLAVE=<UN token, uno solo para los seis>
    ```
    Sin esto `vivero.mjs` corta antes de listar: no hay ideas que mirar ni
    dónde anotar.
@@ -66,12 +66,24 @@ desde la trastienda → **Cuentas → Los agentes**.
    distinguiendo `agente-infra`, `agente-ux` y el resto aunque la credencial
    sea la misma.
 
-   **Y por qué de alcance `vivero`.** La propia pantalla avisa que lo que se
-   escriba ahí lo ve cualquiera que use el entorno, así que va el token que
-   menos daño hace si se filtra: uno de `vivero` sólo sirve para anotar ideas
-   en una lista, y se revoca desde la trastienda en un clic. Uno de
-   `jardinero` sería peor: les daría a los cinco que sólo miran la capacidad
-   de mandar correos, que es justo lo que no les toca.
+   **Qué alcance ponerle, que es la única decisión real.** La propia pantalla
+   avisa que lo que se escriba ahí lo ve cualquiera que use el entorno, así
+   que conviene el token que menos daño haga si se filtra. Hay dos opciones y
+   las dos se defienden:
+
+   - **`vivero`** es el mínimo: sólo sirve para anotar ideas en una lista. Los
+     cinco que miran no necesitan nada más. El costo es que el jardinero
+     pierde la ruta del correo y su informe sale por la notificación de la
+     rutina en vez de por la trastienda.
+   - **`jardinero`** (lo que está puesto hoy) suma el envío del informe, así
+     que el correo del sábado sale como fue diseñado. El costo es que los
+     cinco que sólo miran quedan con la capacidad de mandar correos. No la van
+     a usar —no está en su prompt, y `_comun.md` les dice que no toquen lo que
+     no les toca—, pero está.
+
+   Se revoca desde la trastienda en un clic, así que cambiar de idea es
+   barato. Lo que no conviene nunca es poner ahí la clave del servidor: ésa
+   abre las cuentas, la flota y la fábrica.
 4. **La política de red del entorno**, que se toca una vez para todos en
    [claude.ai/code](https://claude.ai/code) → el entorno → red. Tiene que
    dejar salir a **`ifbotech.com`**. Si no, el token no sirve para nada: el
