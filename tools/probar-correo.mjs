@@ -2,8 +2,9 @@
  *
  *   node tools/probar-correo.mjs destino@ejemplo.com
  *
- * En el VPS, con las variables del servicio:
- *   sudo -u rootlab bash -c 'set -a; . /etc/root-lab.env; set +a; \
+ * En el VPS, con las variables del servicio. El .env sólo lo lee root (600),
+ * así que se carga primero y recién después se baja a rootlab:
+ *   sudo bash -c 'set -a; . /etc/root-lab.env; set +a; runuser -p -u rootlab -- \
  *     /opt/root-lab-node/bin/node /opt/root-lab/tools/probar-correo.mjs "$ROOTLAB_ADMIN_EMAIL"'
  *
  * Verifica la conexión y la autenticación con el relay y manda la plantilla de

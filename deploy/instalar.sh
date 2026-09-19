@@ -86,17 +86,28 @@ paso "Usuario y carpetas"
 id rootlab >/dev/null 2>&1 || useradd --system --home "$DATOS" --shell /usr/sbin/nologin rootlab
 mkdir -p "$DATOS" "$DATOS/respaldos"
 chown -R rootlab:rootlab "$DATOS"
-chmod 750 "$DATOS" "$DATOS/respaldos"
+chmod 750 "$DATOS"
+chmod 700 "$DATOS/respaldos"
 
 paso "Respaldo antes de actualizar"
 if [ -n "${ROOTLAB_REEJECUTADO:-}" ]; then
   echo "ya se hizo"
-elif [ -f "$DATOS/rootkit.db" ] && [ -f "$DIR/tools/respaldar.mjs" ]; then
-  # Antes de una actualización que puede migrar el esquema: siempre copia.
+elif [ ! -f "$DATOS/rootkit.db" ]; then
+  echo "todavía no hay base"
+elif systemctl list-unit-files root-lab-respaldo.service >/dev/null 2>&1 \
+     && systemctl cat root-lab-respaldo >/dev/null 2>&1; then
+  # Por el servicio y no a mano: así hereda /etc/root-lab.env y sale también
+  # la copia CIFRADA. A mano quedaba sólo la local, que es la que menos sirve
+  # el día que el problema es el servidor.
+  systemctl start root-lab-respaldo \
+    && journalctl -u root-lab-respaldo -n 1 --no-pager -o cat \
+    || echo "no se pudo respaldar (se sigue igual)"
+elif [ -f "$DIR/tools/respaldar.mjs" ]; then
+  # Primera instalación: el servicio todavía no está.
   runuser -u rootlab -- "$NODE" --disable-warning=ExperimentalWarning "$DIR/tools/respaldar.mjs" "$DATOS" \
     || echo "no se pudo respaldar (se sigue igual)"
 else
-  echo "todavía no hay base"
+  echo "todavía no hay con qué"
 fi
 
 paso "Código ($RAMA)"
@@ -191,8 +202,13 @@ fi
 if grep -qE '^ROOTLAB_RESPALDO_DESTINO=.+' "$ENV_FILE" && ! command -v rclone >/dev/null 2>&1; then
   apt-get install -y -qq rclone || echo "no pude instalar rclone: los respaldos quedan sólo en el servidor"
 fi
-chmod 640 "$ENV_FILE"
-chgrp rootlab "$ENV_FILE"
+# 600 y no 640: los servicios lo reciben por EnvironmentFile, que lo lee
+# systemd como root antes de bajar a rootlab. Nadie más tiene por qué leerlo.
+chmod 600 "$ENV_FILE"
+chown root:root "$ENV_FILE"
+# El vapid.json es una clave privada; las que quedaron abiertas se cierran.
+if [ -f "$DATOS/vapid.json" ]; then chmod 600 "$DATOS/vapid.json"; fi
+find "$DATOS/respaldos" -type f -exec chmod 600 {} + 2>/dev/null || true
 
 paso "Servicio y respaldo diario"
 install -m 644 "$DIR/deploy/root-lab.service" /etc/systemd/system/root-lab.service

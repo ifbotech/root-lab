@@ -39,7 +39,7 @@ El VPS ya sirve `ifbotech.com` con **Caddy** delante de la app principal
 |---|---|
 | Código | `/opt/root-lab` (clon de GitHub) |
 | Node 24 propio | `/opt/root-lab-node` (el del sistema no se toca) |
-| Configuración y clave maestra | `/etc/root-lab.env` (640, grupo `rootlab`) |
+| Configuración y clave maestra | `/etc/root-lab.env` (600, root; systemd se lo pasa al servicio) |
 | Base de datos | `/var/lib/root-lab/rootkit.db` (SQLite: cuentas, plantas, lecturas, charlas, firmware; datos personales cifrados) |
 | Claves VAPID | `/var/lib/root-lab/vapid.json` |
 | Respaldos | `/var/lib/root-lab/respaldos/`, uno por día, 14 días, con su copia cifrada (`.db.enc`) para sacar del servidor ([operacion.md](operacion.md)) |
@@ -120,7 +120,7 @@ lo avisa—, el tope, `correo smtp` y `correo: relay SMTP conectado`. Para
 probar el correo de punta a punta:
 
 ```bash
-sudo -u rootlab bash -c 'set -a; . /etc/root-lab.env; set +a; \
+sudo bash -c 'set -a; . /etc/root-lab.env; set +a; runuser -p -u rootlab -- \
   /opt/root-lab-node/bin/node /opt/root-lab/tools/probar-correo.mjs "$ROOTLAB_ADMIN_EMAIL"'
 ```
 

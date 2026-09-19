@@ -268,8 +268,11 @@ sudo systemctl start root-lab-verificar-respaldo && journalctl -u root-lab-verif
 # Restaurar producción desde un respaldo (cifrado o no):
 sudo systemctl stop root-lab
 sudo mv /var/lib/root-lab/rootkit.db /var/lib/root-lab/rootkit.db.roto
-sudo -u rootlab env $(sudo grep ROOTLAB_RESPALDO_CLAVE /etc/root-lab.env) \
-  /opt/root-lab-node/bin/node tools/restaurar.mjs --a /var/lib/root-lab/rootkit.db <archivo>
+# (el .env lo lee root: se carga primero y recién después se baja a rootlab,
+#  así la clave no queda a la vista en la lista de procesos)
+sudo bash -c 'set -a; . /etc/root-lab.env; set +a; runuser -p -u rootlab -- \
+  /opt/root-lab-node/bin/node /opt/root-lab/tools/restaurar.mjs \
+  --a /var/lib/root-lab/rootkit.db <archivo>'
 sudo systemctl start root-lab
 ```
 
