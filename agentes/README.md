@@ -5,7 +5,7 @@ encuentran anotado en **el vivero** de la trastienda (`/rootkit/admin` → El
 vivero). Un sexto, **el jardinero**, elige la mejor idea de la lista y la
 implementa.
 
-| Agente | Área | Qué mira | Cuándo |
+| Agente | Área | Qué mira | Con cron |
 |---|---|---|---|
 | [infraestructura.md](infraestructura.md) | `infraestructura` | el servidor, el despliegue, los respaldos, el costo | lunes |
 | [experiencia.md](experiencia.md) | `experiencia` | las pantallas, los textos, el alta, la accesibilidad | martes |
@@ -17,6 +17,11 @@ implementa.
 Los cinco primeros **no tocan el código**: proponen, y desde la trastienda se
 decide. El jardinero sí, pero deja su trabajo en una rama, nunca en `main`, y
 nunca despliega.
+
+La última columna es el día que le toca a cada uno **con cron**, que es un
+agente por día. Con routines —que es lo que está corriendo— los cinco que
+miran van todos los días, escalonados de a quince minutos, y el jardinero
+sigue yendo los sábados: los horarios están en [RUTINAS.md](RUTINAS.md).
 
 ## Lo que necesita cada agente
 
@@ -39,8 +44,8 @@ claude -p "$(cat root-lab/agentes/infraestructura.md)"
 ## Dejarlos dando vueltas
 
 Hay dos formas, y las dos sirven. **La recomendada son las routines**: no
-dependen de que haya una máquina prendida. El paso a paso, con los horarios y
-el texto para pegar, está en **[RUTINAS.md](RUTINAS.md)**.
+dependen de que haya una máquina prendida, y las seis ya están creadas. Lo que
+falta para terminar de enchufarlas está en **[RUTINAS.md](RUTINAS.md)**.
 
 ### Con cron, en una máquina propia
 
@@ -85,16 +90,20 @@ acción `claude -p ...`, con las variables de entorno cargadas.
 ### Con routines de Claude Code (recomendado)
 
 Claude Code tiene su propio programador —**routines**— que corre en la nube de
-Anthropic, así que no hace falta dejar una máquina prendida. Se arma en
+Anthropic, así que no hace falta dejar una máquina prendida. Se administran en
 [claude.ai/code/routines](https://claude.ai/code/routines), desde la aplicación
-de escritorio o con `/schedule` en la terminal, y se le da la instrucción, los
-repositorios y la cadencia. Con el plan Max entran hasta 15 corridas por día.
+de escritorio o con `/schedule` en la terminal. Con el plan Max entran hasta 15
+corridas por día.
+
+**Las seis ya están creadas**, con su nombre, su horario y su instrucción.
+Falta agregarle a cada una los dos repositorios y sus variables de entorno: eso
+no se puede dejar puesto desde afuera y son dos campos por rutina.
 
 El agente corre en un entorno que no es el nuestro, así que hay que darle el
 token como variable de ese entorno: justamente para eso existen los tokens de
 alcance limitado.
 
-**El paso a paso, con los horarios y el texto exacto para pegar, está en
+**Qué falta exactamente, con los horarios y lo que dice cada una, está en
 [RUTINAS.md](RUTINAS.md).**
 
 ## Qué hacer con lo que proponen
