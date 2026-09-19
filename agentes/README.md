@@ -96,8 +96,10 @@ de escritorio o con `/schedule` en la terminal. Con el plan Max entran hasta 15
 corridas por día.
 
 **Las seis ya están creadas**, con su nombre, su horario y su instrucción.
-Falta agregarle a cada una los dos repositorios y sus variables de entorno: eso
-no se puede dejar puesto desde afuera y son dos campos por rutina.
+Falta enchufarlas: los dos repositorios y las variables de entorno en cada
+rutina, y dejar salir a `ifbotech.com` en la política de red del entorno. Nada
+de eso se puede dejar puesto desde afuera, y sin los repositorios el jardinero
+no puede ni empujar su rama.
 
 El agente corre en un entorno que no es el nuestro, así que hay que darle el
 token como variable de ese entorno: justamente para eso existen los tokens de

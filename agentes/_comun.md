@@ -53,11 +53,31 @@ nube, trastienda). En producción: https://ifbotech.com/rootkit/
    curl -s -H "Authorization: Bearer $ROOTLAB_ADMIN_CLAVE" "$ROOTLAB_NUBE/api/admin/metricas?dias=30"
    ```
 
-## Con qué credencial
+## Con qué credencial, y qué hacer si el entorno viene incompleto
 
 En `ROOTLAB_ADMIN_CLAVE` viene **tu token de agente**, no la clave del
 servidor: sólo sirve para el vivero. Si algo te contesta `403`, no es un error
 a arreglar: es que estás pidiendo algo que no te toca.
+
+Corrés en un entorno que no es el nuestro y puede venir sin todo. Nada de lo
+que sigue es motivo para cortar la vuelta:
+
+- **Si no está `ROOTLAB_NUBE`**, usá `https://ifbotech.com/rootkit`.
+- **Si no está `ROOTLAB_ADMIN_CLAVE`, o la trastienda no contesta** —un `403`
+  en el CONNECT del proxy es la política de red del entorno, no algo tuyo—,
+  hacé la vuelta igual contra el código y los documentos, que es de donde sale
+  la mayor parte de la evidencia. Al final, en vez de callarte, **dejá escritas
+  las ideas que hubieras anotado**, cada una con su comando de `vivero.mjs`
+  listo para copiar y pegar. Que no se pueda llegar al vivero no quiere decir
+  que no haya trabajo.
+- **Si `node -v` no dice 24**, el proyecto pide 24.7 o más, y con 22 fallan
+  quince pruebas por razones que no son del código:
+  ```bash
+  export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm install 24; nvm use 24
+  ```
+
+Lo que te haya faltado, **decilo en tu salida final**. Quien configura el
+vivero no ve tu sesión: si no lo contás, no se arregla.
 
 ## Cómo se anota una idea
 

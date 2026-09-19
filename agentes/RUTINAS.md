@@ -6,10 +6,14 @@ Anthropic con la cadencia que se les ponga. Con el plan **Max** entran hasta 15
 por día, así que los seis agentes van cómodos.
 
 **Las seis ya están creadas**, cada una con su nombre, su horario y su
-instrucción. Faltan dos cosas que hay que agregarle a cada una a mano en
-[claude.ai/code/routines](https://claude.ai/code/routines): **los
-repositorios** y **las variables de entorno**. Son dos campos por rutina y no
-lleva más de diez minutos.
+instrucción. Falta enchufarlas, y eso son **tres cosas** que no se pueden
+dejar puestas desde afuera: dos en la pantalla de cada rutina —los
+**repositorios** y las **variables de entorno**— y una en la del entorno —la
+**política de red**—. Todo junto no lleva más de diez minutos.
+
+Los tres huecos se encontraron corriendo, no leyendo: la primera tanda salió
+sin ninguno de ellos y cada agente chocó con el suyo. Están contados abajo con
+el error exacto que tira cada uno, para que se reconozcan si vuelven.
 
 ## Antes de empezar: el token
 
@@ -24,21 +28,40 @@ Los nombres son `agente-infra`, `agente-ux`, `agente-fw`, `agente-producto`,
 `agente-seguridad` y `jardinero`. Se revocan y se vuelven a crear cuando sea
 desde la trastienda → **Cuentas → Los agentes**.
 
-## Lo que falta, para cada una de las seis
+## Lo que falta
 
 1. Entrar a **[claude.ai/code/routines](https://claude.ai/code/routines)** y
    abrir la rutina.
 2. **Repositorios**: `ifbotech/root-lab` **y** `ifbotech/root-kit`. Los dos:
-   los agentes miran el proyecto entero. Esto es lo más importante de los dos
-   campos —sin los repos, el agente arranca en una carpeta vacía y no
-   encuentra su propio prompt.
+   los agentes miran el proyecto entero.
+
+   **Es el campo que más importa, y arregla dos cosas a la vez.** La primera
+   es obvia: sin los repos el agente arranca en una carpeta vacía y no
+   encuentra ni su propio prompt. En la primera tanda se vio así: los cinco
+   que miran terminaron en menos de un minuto sin proponer nada, y el
+   jardinero quedó trabado pidiendo permiso para salir a buscarlos por
+   `/workspace`, `/srv` y `/opt`.
+
+   La segunda es menos obvia. Los repos son públicos, así que un agente puede
+   clonarlos igual —el jardinero lo hizo— pero al empujar la rama se come un
+   `403: ifbotech/root-lab is not in this session's authorized repository
+   set`. Ese "authorized repository set" es exactamente este campo: es lo que
+   le da permiso de **escritura**, que es lo único que el jardinero necesita
+   para dejar su trabajo. Clonar no alcanza.
 3. **Variables de entorno**:
    ```
    ROOTLAB_NUBE=https://ifbotech.com/rootkit
    ROOTLAB_ADMIN_CLAVE=<el token de ESE agente>
    ```
    Van por rutina, así que cada agente lleva el suyo y ninguno tiene más
-   permiso del que necesita.
+   permiso del que necesita. Sin esto `vivero.mjs` corta antes de listar: sin
+   vivero no hay ideas que mirar, no hay dónde anotar, y el informe del
+   jardinero no puede salir por correo.
+4. **La política de red del entorno**, que se toca una vez para todos en
+   [claude.ai/code](https://claude.ai/code) → el entorno → red. Tiene que
+   dejar salir a **`ifbotech.com`**. Si no, el token no sirve para nada: el
+   pedido muere antes, con un `403` en el CONNECT del proxy, y la vuelta sale
+   entera de los repositorios sin mirar un solo dato de producción.
 
 El nombre, el horario y las instrucciones ya están puestos: no hace falta
 tocarlos.
@@ -48,18 +71,20 @@ tocarlos.
 Los horarios se cargaron en UTC, que es como los guarda el programador. La
 columna de la izquierda es la hora de acá (UTC−3), que es la que importa.
 
-| Rutina | Cuándo | En UTC | Su instrucción (ya puesta) |
+| Rutina | Cuándo | En UTC | Abre |
 |---|---|---|---|
-| Vivero · infraestructura | todos los días, 04:10 | `10 7 * * *` | `Sos el agente de infraestructura del vivero de ROOTLAB. Abrí root-lab/agentes/infraestructura.md de este repositorio y hacé exactamente lo que dice, una vuelta completa. Seguí también root-lab/agentes/_comun.md, que ese archivo te manda a leer.` |
-| Vivero · experiencia | todos los días, 04:25 | `25 7 * * *` | `Sos el agente de experiencia e interfaz del vivero de ROOTLAB. Abrí root-lab/agentes/experiencia.md de este repositorio y hacé exactamente lo que dice, una vuelta completa. Seguí también root-lab/agentes/_comun.md, que ese archivo te manda a leer.` |
-| Vivero · firmware | todos los días, 04:40 | `40 7 * * *` | `Sos el agente de firmware y hardware del vivero de ROOTLAB. Abrí root-lab/agentes/firmware.md de este repositorio y hacé exactamente lo que dice, una vuelta completa. Seguí también root-lab/agentes/_comun.md, que ese archivo te manda a leer.` |
-| Vivero · producto | todos los días, 04:55 | `55 7 * * *` | `Sos el agente de producto del vivero de ROOTLAB. Abrí root-lab/agentes/producto.md de este repositorio y hacé exactamente lo que dice, una vuelta completa. Seguí también root-lab/agentes/_comun.md, que ese archivo te manda a leer.` |
-| Vivero · seguridad | todos los días, 05:10 | `10 8 * * *` | `Sos el agente de seguridad y privacidad del vivero de ROOTLAB. Abrí root-lab/agentes/seguridad.md de este repositorio y hacé exactamente lo que dice, una vuelta completa. Seguí también root-lab/agentes/_comun.md, que ese archivo te manda a leer.` |
-| Vivero · el jardinero | **sábados**, 06:20 | `20 9 * * 6` | `Sos el jardinero del vivero de ROOTLAB. Abrí root-lab/agentes/jardinero.md de este repositorio y hacé exactamente lo que dice: elegí UNA idea, implementala con sus pruebas y su documentación, dejala en una rama (nunca en main, nunca despliegues) y mandá el informe.` |
+| Vivero · infraestructura | todos los días, 04:10 | `10 7 * * *` | `agentes/infraestructura.md` |
+| Vivero · experiencia | todos los días, 04:25 | `25 7 * * *` | `agentes/experiencia.md` |
+| Vivero · firmware | todos los días, 04:40 | `40 7 * * *` | `agentes/firmware.md` |
+| Vivero · producto | todos los días, 04:55 | `55 7 * * *` | `agentes/producto.md` |
+| Vivero · seguridad | todos los días, 05:10 | `10 8 * * *` | `agentes/seguridad.md` |
+| Vivero · el jardinero | **sábados**, 06:20 | `20 9 * * 6` | `agentes/jardinero.md` |
 
-La instrucción es corta a propósito —el prompt largo vive en el
-repositorio—, así que si mañana mejoramos lo que tiene que hacer un agente, la
-rutina lo toma sola sin tocar nada acá.
+La instrucción de cada rutina es corta a propósito: dice quién es el agente y
+lo manda a abrir su archivo. **El prompt largo vive en el repositorio**, así
+que si mañana mejoramos lo que tiene que hacer un agente, la rutina lo toma
+sola sin tocar nada en la pantalla. Por eso acá no se copia el texto: se copia
+en la rutina una vez y después se edita el `.md`.
 
 **Por qué a esas horas.** Los cinco que miran arrancan de a quince minutos:
 así no compiten entre ellos por el mismo minuto y, si uno tarda, no arrastra a
@@ -70,11 +95,12 @@ lista que ya tiene lo de la semana.
 implementa. Todos los días serían siete ramas por semana esperando revisión, y
 la revisión es tuya. Una por semana se mira el lunes con un café.
 
-**El jardinero necesita poder escribir en el repositorio.** Los otros cinco
-sólo leen; él deja una rama. Cuando le pongas los repos, comprobá que la
-conexión con GitHub tenga permiso de escritura sobre `ifbotech/root-lab` y
-`ifbotech/root-kit`. Si no lo tiene, va a hacer todo el trabajo y no va a poder
-dejarlo: lo vas a ver en el informe, que igual te llega.
+**El jardinero es el que más se nota si falta algo.** Los otros cinco sólo
+leen; él deja una rama, y para eso los dos repositorios tienen que estar
+adjuntados a su rutina (punto 2 de arriba). Si no lo están, hace todo el
+trabajo y se queda sin dónde dejarlo. No se pierde: está escrito en su prompt
+que en ese caso mande el `git diff` entero en el informe, así la rama se rehace
+a mano. Pero conviene que no haga falta.
 
 **Los avisos.** Los cinco que miran corren callados: una vuelta sin ideas es
 lo normal y no hace falta que suene el teléfono todos los días a las cuatro de
@@ -84,9 +110,11 @@ es el sábado. Se cambia en la misma pantalla de cada rutina.
 ## Cómo saber que anda
 
 - **A las horas**: en [claude.ai/code](https://claude.ai/code) queda la sesión
-  de cada corrida, con todo lo que hizo. La primera vuelta es la que te dice si
-  los repos quedaron bien puestos: si el agente no encuentra
-  `root-lab/agentes/<lo suyo>.md`, es que le falta ese campo.
+  de cada corrida, con todo lo que hizo. **Lo primero que hay que mirar es
+  cuánto duró**: una vuelta de verdad se toma sus minutos, porque lee media
+  docena de archivos y le pregunta cosas a la trastienda. Una que terminó en
+  veinte segundos no encontró los repos, y una que quedó en "requiere acción"
+  está esperando un permiso que nadie le va a dar.
 - **En el producto**: la trastienda → **El vivero**. Si aparecieron ideas
   nuevas con autor `agente-infra` y compañía, la cadena entera funciona.
 - **El sábado**: te llega un correo con el informe del jardinero.
