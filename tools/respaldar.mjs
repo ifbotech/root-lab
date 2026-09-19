@@ -50,7 +50,10 @@ db.close();
 try { chmodSync(copia, 0o640); } catch { /* Windows */ }
 
 if (existsSync(join(DATOS, 'vapid.json'))) {
-  copyFileSync(join(DATOS, 'vapid.json'), join(DESTINO, `vapid-${fecha}.json`));
+  const copiaVapid = join(DESTINO, `vapid-${fecha}.json`);
+  copyFileSync(join(DATOS, 'vapid.json'), copiaVapid);
+  /* Es una clave privada: la copia se guarda tan cerrada como el original. */
+  try { chmodSync(copiaVapid, 0o600); } catch { /* Windows */ }
 }
 
 /* La copia cifrada, y afuera. Un fallo acá no invalida el respaldo local,

@@ -48,21 +48,89 @@ fallar la lectura en vez de devolver basura.
 tres claves independientes (cifrado, índice, pimienta), así que comprometer un
 uso no compromete otro.
 
-- **Dónde vive**: en `/etc/root-lab.env` (permisos 640, grupo `rootlab`),
-  **fuera** de la base y de los respaldos. Un respaldo solo no expone a nadie.
+- **Dónde vive**: en `/etc/root-lab.env` (permisos 600, lo lee systemd como
+  root y se lo pasa al servicio), **fuera** de la base y de los respaldos. Un
+  respaldo solo no expone a nadie.
 - **Quién la crea**: `deploy/instalar.sh`, la primera vez, si no existe. No la
   imprime (no tiene que quedar en logs).
-- **Guardá una copia fuera del servidor**, en un gestor de contraseñas:
-  ```bash
-  sudo grep ROOTLAB_SECRETO /etc/root-lab.env
-  ```
-  **Si se pierde, los emails y las contraseñas no se recuperan**: las
-  cuentas quedarían inutilizables. Si el VPS se pierde, restaurar necesita el
-  respaldo **y** esta clave.
+- **Tiene que haber una copia fuera del servidor.** No a mano: en la caja
+  fuerte (abajo). **Si se pierde, los emails y las contraseñas no se
+  recuperan**: las cuentas quedarían inutilizables. Si el VPS se pierde,
+  restaurar necesita el respaldo **y** esta clave.
 - **No se cambia a mano.** Rotarla es re-cifrar la base con la clave nueva
   (está en el roadmap: `tools/rotar-secreto.mjs`). Los datos cifrados llevan
   un prefijo de versión (`v1.`) para poder convivir durante la rotación.
 - En desarrollo, sin la variable, se crea `data/secreto.key` y se avisa.
+
+## Dónde vive cada secreto
+
+| Secreto | Dónde | Permisos | ¿Hay copia afuera? |
+|---|---|---|---|
+| `ROOTLAB_SECRETO` (maestra) | `/etc/root-lab.env` | 600 root | **en la caja fuerte** |
+| `ROOTLAB_RESPALDO_CLAVE` | `/etc/root-lab.env` | 600 root | **en la caja fuerte** |
+| `ROOTLAB_ADMIN_CLAVE` | `/etc/root-lab.env` | 600 root | en la caja fuerte |
+| `ROOTLAB_SMTP_CLAVE` | `/etc/root-lab.env` | 600 root | en la caja fuerte |
+| `ANTHROPIC_API_KEY` | `/etc/root-lab.env` | 600 root | en la caja fuerte (y se puede volver a emitir) |
+| VAPID (avisos push) | `/var/lib/root-lab/vapid.json` | 600 `rootlab` | en la caja fuerte |
+| Tokens de los agentes | `/root/vivero-tokens.txt` | 600 root | no hace falta: se revocan y se emiten de nuevo |
+| **Clave privada del firmware** | **sólo en la computadora de quien firma** | — | **nunca en el servidor**, ver abajo |
+
+El disco del VPS **no** está cifrado en reposo (no hay LUKS, y en un VPS no
+sirve de mucho: la clave tendría que estar en el mismo lugar para arrancar
+solo). Lo que protege de verdad es que lo personal ya está cifrado *dentro* de
+la base, con una clave que no está en la base.
+
+## La caja fuerte
+
+Las dos claves que hacen falta para abrir un respaldo vivían **sólo en el
+servidor**. Si el VPS desaparecía, quedaban los respaldos y ninguna forma de
+leerlos: un respaldo que no se puede restaurar no es un respaldo.
+
+`tools/caja-fuerte.mjs` saca esas claves del servidor a un archivo `.rkc`
+cifrado con una frase que elegís vos y que no está en ninguna máquina:
+
+```bash
+sudo /opt/root-lab-node/bin/node /opt/root-lab/tools/caja-fuerte.mjs \
+  sellar --salida /root/caja-fuerte.rkc          # pide la frase por teclado
+node tools/caja-fuerte.mjs listar caja-fuerte.rkc   # qué hay, sin los valores
+node tools/caja-fuerte.mjs abrir  caja-fuerte.rkc --clave ROOTLAB_SECRETO
+```
+
+Mismo formato que los respaldos (AES-256-GCM, clave derivada con scrypt
+N=2¹⁵), así que se puede dejar al lado de ellos sin pensarlo. La frase se pide
+dos veces y no se ve al escribirla; **no hay forma de recuperarla**.
+
+`test/caja-fuerte.test.mjs` prueba el camino entero del día malo: con un
+`.db.enc` y la caja, y nada más, se vuelve a abrir una base y las cuentas
+salen enteras.
+
+Se vuelve a sellar cuando cambia alguna clave. No pasa seguido, pero cuando
+pase, la caja vieja abre los respaldos viejos y no los nuevos.
+
+## La clave del firmware no va al servidor
+
+`firmware.key` (ECDSA P-256) es la única cosa del proyecto que está **sólo**
+en la computadora de quien firma, y es a propósito: es lo que hace que tomar
+el servidor no alcance para instalarle algo a una maceta. El servidor tiene la
+**pública** y nada más.
+
+Subirla al VPS "para no perderla" cambiaría un riesgo chico por el peor de
+todos: quien entre al servidor podría firmar un firmware y mandárselo a todos
+los aparatos vendidos, y cada aparato lo instalaría porque la firma sería
+válida. Tampoco va en la caja fuerte, y hay una prueba que lo vigila
+(`test/caja-fuerte.test.mjs`).
+
+Lo que sí hay que hacer con ella —perderla obliga a cambiar la pública
+compilada en cada placa, o sea a no poder actualizar las que ya se vendieron—
+es tener **dos copias que no estén en el mismo lugar**:
+
+1. Una entrada en el gestor de contraseñas, con el PEM pegado como nota
+   segura.
+2. Un pendrive guardado en otro lado, o el PEM impreso en papel (son unas
+   pocas líneas).
+
+Si algún día firma más de una persona, lo que corresponde no es copiar el
+archivo: es una sub-CA o un token de hardware.
 
 ## Contraseñas
 
@@ -171,18 +239,34 @@ CSRF posible.
 
 ## La administración
 
-`/api/admin/*` (fábrica, firmware, métricas) usa una clave larga del entorno
-(`ROOTLAB_ADMIN_CLAVE`), comparada en tiempo constante. Sin ella las rutas no
-existen; diez intentos fallidos en diez minutos bloquean la IP. No hay
-"usuarios administradores" en la base: una cuenta de la app nunca puede
-volverse administradora.
+`/api/admin/*` (fábrica, firmware, métricas, trastienda) se abre de tres
+maneras, y ninguna se confunde con una cuenta común:
+
+- **Con el código del email**: quien esté en `ROOTLAB_ADMINS` o tenga el rol
+  en la base pide un código de seis dígitos, entra, y le queda una sesión de
+  doce horas. Del código se guarda sólo el hash; vence a los diez minutos,
+  sirve una vez y aguanta cinco intentos. El rol se vuelve a mirar al entrar,
+  así que quitárselo a alguien tiene efecto en la sesión siguiente.
+- **Con la clave del servidor** (`ROOTLAB_ADMIN_CLAVE`), comparada en tiempo
+  constante: es la puerta de atrás para cuando el correo no anda.
+- **Con un token de agente**, que sólo sirve para las rutas de su alcance
+  (`vivero` o `jardinero`) y se revoca de a uno.
+
+Sin ninguna de las tres, las rutas no existen; diez intentos fallidos en diez
+minutos bloquean la IP. Dar el rol de administrador es una acción de la
+trastienda y queda registrada.
 
 ## Los respaldos que salen del servidor
 
 Van cifrados **enteros** (AES-256-GCM, clave derivada con scrypt) con
 `ROOTLAB_RESPALDO_CLAVE`, que no es la clave maestra: quien custodia los
 respaldos no puede leer producción, y al revés. Una prueba mensual los
-descifra y los abre. Ver [operacion.md](operacion.md).
+descifra y los abre.
+
+Viven en tres lugares —el VPS, la computadora de casa y OneDrive— y los
+últimos dos se los **trae** la computadora, no se los manda el servidor: el
+VPS no tiene credenciales para llegar a ninguno, así que quien entre al
+servidor no puede borrar las copias de afuera. Ver [operacion.md](operacion.md).
 
 ## Las métricas
 
@@ -191,8 +275,11 @@ planta, ni IP, ni nada de terceros. La lista de eventos es cerrada.
 
 ## Pendiente
 
-- Rotación de la clave maestra (`tools/rotar-secreto.mjs`).
-- Elegir el destino de los respaldos cifrados (`ROOTLAB_RESPALDO_DESTINO`).
+- Rotación de la clave maestra (`tools/rotar-secreto.mjs`). Cuando exista, la
+  caja fuerte hay que volver a sellarla el mismo día.
+- Un cuarto lugar para los respaldos que no dependa de una sola cuenta de
+  Microsoft (`ROOTLAB_RESPALDO_DESTINO` con rclone a B2, por ejemplo). Con
+  tres alcanza para empezar; con clientes pagando, no.
 - Segundo factor opcional (passkeys) para las cuentas.
 - Cambiar el email de una cuenta (con verificación del nuevo).
 - Auditoría externa antes de vender.

@@ -9,7 +9,7 @@
  * pantalla de inicio (iOS 16.4 o posterior). Por eso el flujo de la app pide
  * instalar ANTES de pedir permiso.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import webpush from 'web-push';
 
@@ -26,8 +26,15 @@ export function crearPush({
     claves = webpush.generateVAPIDKeys();
     if (archivo) {
       mkdirSync(dirDatos, { recursive: true });
-      writeFileSync(archivo, JSON.stringify(claves, null, 2));
+      /* Adentro va una clave PRIVADA: la lee su dueño y nadie más. Sin esto
+         quedaba 0644 y cualquier usuario del servidor podía mandar
+         notificaciones en nombre de ROOTLAB. */
+      writeFileSync(archivo, JSON.stringify(claves, null, 2), { mode: 0o600 });
     }
+  }
+  if (archivo && existsSync(archivo)) {
+    /* Y si venía de antes con permisos abiertos, se cierran igual. */
+    try { chmodSync(archivo, 0o600); } catch { /* otro dueño: no es nuestro */ }
   }
   webpush.setVapidDetails(contacto, claves.publicKey, claves.privateKey);
 

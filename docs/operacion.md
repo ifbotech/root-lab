@@ -165,17 +165,86 @@ firmware), y un aparato o un lote se pueden deshabilitar (`403` en el sync).
 |---|---|---|
 | Copia local (`VACUUM INTO`) | todos los días 4:30, y antes de cada actualización | `/var/lib/root-lab/respaldos/rootkit-<fecha>.db`, 14 días |
 | Copia cifrada entera | con cada copia local, si hay `ROOTLAB_RESPALDO_CLAVE` | `…/rootkit-<fecha>.db.enc` |
-| Copia afuera | si además hay `ROOTLAB_RESPALDO_DESTINO` | un remoto de rclone o un destino de scp |
+| Copia en casa y en la nube | todos los días 9:15, la trae la computadora | `OneDrive\Respaldos\ROOTLAB`, 30 copias |
+| Copia afuera (opcional) | si además hay `ROOTLAB_RESPALDO_DESTINO` | un remoto de rclone o un destino de scp |
 | Prueba de restauración | el 1 de cada mes, 5:30 | descifra, abre, `integrity_check`, cuenta, y manda el resultado a `ROOTLAB_ADMIN_EMAIL` |
 
 El `.db.enc` es AES-256-GCM con una clave derivada por scrypt de
 `ROOTLAB_RESPALDO_CLAVE` (`server/respaldo.mjs`). No es la clave maestra a
 propósito: quien custodia los respaldos no puede leer producción, y al revés.
-El instalador la genera; **hay que guardarla fuera del servidor**, junto con
-la maestra: sin las dos, un respaldo no se recupera.
+El instalador la genera; **las dos tienen que estar fuera del servidor** —en
+la caja fuerte, abajo—: sin ellas, un respaldo no se recupera.
 
-**Configurar el destino** (una vez). Con rclone, por ejemplo a Backblaze B2 o
-a un Storage Box por SFTP:
+### Tres copias, dos soportes, una afuera
+
+La copia que hace el VPS está en **el mismo disco que la base**: protege de un
+borrado o de una migración que sale mal, no de perder el servidor. Las otras
+dos las junta una sola pasada desde casa:
+
+| Copia | Dónde | De qué protege |
+|---|---|---|
+| 1 | el disco del VPS | un error nuestro, una actualización que rompe algo |
+| 2 | la computadora de casa | que el VPS se pierda, que Hostinger cierre la cuenta |
+| 3 | OneDrive (la misma carpeta, sincronizada) | que se rompa o se robe la computadora |
+
+**La computadora las trae; el servidor no las manda.** Es la diferencia que
+importa: el VPS no sabe que la computadora existe y no tiene credenciales para
+llegar a ella, así que quien entre al servidor —y pueda borrar `/var/lib`—
+no puede tocar las copias de afuera. Si fuera al revés (el VPS empujando a
+OneDrive), tendría que haber ahí un token con permiso de escritura, y ese
+token borra tan bien como escribe.
+
+```powershell
+# Una vez, desde root-lab en la computadora:
+.\deploy\traer-respaldos.ps1 -Instalar      # tarea diaria a las 9:15
+.\deploy\traer-respaldos.ps1                # y para probarla ahora
+```
+
+Trae sólo los `.db.enc` y la caja fuerte (las copias sin cifrar se quedan en
+el VPS, no tienen por qué andar dando vueltas), comprueba que cada archivo
+empiece con la marca `RKR1`, borra las que pasan de 30 y avisa fuerte si hace
+más de tres días que no llega una nueva o si falta la caja. Termina con código
+2 si no llegó ninguna copia sana y 3 si falta la caja, así que el historial
+del Programador de tareas dice la verdad.
+
+Si la carpeta está adentro de OneDrive, las copias 2 y 3 salen de la misma
+pasada. Con otro destino: `-Destino D:\Respaldos\ROOTLAB`.
+
+### La caja fuerte: que el respaldo se pueda abrir
+
+Un `.db.enc` sin `ROOTLAB_RESPALDO_CLAVE` es ruido, y la base de adentro sin
+`ROOTLAB_SECRETO` no tiene emails ni nombres. Las dos vivían sólo en
+`/etc/root-lab.env`. `tools/caja-fuerte.mjs` las saca a un archivo cifrado con
+una frase que no está en ninguna máquina ([seguridad.md](seguridad.md)):
+
+```bash
+sudo /opt/root-lab-node/bin/node /opt/root-lab/tools/caja-fuerte.mjs \
+  sellar --salida /root/caja-fuerte.rkc
+```
+
+Después la baja `traer-respaldos.ps1` con los respaldos, y queda al lado de
+ellos. **La frase no se guarda en ningún lado**: va en la cabeza y en el
+gestor de contraseñas.
+
+### Levantar todo de cero, sin el VPS
+
+El día que no haya servidor, esto es lo que hay que tener y en qué orden:
+
+```bash
+# 1. Las claves salen de la caja (pide la frase).
+node tools/caja-fuerte.mjs abrir caja-fuerte.rkc
+# 2. El respaldo se descifra con ROOTLAB_RESPALDO_CLAVE.
+node tools/restaurar.mjs --a rootkit.db rootkit-<fecha>.db.enc
+# 3. El servidor nuevo arranca con ROOTLAB_SECRETO en su entorno, y los
+#    emails y las charlas se vuelven a leer. El VAPID de la caja evita que
+#    cada teléfono tenga que activar los avisos otra vez.
+```
+
+Lo único que **no** sale de ahí es la clave privada del firmware, que nunca
+estuvo en el servidor y se guarda aparte ([seguridad.md](seguridad.md)).
+
+**Configurar un destino más** (opcional). Con rclone, por ejemplo a Backblaze
+B2 o a un Storage Box por SFTP:
 
 ```bash
 sudo apt install rclone

@@ -62,8 +62,10 @@ A tener en cuenta:
 - **Respaldos.** `/var/lib/root-lab` tiene cuentas, vínculos, lecturas y las
   claves VAPID; si se pierden las claves, cada teléfono tiene que volver a
   activar los avisos. El timer deja una copia diaria **en el mismo disco**:
-  protege de un error, no de perder el VPS. Para eso hay que sacarlas afuera
-  (ver *Operar*) o activar los snapshots del proveedor.
+  protege de un error, no de perder el VPS. Las copias de afuera las trae la
+  computadora una vez por día con `deploy/traer-respaldos.ps1`, y las claves
+  para poder abrirlas salen del servidor en la caja fuerte
+  ([operacion.md](operacion.md)).
 - **Comparte origen con ifbotech.com.** El service worker y el almacenamiento
   quedan limitados a `/rootkit/`, así que no se pisan con el sitio, pero con
   el dominio propio la app queda más limpia (instalación, permisos y
@@ -198,14 +200,16 @@ systemd-analyze security root-lab         # qué tan encerrado está el servicio
 sudo -u rootlab /opt/root-lab-node/bin/node /opt/root-lab/tools/uso-ia.mjs /var/lib/root-lab 30
 ```
 
-Sacar los respaldos del servidor, desde la compu:
+Sacar los respaldos del servidor, desde la compu (trae los cifrados y la caja
+fuerte, y los deja en OneDrive):
 
-```bash
-scp root@31.97.31.58:/var/lib/root-lab/respaldos/rootkit-*.db .
+```powershell
+.\deploy\traer-respaldos.ps1
 ```
 
 Los respaldos tienen los datos personales **cifrados**: para restaurarlos en
-otro servidor hace falta también la clave maestra. Restaurar uno:
+otro servidor hace falta también la clave maestra, que sale de la caja fuerte
+([operacion.md](operacion.md)). Restaurar uno:
 
 ```bash
 systemctl stop root-lab
