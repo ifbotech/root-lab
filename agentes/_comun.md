@@ -53,6 +53,17 @@ nube, trastienda). En producción: https://ifbotech.com/rootkit/
    curl -s -H "Authorization: Bearer $ROOTLAB_ADMIN_CLAVE" "$ROOTLAB_NUBE/api/admin/metricas?dias=30"
    ```
 
+   **Hoy estas cuatro te van a contestar `403`, y no es culpa tuya.** Un token
+   de agente sólo llega a `/api/admin/ideas` —y el del jardinero, además, a
+   `/api/admin/informe`—; los datos de producción piden la clave del servidor,
+   que vos no tenés ni tenés que tener (`ALCANCE_RUTAS` en `server/api.mjs`).
+   Es una contradicción conocida entre este archivo y los alcances, y está a
+   la espera de una decisión: o se abre un alcance de sólo lectura para estos
+   cuatro, o se saca el paso. Mientras tanto **probalos igual** —si algún día
+   contestan, la vuelta mejora sola— y si dan `403`, seguí con el código y los
+   documentos, que es de donde sale la mayor parte de la evidencia. Decilo en
+   tu salida final, en una línea, sin hacer un drama: es el estado normal.
+
 ## Con qué credencial, y qué hacer si el entorno viene incompleto
 
 En `ROOTLAB_ADMIN_CLAVE` viene **un token de agente**, no la clave del
@@ -73,11 +84,13 @@ que sigue es motivo para cortar la vuelta:
   las ideas que hubieras anotado**, cada una con su comando de `vivero.mjs`
   listo para copiar y pegar. Que no se pueda llegar al vivero no quiere decir
   que no haya trabajo.
-- **Si `node -v` no dice 24**, el proyecto pide 24.7 o más, y con 22 fallan
-  quince pruebas por razones que no son del código:
-  ```bash
-  export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm install 24; nvm use 24
-  ```
+- **Si `node -v` no dice 24**, ojo con las pruebas: el proyecto pide 24.7 o
+  más, y con 22 fallan quince por razones que no son del código —`argon2` de
+  `node:crypto` no existe hasta la 24—. Si hay `nvm` a mano, subís con
+  `. "$NVM_DIR/nvm.sh" && nvm use 24`. **Si no lo hay, no pelees con eso**: no
+  instales runtimes ni persigas ese rojo, que no es tuyo. Los cinco que miran
+  no necesitan correr pruebas para proponer. Anotalo en tu salida final y
+  seguí.
 
 Lo que te haya faltado, **decilo en tu salida final**. Quien configura el
 vivero no ve tu sesión: si no lo contás, no se arregla.
