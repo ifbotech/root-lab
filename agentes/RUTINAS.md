@@ -55,6 +55,12 @@ así no compiten entre ellos por el mismo minuto y, si uno tarda, no arrastra a
 los demás. El jardinero va después de todos, el sábado, para elegir sobre una
 lista que ya tiene lo de la semana.
 
+**El jardinero necesita poder escribir en el repositorio.** Los otros cinco
+sólo leen; él deja una rama. Cuando armes esa rutina, comprobá que la conexión
+con GitHub tenga permiso de escritura sobre `ifbotech/root-lab` y
+`ifbotech/root-kit`. Si no lo tiene, va a hacer todo el trabajo y no va a poder
+dejarlo: lo vas a ver en el informe, que igual te llega.
+
 **Por qué el jardinero sólo los sábados.** Los otros cinco proponen; él
 implementa. Todos los días serían siete ramas por semana esperando revisión, y
 la revisión es tuya. Una por semana se mira el lunes con un café.

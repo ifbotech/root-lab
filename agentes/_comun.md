@@ -79,6 +79,12 @@ node root-lab/tools/vivero.mjs proponer \
 Proponer dos veces lo mismo no duplica nada: el servidor lo reconoce y lo
 cuenta. Que una idea aparezca varias veces es señal, no ruido.
 
+Si en el entorno donde corrés no hay `node`, es lo mismo por HTTP:
+
+```bash
+curl -fsS -X POST "$ROOTLAB_NUBE/api/admin/ideas"   -H "Authorization: Bearer $ROOTLAB_ADMIN_CLAVE" -H 'content-type: application/json'   -d '{"area":"...","titulo":"...","impacto":"alto","esfuerzo":"bajo","autor":"...","detalle":"...","evidencia":"..."}'
+```
+
 ## Las reglas
 
 - **Como mucho cinco ideas por vuelta.** Las mejores cinco. Una lista de cien
