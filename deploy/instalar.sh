@@ -188,7 +188,7 @@ if ! grep -qE '^ROOTLAB_ADMINS=' "$ENV_FILE"; then
   printf '
 # Quiénes entran a la trastienda (/admin) con un código a su email.
 # A estos no se les puede sacar el rol desde el panel. docs/trastienda.md
-ROOTLAB_ADMINS=%s
+ROOTLAB_ADMINS='"'"'%s'"'"'
 '     "$(grep -E '^ROOTLAB_ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)" >> "$ENV_FILE"
   echo "ROOTLAB_ADMINS quedó en $ENV_FILE: agregá ahí los emails que entran a la trastienda"
 fi
@@ -202,6 +202,10 @@ fi
 if grep -qE '^ROOTLAB_RESPALDO_DESTINO=.+' "$ENV_FILE" && ! command -v rclone >/dev/null 2>&1; then
   apt-get install -y -qq rclone || echo "no pude instalar rclone: los respaldos quedan sólo en el servidor"
 fi
+# Un valor con espacios y sin comillas rompe `. /etc/root-lab.env` en la
+# consola (systemd lo lee igual, hace su propio parseo). Pasó con
+# ROOTLAB_ADMINS al agregar un segundo email separado por ", ".
+sed -i -E "s/^([A-Z_][A-Z0-9_]*)=([^\"'#]*[[:blank:]][^\"'#]*)\$/\\1='\\2'/" "$ENV_FILE"
 # 600 y no 640: los servicios lo reciben por EnvironmentFile, que lo lee
 # systemd como root antes de bajar a rootlab. Nadie más tiene por qué leerlo.
 chmod 600 "$ENV_FILE"
