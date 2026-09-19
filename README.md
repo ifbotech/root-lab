@@ -210,6 +210,7 @@ docs/
 | [paletas.md](docs/paletas.md) | Las paletas de las pieles, las cosméticas y el motor de contraste |
 | [accesibilidad.md](docs/accesibilidad.md) | WCAG AA: qué se garantiza, qué se arregló y cómo se audita |
 | [trastienda.md](docs/trastienda.md) | El panel de quien hace el producto (`/admin`) y el vivero de ideas |
+| [analisis/](analisis/README.md) | Herramientas para mirar la app andando: accesibilidad, bytes por el cable, CPU, sin red |
 | [notificaciones.md](docs/notificaciones.md) | Cuándo se avisa y cuándo no |
 | [sensorial.md](docs/sensorial.md) | La cara en el teléfono: luz, caricias, voz y modo escritorio |
 | [clima.md](docs/clima.md) | Regar antes con el pronóstico; VPD y DLI |

@@ -1,0 +1,11 @@
+{
+  "name": "rootlab-analisis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Herramientas para mirar ROOTLAB andando. Aparte del producto: acá viven las dependencias pesadas (un navegador) que root-lab no tiene ni quiere tener.",
+  "devDependencies": {
+    "axe-core": "^4.13.0",
+    "playwright": "^1.63.0"
+  }
+}

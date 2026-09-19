@@ -51,11 +51,18 @@ botones que son sólo un ícono con `aria-label`, el tinte del chip igual en el
 motor y en la hoja, el foco visible y el respeto por `prefers-reduced-motion`.
 Son las que una vez estuvieron mal.
 
-**La auditoría completa** necesita un navegador y no vive en el repo: este
-proyecto no tiene dependencias de desarrollo y no vale la pena sumarle un
-navegador entero. Se corre a mano, desde afuera, con
-[axe-core](https://github.com/dequelabs/axe-core) y Playwright, contra la app
-andando:
+**La auditoría completa** necesita un navegador, así que no corre en `npm
+test` —este proyecto no tiene dependencias de desarrollo y no vale la pena
+sumarle un navegador entero— pero sí está guardada, en
+[`analisis/accesibilidad.mjs`](../analisis/README.md):
+
+```bash
+cd analisis && npm install && npx playwright install chromium
+cd .. && node analisis/accesibilidad.mjs
+BASE_URL=https://ifbotech.com/rootkit node analisis/accesibilidad.mjs
+```
+
+Por dentro es esto, contra la app andando:
 
 ```js
 import { readFileSync } from 'node:fs';
@@ -77,6 +84,7 @@ toque la interfaz.
 - Probarla con un lector de pantalla de verdad (VoiceOver en iPhone,
   TalkBack en Android): axe encuentra lo que es mecánico, no si el orden en
   que se lee una pantalla tiene sentido.
-- Mirarla con la letra del sistema al doble y con el teléfono en horizontal.
+- Mirarla con el teléfono en horizontal. (Con la letra del sistema al doble y
+  a 320 px de ancho ya se probó: `analisis/letra-y-ancho.mjs`, todo entra.)
 - Revisar el emulador, que hoy queda afuera de la auditoría: es una
   herramienta de desarrollo, no parte del producto.
