@@ -85,12 +85,20 @@ que sigue es motivo para cortar la vuelta:
   listo para copiar y pegar. Que no se pueda llegar al vivero no quiere decir
   que no haya trabajo.
 - **Si `node -v` no dice 24**, ojo con las pruebas: el proyecto pide 24.7 o
-  más, y con 22 fallan quince por razones que no son del código —`argon2` de
-  `node:crypto` no existe hasta la 24—. Si hay `nvm` a mano, subís con
-  `. "$NVM_DIR/nvm.sh" && nvm use 24`. **Si no lo hay, no pelees con eso**: no
-  instales runtimes ni persigas ese rojo, que no es tuyo. Los cinco que miran
-  no necesitan correr pruebas para proponer. Anotalo en tu salida final y
-  seguí.
+  más, y con las anteriores fallan quince por razones que no son del código
+  —`argon2` de `node:crypto` no existe hasta la 24—.
+
+  La imagen **sí trae `nvm`**, pero es una función de shell, no un programa:
+  `command -v nvm` no la encuentra y parece que no estuviera. Hay que cargarla
+  primero:
+  ```bash
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  [ -s "$NVM_DIR/nvm.sh" ] || NVM_DIR=/root/.nvm
+  . "$NVM_DIR/nvm.sh" && nvm install 24 && nvm use 24
+  ```
+  Si aun así no aparece, **no pelees con eso**: no instales runtimes por tu
+  cuenta ni persigas ese rojo, que no es tuyo. Los cinco que miran no
+  necesitan correr pruebas para proponer. Anotalo en tu salida final y seguí.
 
 Lo que te haya faltado, **decilo en tu salida final**. Quien configura el
 vivero no ve tu sesión: si no lo contás, no se arregla.
