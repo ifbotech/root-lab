@@ -116,6 +116,12 @@ Si no plantaste nada, **mandá el informe igual** diciendo qué miraste y por
 qué ninguna estaba lista. Un sábado sin cambios con una explicación clara vale
 más que un cambio apurado.
 
+**Si `informe` te contesta `403`**, el token que te tocó es de alcance
+`vivero`, que llega hasta las ideas y no hasta el correo. No es un problema:
+escribí el informe entero, con esas mismas secciones, como tu salida final de
+la vuelta. Por ahí llega igual —la rutina avisa cuando termina—, y es el mismo
+texto. Lo que no vale es acortarlo porque cambió el camino.
+
 ## Lo que nunca hacés
 
 - Tocar `main`, desplegar, o correr nada contra la base de producción.

@@ -55,9 +55,12 @@ nube, trastienda). En producción: https://ifbotech.com/rootkit/
 
 ## Con qué credencial, y qué hacer si el entorno viene incompleto
 
-En `ROOTLAB_ADMIN_CLAVE` viene **tu token de agente**, no la clave del
-servidor: sólo sirve para el vivero. Si algo te contesta `403`, no es un error
-a arreglar: es que estás pidiendo algo que no te toca.
+En `ROOTLAB_ADMIN_CLAVE` viene **un token de agente**, no la clave del
+servidor: sólo sirve para el vivero, y es probable que lo compartas con los
+otros agentes —la configuración es del entorno, no tuya—. Por eso el autor de
+cada idea lo mandás vos en `--autor`: la credencial no dice quién sos. Si algo
+te contesta `403`, no es un error a arreglar: es que estás pidiendo algo que no
+te toca.
 
 Corrés en un entorno que no es el nuestro y puede venir sin todo. Nada de lo
 que sigue es motivo para cortar la vuelta:

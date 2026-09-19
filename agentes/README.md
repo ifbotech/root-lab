@@ -27,13 +27,18 @@ sigue yendo los sábados: los horarios están en [RUTINAS.md](RUTINAS.md).
 
 ```bash
 ROOTLAB_NUBE=https://ifbotech.com/rootkit
-ROOTLAB_ADMIN_CLAVE=agt_...    # el TOKEN del agente, no la clave del servidor
+ROOTLAB_ADMIN_CLAVE=agt_...    # un TOKEN de agente, no la clave del servidor
 ```
 
 El token se crea en **la trastienda → Cuentas → Los agentes**, se muestra una
-sola vez, y sólo sirve para escribir en el vivero (el del jardinero, además,
-para mandar el informe). Si se filtra, lo peor que puede hacer quien lo tenga
-es anotar ideas en una lista; y se revoca desde la misma pantalla.
+sola vez, y sólo sirve para escribir en el vivero (uno de alcance `jardinero`,
+además, para mandar el informe). Si se filtra, lo peor que puede hacer quien lo
+tenga es anotar ideas en una lista; y se revoca desde la misma pantalla.
+
+Con cron cada agente puede llevar el suyo, porque la configuración es un
+archivo por máquina. Con routines no: las variables son del entorno y se
+comparten, así que ahí va **uno solo, de alcance `vivero`**, para los seis. No
+se pierde nada: el autor de cada idea viaja en `--autor`, no en la credencial.
 
 Una vuelta a mano, desde la carpeta que tiene los dos repos:
 

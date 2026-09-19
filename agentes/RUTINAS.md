@@ -48,15 +48,30 @@ desde la trastienda → **Cuentas → Los agentes**.
    set`. Ese "authorized repository set" es exactamente este campo: es lo que
    le da permiso de **escritura**, que es lo único que el jardinero necesita
    para dejar su trabajo. Clonar no alcanza.
-3. **Variables de entorno**:
+3. **Las variables de entorno**, que **son del entorno y no de cada rutina**:
+   se ponen una sola vez y las seis comparten lo mismo. Están en
+   [claude.ai/code](https://claude.ai/code) → el entorno → *Variables de
+   entorno*.
    ```
    ROOTLAB_NUBE=https://ifbotech.com/rootkit
-   ROOTLAB_ADMIN_CLAVE=<el token de ESE agente>
+   ROOTLAB_ADMIN_CLAVE=<UN token de alcance vivero, uno solo para los seis>
    ```
-   Van por rutina, así que cada agente lleva el suyo y ninguno tiene más
-   permiso del que necesita. Sin esto `vivero.mjs` corta antes de listar: sin
-   vivero no hay ideas que mirar, no hay dónde anotar, y el informe del
-   jardinero no puede salir por correo.
+   Sin esto `vivero.mjs` corta antes de listar: no hay ideas que mirar ni
+   dónde anotar.
+
+   **Por qué un token solo y no uno por agente.** Porque no hay dónde poner
+   seis: la pantalla es una y es compartida. Y no hace falta, porque **el
+   autor de una idea no sale del token**: cada agente lo manda en `--autor`
+   (`server/api.mjs`, en el alta de ideas), así que en el vivero se siguen
+   distinguiendo `agente-infra`, `agente-ux` y el resto aunque la credencial
+   sea la misma.
+
+   **Y por qué de alcance `vivero`.** La propia pantalla avisa que lo que se
+   escriba ahí lo ve cualquiera que use el entorno, así que va el token que
+   menos daño hace si se filtra: uno de `vivero` sólo sirve para anotar ideas
+   en una lista, y se revoca desde la trastienda en un clic. Uno de
+   `jardinero` sería peor: les daría a los cinco que sólo miran la capacidad
+   de mandar correos, que es justo lo que no les toca.
 4. **La política de red del entorno**, que se toca una vez para todos en
    [claude.ai/code](https://claude.ai/code) → el entorno → red. Tiene que
    dejar salir a **`ifbotech.com`**. Si no, el token no sirve para nada: el
