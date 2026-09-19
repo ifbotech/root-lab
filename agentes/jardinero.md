@@ -13,6 +13,9 @@ cómo trabaja el proyecto. Las reglas de allá valen, con una excepción grande:
 node root-lab/tools/vivero.mjs listar --estado nueva
 ```
 
+(Si estás parado adentro de `root-lab`, es `node tools/vivero.mjs`: fijate
+dónde te dejó el entorno antes del primer comando.)
+
 Viene ordenado por lo que rinde más por lo que cuesta. Elegí **una sola**, y
 que sea una que puedas terminar bien en esta vuelta: con su código, sus
 pruebas y su documentación. Media mejora es peor que ninguna.

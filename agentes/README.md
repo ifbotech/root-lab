@@ -38,7 +38,9 @@ claude -p "$(cat root-lab/agentes/infraestructura.md)"
 
 ## Dejarlos dando vueltas
 
-Hay dos formas, y las dos sirven.
+Hay dos formas, y las dos sirven. **La recomendada son las routines**: no
+dependen de que haya una máquina prendida. El paso a paso, con los horarios y
+el texto para pegar, está en **[RUTINAS.md](RUTINAS.md)**.
 
 ### Con cron, en una máquina propia
 
@@ -80,18 +82,20 @@ agente con permisos de escritura en los repos.
 *En Windows* es lo mismo con el Programador de tareas: una tarea por agente,
 acción `claude -p ...`, con las variables de entorno cargadas.
 
-### Con routines de Claude Code
+### Con routines de Claude Code (recomendado)
 
 Claude Code tiene su propio programador —**routines**— que corre en la nube de
 Anthropic, así que no hace falta dejar una máquina prendida. Se arma en
 [claude.ai/code/routines](https://claude.ai/code/routines), desde la aplicación
-de escritorio o con `/schedule` en la terminal, y se le da el prompt, el
-repositorio y la cadencia.
+de escritorio o con `/schedule` en la terminal, y se le da la instrucción, los
+repositorios y la cadencia. Con el plan Max entran hasta 15 corridas por día.
 
-Es más simple que el cron y no depende de que haya una máquina encendida. A
-cambio, el agente corre en un entorno que no es el nuestro: hay que darle el
-token del agente como variable de ese entorno, que es justamente para lo que
-existen los tokens de alcance limitado.
+El agente corre en un entorno que no es el nuestro, así que hay que darle el
+token como variable de ese entorno: justamente para eso existen los tokens de
+alcance limitado.
+
+**El paso a paso, con los horarios y el texto exacto para pegar, está en
+[RUTINAS.md](RUTINAS.md).**
 
 ## Qué hacer con lo que proponen
 

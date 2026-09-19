@@ -61,6 +61,10 @@ a arreglar: es que estás pidiendo algo que no te toca.
 
 ## Cómo se anota una idea
 
+Los comandos de acá abajo suponen que estás parado en la carpeta que tiene los
+dos repositorios. Si ya estás adentro de `root-lab`, sacale el `root-lab/` del
+principio: es `node tools/vivero.mjs`. Fijate dónde estás antes del primero.
+
 ```bash
 node root-lab/tools/vivero.mjs proponer \
   --area <tu área> \

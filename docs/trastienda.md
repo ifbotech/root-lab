@@ -169,6 +169,16 @@ Un token de `vivero` que se filtre no sirve para ver cuentas, ni la flota, ni
 publicar firmware: lo peor que puede hacer quien lo tenga es escribir ideas en
 una lista. Se revoca desde la misma pantalla y deja de servir al instante.
 
+Los seis del proyecto ya están creados y guardados en el VPS, en
+`/root/vivero-tokens.txt` (sólo lo lee root). Para leer uno:
+
+```bash
+ssh -i ~/.ssh/rootkit_vps root@31.97.31.58   "grep '^agente-infra' /root/vivero-tokens.txt | cut -f3"
+```
+
+Cómo se los deja corriendo todos los días está en
+[agentes/RUTINAS.md](../agentes/RUTINAS.md).
+
 ### Desde la terminal
 
 ```bash
