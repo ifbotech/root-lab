@@ -226,6 +226,21 @@ Después la baja `traer-respaldos.ps1` con los respaldos, y queda al lado de
 ellos. **La frase no se guarda en ningún lado**: va en la cabeza y en el
 gestor de contraseñas.
 
+Dos cosas apenas baja, y una sola vez, desde la computadora:
+
+```powershell
+# 1. Que abra. Una caja que nadie abrió nunca no es una caja. `listar` pide la
+#    frase y muestra los nombres de las claves y su largo, nunca los valores.
+node tools\caja-fuerte.mjs listar "$env:USERPROFILE\OneDrive\Respaldos\ROOTLAB\caja-fuerte.rkc"
+
+# 2. Sacarla del VPS. Existe para el día que el servidor no esté, y ese día la
+#    copia que está EN el servidor tampoco está: ahí no protege de nada, y sí
+#    le deja a quien lo tome un archivo contra el que probar frases sin apuro.
+ssh -i ~\.ssh\rootkit_vps root@31.97.31.58 'rm -f /root/caja-fuerte.rkc'
+```
+
+`traer-respaldos.ps1` avisa mientras la caja siga en el VPS.
+
 ### Levantar todo de cero, sin el VPS
 
 El día que no haya servidor, esto es lo que hay que tener y en qué orden:

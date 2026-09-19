@@ -85,9 +85,8 @@ function Traer([string]$patron) {
 if ((Traer "$Remoto/*.db.enc") -ne 0) {
   Write-Host "  no pude traer las copias cifradas: ¿hay alguna en el VPS?" -ForegroundColor Yellow
 }
-if ((Traer '/root/caja-fuerte.rkc') -ne 0) {
-  Write-Host "  (todavía no hay caja fuerte en el VPS)" -ForegroundColor DarkGray
-}
+$cajaEnElVps = (Traer '/root/caja-fuerte.rkc') -eq 0
+if (-not $cajaEnElVps) { Write-Host "  (no hay caja fuerte en el VPS)" -ForegroundColor DarkGray }
 
 # Lo que llegó tiene que ser lo que decimos que es: los .enc empiezan con RKR1.
 $copias = Get-ChildItem -Path $Destino -Filter '*.db.enc' -ErrorAction SilentlyContinue |
@@ -121,6 +120,13 @@ if ($ultima) {
 }
 if (Test-Path $caja) {
   Write-Host "Caja fuerte: sí (sin ella los respaldos no se pueden abrir)"
+  if ($cajaEnElVps) {
+    # La caja existe para el día que el VPS no esté. Ese día, la que está EN el
+    # VPS tampoco está: ahí no protege de nada, y sí le da a quien tome el
+    # servidor un archivo contra el que probar frases sin apuro.
+    Write-Host "  Ya la tenés acá: en el VPS no hace falta que quede (ese día se pierde con él)." -ForegroundColor Yellow
+    Write-Host "    ssh -i `"$Llave`" $Servidor 'rm -f /root/caja-fuerte.rkc'"
+  }
 } else {
   Write-Host "Caja fuerte: NO ESTÁ. Sin ella estos respaldos no sirven de nada." -ForegroundColor Red
   Write-Host "  Se sella una sola vez, en el VPS (pide una frase que elijas vos):"
