@@ -886,13 +886,18 @@ export function abrirBase(archivo = ':memory:', { cripto = null } = {}) {
                   FROM dispositivos GROUP BY valor ORDER BY total DESC, valor`).all(ahora - activoMs);
     },
 
-    /** La flota, aparato por aparato, sin el hash del token ni la planta. */
+    /** La flota, aparato por aparato, sin el hash del token ni la planta.
+     *
+     * Pasa por `filaDispositivo` como `dispositivos()`: sin eso `ota` vuelve
+     * como texto JSON y `deshabilitado` como 0/1, y la trastienda compara
+     * `d.ota?.estado === 'fallo'` contra un string —que nunca da true—, así
+     * que una OTA fallada no se marcaba en rojo en la pantalla de la flota. */
     flota(limite = 500) {
       return q(`SELECT id, creado, visto, fw, placa, estado, canal, ota, lote, origen, deshabilitado,
                        bat_mv, usb, rssi, arranques, persona_fabrica,
                        (planta IS NOT NULL) vinculado,
                        (SELECT COUNT(*) FROM lecturas l WHERE l.dispositivo = dispositivos.id) lecturas
-                  FROM dispositivos ORDER BY COALESCE(visto, creado) DESC LIMIT ?`).all(limite);
+                  FROM dispositivos ORDER BY COALESCE(visto, creado) DESC LIMIT ?`).all(limite).map(filaDispositivo);
     },
 
     /** Lecturas por día: si el producto está midiendo, se ve acá. */

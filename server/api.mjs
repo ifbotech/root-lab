@@ -347,6 +347,16 @@ export function crearApi({
         if (!agentePuede(agente.alcance, metodo, ruta)) {
           falla(403, `Ese token (${agente.alcance}) no alcanza para ${metodo} ${ruta}.`);
         }
+        /* Y un freno por TOKEN, además del que ya hay por IP. El de arriba se
+           esquiva rotando de IP; éste no, porque cuelga del token mismo. Hace
+           falta desde que un agente puede leer producción: /api/admin/lecturas
+           recorre la tabla entera, que crece ~35.000 filas por maceta por año,
+           y el servidor es un proceso solo con SQLite sincrónico. Sin esto, un
+           token filtrado —el escenario que el propio diseño asume, porque vive
+           en una variable de entorno compartida— deja el servicio afuera sin
+           escribir un solo byte. Una vuelta de agente hace una decena de
+           pedidos: 60 por minuto le sobra y al abuso no le alcanza. */
+        limitar(`agente:${agente.id}`, 60, MIN);
         db.agenteUsado(agente.id, reloj());
         return { quien: 'agente', nombre: agente.nombre, alcance: agente.alcance };
       }

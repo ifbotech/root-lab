@@ -31,14 +31,23 @@ ROOTLAB_ADMIN_CLAVE=agt_...    # un TOKEN de agente, no la clave del servidor
 ```
 
 El token se crea en **la trastienda → Cuentas → Los agentes**, se muestra una
-sola vez, y sólo sirve para escribir en el vivero (uno de alcance `jardinero`,
-además, para mandar el informe). Si se filtra, lo peor que puede hacer quien lo
-tenga es anotar ideas en una lista; y se revoca desde la misma pantalla.
+sola vez, y alcanza para dos cosas: **leer** cómo anda el producto —el estado,
+la flota, las lecturas y las métricas, sólo por GET— y **escribir** en el
+vivero. Uno de alcance `jardinero` suma el envío del informe por correo.
+
+Si se filtra, quien lo tenga puede leer la flota aparato por aparato (MAC,
+lote, firmware, batería, señal) y los recuentos del producto, y anotar ideas en
+una lista. **No** puede ver cuentas, ni datos de personas, ni publicar
+firmware, ni borrar nada, y tiene su propio freno de 60 pedidos por minuto que
+no se esquiva cambiando de IP. Se revoca desde la misma pantalla y deja de
+servir al instante.
 
 Con cron cada agente puede llevar el suyo, porque la configuración es un
 archivo por máquina. Con routines no: las variables son del entorno y se
-comparten, así que ahí va **uno solo, de alcance `vivero`**, para los seis. No
-se pierde nada: el autor de cada idea viaja en `--autor`, no en la credencial.
+comparten, así que ahí va **uno solo para los seis**. No se pierde nada: el
+autor de cada idea viaja en `--autor`, no en la credencial. Qué alcance darle a
+ese token compartido es la única decisión real, y está en
+[RUTINAS.md](RUTINAS.md).
 
 Una vuelta a mano, desde la carpeta que tiene los dos repos:
 
