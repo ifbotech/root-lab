@@ -58,6 +58,15 @@ cd ../root-kit && make test     # sólo si tocaste firmware
 **Si algo queda en rojo, no seguís.** Arreglalo o devolvé la idea a `nueva`
 con lo que aprendiste. Nunca dejes el árbol roto.
 
+**Antes de correr nada, mirá `node -v`.** El proyecto pide 24.7 o más y con
+las anteriores fallan quince pruebas solas, sin que nadie haya tocado nada. Si
+no estás en 24, subí con el `nvm` que explica `_comun.md` —está en la imagen,
+sólo hay que cargarlo— y recién entonces corré las pruebas.
+
+Si ni así llegás a la 24, **no plantes**: no tenés cómo saber si tu cambio
+anda. Devolvé la idea a `nueva`, contá en el informe que el entorno vino con
+la versión equivocada, y listo. Plantar a ciegas es peor que no plantar.
+
 ### 4. Dejalo en una rama, no en `main`
 
 ```bash
