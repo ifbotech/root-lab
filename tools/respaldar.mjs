@@ -47,7 +47,10 @@ db.prepare('VACUUM INTO ?').run(copia);
 const n = (tabla) => db.prepare(`SELECT COUNT(*) n FROM ${tabla}`).get().n;
 const conteo = { cuentas: n('cuentas'), plantas: n('plantas'), lecturas: n('lecturas') };
 db.close();
-try { chmodSync(copia, 0o640); } catch { /* Windows */ }
+/* 600: la copia SIN cifrar es sólo del servicio. La carpeta es del grupo
+   `respaldos` (el que baja las copias desde afuera, endurecer-vps.sh), y ese
+   grupo sólo tiene que poder leer las cifradas. */
+try { chmodSync(copia, 0o600); } catch { /* Windows */ }
 
 if (existsSync(join(DATOS, 'vapid.json'))) {
   const copiaVapid = join(DESTINO, `vapid-${fecha}.json`);
@@ -65,6 +68,8 @@ if (clave) {
   try {
     const cifrada = `${copia}.enc`;
     writeFileSync(cifrada, cifrarRespaldo(readFileSync(copia), clave), { mode: 0o640 });
+    /* 640 a propósito: la lee el grupo `respaldos` para bajarla. */
+    try { chmodSync(cifrada, 0o640); } catch { /* Windows */ }
     afuera = `cifrada en ${cifrada}`;
     const orden = ordenDeEnvio(process.env.ROOTLAB_RESPALDO_DESTINO, cifrada);
     if (orden) {

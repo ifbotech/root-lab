@@ -70,6 +70,7 @@ import { crearCripto } from './cripto.mjs';
 import { crearClaves } from './claves.mjs';
 import { crearCorreo } from './correo.mjs';
 import { crearPresupuesto } from './presupuesto.mjs';
+import { endpointPushValido } from './push.mjs';
 import { MAX_TOKENS, validarFoto } from './ia.mjs';
 import { fichaDePlanta, promptDePlanta, contextoVivo } from './ficha.mjs';
 import { normalizarEmail } from './db.mjs';
@@ -161,6 +162,8 @@ export const ADMIN_SESION_MS = 12 * H;
 /* El código que llega por email es corto, así que vive poco y aguanta poco. */
 export const ADMIN_CODIGO_MS = 10 * MIN;
 export const ADMIN_CODIGO_INTENTOS = 5;
+/* Códigos equivocados que aguanta un email de administración en un día. */
+export const ADMIN_FALLOS_DIA = 20;
 /* Lo que puede un token de agente. `vivero` sólo lee y propone ideas: un
    agente que da vueltas solo no tiene por qué poder borrar cuentas ni
    publicar firmware (docs/trastienda.md). */
@@ -278,6 +281,7 @@ export function crearApi({
      maestra no vive en el almacenamiento de un navegador, y cerrar el
      servidor cierra todas las sesiones. */
   const sesionesAdmin = new Map();   /* hash del token -> { vence, email } */
+  const fallosCodigo = new Map();    /* email -> { desde, n }: códigos equivocados en el día */
 
   const ARRANQUE = new Set(adminsDeArranque.map((e) => normalizarEmail(String(e || ''))).filter(Boolean));
   /** Si ese email puede entrar a la trastienda. */
@@ -311,6 +315,13 @@ export function crearApi({
     if (token) {
       if (igualesSeguro(hash(token), hash(adminClave))) return { quien: 'clave' };
       const sesion = sesionAdminValida(token);
+      /* El rol se mira en CADA pedido, no sólo al entrar: a quien se le saca
+         el rol (o se le borra la cuenta) se le corta la sesión en el acto, no
+         doce horas después. La de la clave del servidor no tiene email. */
+      if (sesion && sesion.email && !esAdmin(sesion.email)) {
+        sesionesAdmin.delete(hash(token));
+        falla(401, 'Ya no tenés acceso a la trastienda.');
+      }
       if (sesion) return { quien: 'sesion', email: sesion.email };
       const agente = db.agentePorToken(hash(token));
       if (agente) {
@@ -1003,6 +1014,14 @@ export function crearApi({
       const lote = texto(cuerpo?.lote, 12).replace(/[^0-9A-Za-z-]/g, '');
       const canal = CANALES.includes(cuerpo?.canal) ? cuerpo.canal : 'estable';
       const previo = db.dispositivo(id);
+      /* Un emulador no puede quedarse con la MAC de una placa de verdad. Quien
+         adivine las MAC que van a salir de fábrica podría registrarlas antes
+         como emuladores, vincularlas y dejar esas placas sin poder entrar: lo
+         que grabó la fábrica manda, y la planta del emulador se suelta. */
+      if (previo?.planta && previo.origen === 'emulador') {
+        db.plantaDesvincular(previo.planta, t);
+        previo.planta = null;
+      }
       if (previo?.planta) falla(409, 'Ese aparato ya es de alguien: no se vuelve a registrar.');
       if (previo && previo.origen === 'fabrica' && !cuerpo?.reemplazar) falla(409, 'Ese aparato ya está registrado (mandá reemplazar: true para regrabarlo).');
       db.dispositivoGuardar({
@@ -1296,7 +1315,7 @@ export function crearApi({
   }
 
   /* -------------------------------------------------------------- rutas --- */
-  async function manejar({ metodo, ruta, query = {}, cuerpo = null, headers = {}, ip = '' }) {
+  async function manejar({ metodo, ruta, query = {}, cuerpo = null, headers = {}, ip = '', local = false }) {
     const t = reloj();
     let m;
 
@@ -1350,6 +1369,21 @@ export function crearApi({
 
       if (cuerpo?.codigo !== undefined) {
         email = normalizarEmail(texto(cuerpo?.email, 120));
+        /* Seis dígitos son un millón de posibilidades. Cinco intentos por
+           código y cinco códigos cada diez minutos dejarían probar 3600 por
+           día desde muchas IPs, y admin@ se adivina. Con este tope, un email
+           aguanta ADMIN_FALLOS_DIA errores por día en total y después sólo se
+           entra con la clave del servidor hasta el día siguiente. */
+        const fallos = fallosCodigo.get(email);
+        if (fallos && t0 - fallos.desde < DIA && fallos.n >= ADMIN_FALLOS_DIA) {
+          falla(429, 'Demasiados códigos equivocados para este email hoy. Probá mañana o entrá con la clave del servidor.',
+            { reintentar_en: Math.ceil((DIA - (t0 - fallos.desde)) / 1000) });
+        }
+        const anotarFallo = () => {
+          const f = fallosCodigo.get(email);
+          if (!f || t0 - f.desde >= DIA) fallosCodigo.set(email, { desde: t0, n: 1 });
+          else f.n += 1;
+        };
         const guardado = email ? db.adminCodigo(email) : null;
         const codigo = texto(cuerpo?.codigo, 12).replace(/\D/g, '');
         if (!guardado || guardado.vence < t0) falla(401, 'Ese código no sirve: pedí uno nuevo.');
@@ -1359,6 +1393,7 @@ export function crearApi({
         }
         if (!igualesSeguro(hash(codigo), guardado.hash)) {
           db.adminCodigoIntento(email);
+          anotarFallo();
           falla(401, 'Ese código no sirve: pedí uno nuevo.');
         }
         /* Un código sirve una sola vez, y el rol se vuelve a mirar acá: si le
@@ -1398,7 +1433,11 @@ export function crearApi({
       }];
     }
 
+    /* Afuera sólo dice que está vivo. Cuántas cuentas, aparatos y lecturas hay
+       es información del negocio: la ve quien pregunta desde el mismo
+       servidor (el instalador, un curl por SSH), y la trastienda. */
     if (metodo === 'GET' && ruta === '/api/salud') {
+      if (!local) return [200, { ok: true, version, esquema: db.version() }];
       return [200, { ok: true, version, esquema: db.version(), activo_s: Math.round(process.uptime()), ...db.contar() }];
     }
 
@@ -1991,10 +2030,14 @@ export function crearApi({
       const cuenta = cuentaDe(headers);
       const s = cuerpo?.suscripcion;
       const endpoint = String(s?.endpoint || cuerpo?.endpoint || '');
-      if (!/^https:\/\//.test(endpoint) || endpoint.length > 1000) falla(400, 'Suscripción inválida');
       if (metodo === 'DELETE') {
+        if (endpoint.length > 1000) falla(400, 'Suscripción inválida');
         db.suscripcionBorrar(endpoint, cuenta.id);
       } else {
+        /* Sólo servicios de avisos de verdad: el servidor le va a hacer un
+           POST a esta URL, y no puede ser una que elija quien tiene cuenta
+           (server/push.mjs). */
+        if (!endpointPushValido(endpoint)) falla(400, 'Suscripción inválida');
         if (!s?.keys?.p256dh || !s?.keys?.auth) falla(400, 'Suscripción inválida');
         db.suscripcionGuardar(cuenta.id, {
           endpoint, keys: { p256dh: String(s.keys.p256dh).slice(0, 200), auth: String(s.keys.auth).slice(0, 100) },

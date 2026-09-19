@@ -61,23 +61,37 @@ case "$(uname -m)" in
   aarch64) ARQ=arm64 ;;
   *) echo "Arquitectura no soportada: $(uname -m)"; exit 1 ;;
 esac
+# Se compara la versión ENTERA con la última 24.x, no sólo el 24: las
+# versiones menores de Node traen los parches de seguridad, y comparando sólo
+# el número mayor el servidor se quedaba para siempre con la primera que bajó.
 ACTUAL=""
-[ -x "$NODE_DIR/bin/node" ] && ACTUAL="$("$NODE_DIR/bin/node" -p 'process.versions.node.split(".")[0]')"
-if [ "$ACTUAL" != "$NODE_MAYOR" ]; then
-  TMP="$(mktemp -d)"
-  URL="https://nodejs.org/dist/latest-v${NODE_MAYOR}.x"
-  curl -fsSL "$URL/SHASUMS256.txt" -o "$TMP/SHASUMS256.txt"
+[ -x "$NODE_DIR/bin/node" ] && ACTUAL="$("$NODE_DIR/bin/node" --version)"
+TMP="$(mktemp -d)"
+URL="https://nodejs.org/dist/latest-v${NODE_MAYOR}.x"
+if curl -fsSL "$URL/SHASUMS256.txt" -o "$TMP/SHASUMS256.txt"; then
   ARCHIVO="$(grep -oE "node-v[0-9.]+-linux-${ARQ}\.tar\.xz" "$TMP/SHASUMS256.txt" | head -1)"
   [ -n "$ARCHIVO" ] || { echo "No encontré Node $NODE_MAYOR para linux-$ARQ"; exit 1; }
-  curl -fsSL "$URL/$ARCHIVO" -o "$TMP/$ARCHIVO"
-  (cd "$TMP" && grep " $ARCHIVO\$" SHASUMS256.txt | sha256sum -c -)
-  rm -rf "$NODE_DIR.nuevo"
-  mkdir -p "$NODE_DIR.nuevo"
-  tar -xJf "$TMP/$ARCHIVO" -C "$NODE_DIR.nuevo" --strip-components=1
-  rm -rf "$NODE_DIR"
-  mv "$NODE_DIR.nuevo" "$NODE_DIR"
-  rm -rf "$TMP"
+  ULTIMA="$(echo "$ARCHIVO" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+')"
+  if [ "$ACTUAL" != "$ULTIMA" ]; then
+    echo "Node ${ACTUAL:-(ninguno)} -> $ULTIMA"
+    curl -fsSL "$URL/$ARCHIVO" -o "$TMP/$ARCHIVO"
+    (cd "$TMP" && grep " $ARCHIVO\$" SHASUMS256.txt | sha256sum -c -)
+    rm -rf "$NODE_DIR.nuevo"
+    mkdir -p "$NODE_DIR.nuevo"
+    # --no-same-owner: como root, tar conserva el dueño del paquete (uid 1001),
+    # y un usuario futuro con ese número podría cambiar el programa que corre
+    # ROOTLAB y que este instalador corre como root.
+    tar --no-same-owner -xJf "$TMP/$ARCHIVO" -C "$NODE_DIR.nuevo" --strip-components=1
+    rm -rf "$NODE_DIR"
+    mv "$NODE_DIR.nuevo" "$NODE_DIR"
+  fi
+elif [ -z "$ACTUAL" ]; then
+  echo "No pude bajar Node y no hay ninguno instalado."; exit 1
+else
+  echo "Sin red hacia nodejs.org: sigo con $ACTUAL"
 fi
+rm -rf "$TMP"
+chown -R root:root "$NODE_DIR"
 NODE="$NODE_DIR/bin/node"
 NPM="$NODE_DIR/bin/npm"
 "$NODE" --version
@@ -87,7 +101,19 @@ id rootlab >/dev/null 2>&1 || useradd --system --home "$DATOS" --shell /usr/sbin
 mkdir -p "$DATOS" "$DATOS/respaldos"
 chown -R rootlab:rootlab "$DATOS"
 chmod 750 "$DATOS"
-chmod 700 "$DATOS/respaldos"
+permisos_respaldos() {
+  # Si existe el usuario que baja los respaldos (endurecer-vps.sh), su grupo
+  # lee las copias CIFRADAS y nada más; si no, la carpeta es sólo del servicio.
+  if getent group respaldos >/dev/null; then
+    chgrp respaldos "$DATOS/respaldos"
+    chmod 2750 "$DATOS/respaldos"
+    find "$DATOS/respaldos" -type f -name '*.db.enc' -exec chgrp respaldos {} + -exec chmod 640 {} +
+  else
+    chmod 700 "$DATOS/respaldos"
+  fi
+  find "$DATOS/respaldos" -type f ! -name '*.db.enc' -exec chmod 600 {} +
+}
+permisos_respaldos
 
 paso "Respaldo antes de actualizar"
 if [ -n "${ROOTLAB_REEJECUTADO:-}" ]; then
@@ -212,7 +238,7 @@ chmod 600 "$ENV_FILE"
 chown root:root "$ENV_FILE"
 # El vapid.json es una clave privada; las que quedaron abiertas se cierran.
 if [ -f "$DATOS/vapid.json" ]; then chmod 600 "$DATOS/vapid.json"; fi
-find "$DATOS/respaldos" -type f -exec chmod 600 {} + 2>/dev/null || true
+permisos_respaldos
 
 paso "Servicio y respaldo diario"
 install -m 644 "$DIR/deploy/root-lab.service" /etc/systemd/system/root-lab.service

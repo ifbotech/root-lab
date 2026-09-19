@@ -14,9 +14,10 @@
  *
  * LA REGLA DE SEGURIDAD
  *
- * `h()` escapa TODO lo que recibe como texto. Nada de lo que venga del
+ * `h()` arma nodos y mete el texto como texto. Nada de lo que venga del
  * servidor —un nombre de planta que puso el usuario, un lema, un mensaje de
- * error— toca `innerHTML` sin pasar por acá.
+ * error— toca `innerHTML`: no hay forma de pedírselo, y test/seguridad.test.mjs
+ * falla si alguien lo escribe en public/ o en admin/.
  */
 
 /** Escapa texto para meterlo en HTML. */
@@ -31,7 +32,6 @@ export function esc(s) {
  *   class, id, y cualquier atributo como string
  *   on<Evento>: función        -> addEventListener
  *   dataset: { k: v }
- *   html: string               -> innerHTML, ya escapado por quien llama
  * Los hijos pueden ser nodos, strings (se escapan solos) o null.
  */
 export function h(tag, attrs = {}, ...hijos) {
@@ -39,7 +39,8 @@ export function h(tag, attrs = {}, ...hijos) {
 
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === null || v === undefined || v === false) continue;
-    if (k === 'html') { el.innerHTML = v; continue; }
+    /* No hay `html`: nada de la app pasa por innerHTML (test/seguridad). */
+    if (k === 'html') throw new Error('h(): innerHTML no se usa; armá el contenido con nodos');
     if (k === 'dataset') { Object.assign(el.dataset, v); continue; }
     if (k.startsWith('on') && typeof v === 'function') {
       el.addEventListener(k.slice(2).toLowerCase(), v);

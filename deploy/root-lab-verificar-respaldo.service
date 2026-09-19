@@ -23,7 +23,22 @@ PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/root-lab
+# Lo mismo que el servicio principal: `systemd-analyze security` lo mide.
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+AmbientCapabilities=
+SystemCallArchitectures=native
 CapabilityBoundingSet=
 # Necesita red sólo para mandar el email con el resultado.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-UMask=0027
+# 0077: la base que descifra para probarla es sólo suya.
+UMask=0077

@@ -8,6 +8,13 @@
 # alfanumérico del QR. La base NO se quita: ROOTLAB la recibe y la resuelve
 # (server/http.mjs). Las demás cabeceras de seguridad las pone la app.
 
+# La API de administración de Caddy, por un socket en su propia carpeta (750
+# caddy) y no en 127.0.0.1:2019, donde cualquier proceso de la máquina podía
+# reconfigurar el proxy. Lo pone deploy/endurecer-vps.sh.
+{
+	admin unix//var/lib/caddy/admin.sock
+}
+
 ifbotech.com, www.ifbotech.com {
 	tls ifbarnetche@gmail.com
 
