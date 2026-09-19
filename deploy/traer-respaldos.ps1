@@ -123,7 +123,9 @@ if (Test-Path $caja) {
   Write-Host "Caja fuerte: sí (sin ella los respaldos no se pueden abrir)"
 } else {
   Write-Host "Caja fuerte: NO ESTÁ. Sin ella estos respaldos no sirven de nada." -ForegroundColor Red
-  Write-Host "  Se crea en el VPS con: node /opt/root-lab/tools/caja-fuerte.mjs sellar --salida /root/caja-fuerte.rkc"
+  Write-Host "  Se sella una sola vez, en el VPS (pide una frase que elijas vos):"
+  Write-Host "    ssh -i ~/.ssh/rootkit_vps root@31.97.31.58"
+  Write-Host "    /opt/root-lab-node/bin/node /opt/root-lab/tools/caja-fuerte.mjs sellar --salida /root/caja-fuerte.rkc"
 }
 if ($Destino -like "*OneDrive*") { Write-Host "En OneDrive: cuenta como copia en la nube además de en esta compu." }
 
