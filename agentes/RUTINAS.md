@@ -68,27 +68,39 @@ desde la trastienda → **Cuentas → Los agentes**.
 
    **Qué alcance ponerle, que es la única decisión real.** La propia pantalla
    avisa que lo que se escriba ahí lo ve cualquiera que use el entorno, así
-   que conviene el token que menos daño haga si se filtra. Hay dos opciones y
-   las dos se defienden:
+   que conviene el token que menos daño haga si se filtra. Los dos alcances
+   leen lo mismo —el estado, la flota, las lecturas y las métricas, **sólo
+   por GET** y sin datos de personas— y proponen y mueven ideas (no las
+   borran). La diferencia es una sola:
 
-   - **`vivero`** es el mínimo: sólo sirve para anotar ideas en una lista. Los
-     cinco que miran no necesitan nada más. El costo es que el jardinero
-     pierde la ruta del correo y su informe sale por la notificación de la
-     rutina en vez de por la trastienda.
+   - **`vivero`** es el mínimo. El costo es que el jardinero pierde la ruta
+     del correo y su informe sale por la notificación de la rutina en vez de
+     por la trastienda.
    - **`jardinero`** (lo que está puesto hoy) suma el envío del informe, así
      que el correo del sábado sale como fue diseñado. El costo es que los
-     cinco que sólo miran quedan con la capacidad de mandar correos. No la van
-     a usar —no está en su prompt, y `_comun.md` les dice que no toquen lo que
-     no les toca—, pero está.
+     cinco que sólo miran pueden mandar un informe a quien administra (seis
+     por hora como mucho, escapado, y sólo a las direcciones de
+     administración). No la van a usar —no está en su prompt—, pero está.
 
-   Se revoca desde la trastienda en un clic, así que cambiar de idea es
-   barato. Lo que no conviene nunca es poner ahí la clave del servidor: ésa
-   abre las cuentas, la flota y la fábrica.
+   Qué alcanza cada uno, método por método, está en `PERMISOS_AGENTE`
+   (`server/api.mjs`) y en [docs/trastienda.md](../docs/trastienda.md); las
+   pruebas comprueban que ninguno escribe aparatos, firmware ni cuentas, y
+   que lo que leen no trae emails, nombres ni plantas. Se revoca desde la
+   trastienda en un clic. Lo que no conviene nunca es poner ahí la clave del
+   servidor: ésa abre las cuentas, la flota y la fábrica.
 4. **La política de red del entorno**, que se toca una vez para todos en
    [claude.ai/code](https://claude.ai/code) → el entorno → red. Tiene que
    dejar salir a **`ifbotech.com`**. Si no, el token no sirve para nada: el
    pedido muere antes, con un `403` en el CONNECT del proxy, y la vuelta sale
    entera de los repositorios sin mirar un solo dato de producción.
+
+   **Node 24** no necesita que abras nada más: el hook de arranque del repo
+   (`.claude/hooks/session-start.sh`, registrado en `.claude/settings.json`)
+   deja cada sesión en la 24 antes de que el agente empiece. Prueba `nvm`
+   (baja de `nodejs.org`) y, si ese dominio no está permitido, el paquete
+   `node@24` del registro de npm, que el entorno ya deja salir para instalar
+   dependencias. Así que `nodejs.org` en la lista de red ayuda, pero no hace
+   falta.
 
 El nombre, el horario y las instrucciones ya están puestos: no hace falta
 tocarlos.

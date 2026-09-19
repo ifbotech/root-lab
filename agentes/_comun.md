@@ -53,21 +53,19 @@ nube, trastienda). En producción: https://ifbotech.com/rootkit/
    curl -s -H "Authorization: Bearer $ROOTLAB_ADMIN_CLAVE" "$ROOTLAB_NUBE/api/admin/metricas?dias=30"
    ```
 
-   **Hoy estas cuatro te van a contestar `403`, y no es culpa tuya.** Un token
-   de agente sólo llega a `/api/admin/ideas` —y el del jardinero, además, a
-   `/api/admin/informe`—; los datos de producción piden la clave del servidor,
-   que vos no tenés ni tenés que tener (`ALCANCE_RUTAS` en `server/api.mjs`).
-   Es una contradicción conocida entre este archivo y los alcances, y está a
-   la espera de una decisión: o se abre un alcance de sólo lectura para estos
-   cuatro, o se saca el paso. Mientras tanto **probalos igual** —si algún día
-   contestan, la vuelta mejora sola— y si dan `403`, seguí con el código y los
-   documentos, que es de donde sale la mayor parte de la evidencia. Decilo en
-   tu salida final, en una línea, sin hacer un drama: es el estado normal.
+   Tu token lee estas cuatro **sólo por GET**: son recuentos y ritmos, sin
+   datos de personas (ni emails, ni nombres, ni plantas). Todo lo demás de la
+   trastienda —cuentas, aparatos uno por uno, firmware, otros agentes, y
+   cualquier escritura que no sea el vivero— te contesta `403`, y está bien
+   que así sea (`PERMISOS_AGENTE` en `server/api.mjs`). Si alguna de las cuatro
+   te da `403` o no contesta, es la red del entorno o un despliegue viejo:
+   seguí con el código y los documentos, y decilo en tu salida final en una
+   línea.
 
 ## Con qué credencial, y qué hacer si el entorno viene incompleto
 
 En `ROOTLAB_ADMIN_CLAVE` viene **un token de agente**, no la clave del
-servidor: sólo sirve para el vivero, y es probable que lo compartas con los
+servidor: sirve para el vivero y para leer esas cuatro rutas, y es probable que lo compartas con los
 otros agentes —la configuración es del entorno, no tuya—. Por eso el autor de
 cada idea lo mandás vos en `--autor`: la credencial no dice quién sos. Si algo
 te contesta `403`, no es un error a arreglar: es que estás pidiendo algo que no
@@ -88,17 +86,19 @@ que sigue es motivo para cortar la vuelta:
   más, y con las anteriores fallan quince por razones que no son del código
   —`argon2` de `node:crypto` no existe hasta la 24—.
 
-  La imagen **sí trae `nvm`**, pero es una función de shell, no un programa:
-  `command -v nvm` no la encuentra y parece que no estuviera. Hay que cargarla
-  primero:
+  Normalmente ya viene resuelto: el hook de arranque del repo
+  (`.claude/hooks/session-start.sh`, registrado en `.claude/settings.json`)
+  deja la sesión en la 24 antes de que empieces. Si igual no estás en la 24,
+  corré el mismo hook a mano y cargá lo que deja:
   ```bash
-  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-  [ -s "$NVM_DIR/nvm.sh" ] || NVM_DIR=/root/.nvm
-  . "$NVM_DIR/nvm.sh" && nvm install 24 && nvm use 24
+  CLAUDE_CODE_REMOTE=true CLAUDE_ENV_FILE=/tmp/node24.env bash root-lab/.claude/hooks/session-start.sh
+  . /tmp/node24.env && node -v
   ```
-  Si aun así no aparece, **no pelees con eso**: no instales runtimes por tu
-  cuenta ni persigas ese rojo, que no es tuyo. Los cinco que miran no
-  necesitan correr pruebas para proponer. Anotalo en tu salida final y seguí.
+  (Prueba `nvm`, que está en la imagen pero es una función de shell —`command
+  -v nvm` no la ve—, y si nodejs.org está bloqueado, el paquete `node@24` del
+  registro de npm.) Si aun así no aparece, **no pelees con eso**: no persigas
+  ese rojo, que no es tuyo. Los cinco que miran no necesitan correr pruebas
+  para proponer. Anotalo en tu salida final y seguí.
 
 Lo que te haya faltado, **decilo en tu salida final**. Quien configura el
 vivero no ve tu sesión: si no lo contás, no se arregla.

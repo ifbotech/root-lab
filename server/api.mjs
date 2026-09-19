@@ -164,14 +164,33 @@ export const ADMIN_CODIGO_MS = 10 * MIN;
 export const ADMIN_CODIGO_INTENTOS = 5;
 /* Códigos equivocados que aguanta un email de administración en un día. */
 export const ADMIN_FALLOS_DIA = 20;
-/* Lo que puede un token de agente. `vivero` sólo lee y propone ideas: un
-   agente que da vueltas solo no tiene por qué poder borrar cuentas ni
-   publicar firmware (docs/trastienda.md). */
+/* Lo que puede un token de agente, por MÉTODO y ruta. Un agente que da
+   vueltas solo lee cómo anda el producto y propone ideas; no toca cuentas,
+   ni aparatos, ni firmware, ni otros agentes (docs/trastienda.md).
+
+   El método importa tanto como la ruta: /api/admin/aparatos por GET lista,
+   pero por POST registra un aparato de fábrica y por PATCH lo deshabilita.
+   Un permiso que mirara sólo la ruta le daría todo eso a quien sólo tenía
+   que leer. */
 export const ALCANCES = ['vivero', 'jardinero'];
-const RUTAS_VIVERO = /^\/api\/admin\/ideas(\/\d{1,9})?$/;
-/* El jardinero además manda su informe por correo cuando termina la vuelta. */
-const RUTAS_JARDINERO = /^\/api\/admin\/(ideas(\/\d{1,9})?|informe)$/;
-const ALCANCE_RUTAS = { vivero: RUTAS_VIVERO, jardinero: RUTAS_JARDINERO };
+/* Lo que LEE de producción: el estado, la flota, las lecturas y las
+   métricas. Son recuentos y ritmos; ninguna trae datos de personas (la flota
+   pasa por aparatoAdmin, que deja al dueño afuera: ni email, ni nombre, ni
+   planta). `test/trastienda-cuentas.test.mjs` lo comprueba. */
+const AGENTE_LEE = ['GET', /^\/api\/admin\/(estado|flota|lecturas|metricas)$/];
+const AGENTE_VIVERO = [
+  AGENTE_LEE,
+  ['GET', /^\/api\/admin\/ideas$/],
+  ['POST', /^\/api\/admin\/ideas$/],
+  ['PATCH', /^\/api\/admin\/ideas\/\d{1,9}$/],
+];
+export const PERMISOS_AGENTE = {
+  vivero: AGENTE_VIVERO,
+  /* El jardinero además manda su informe por correo cuando termina la vuelta. */
+  jardinero: [...AGENTE_VIVERO, ['POST', /^\/api\/admin\/informe$/]],
+};
+const agentePuede = (alcance, metodo, ruta) =>
+  (PERMISOS_AGENTE[alcance] || AGENTE_VIVERO).some(([m, re]) => m === metodo && re.test(ruta));
 
 class ErrorApi extends Error {
   constructor(codigo, mensaje, extra = null) {
@@ -306,9 +325,9 @@ export function crearApi({
    * Quién está pidiendo algo de administración. Tres formas, de más a menos
    * poder: la clave del servidor (las herramientas y la fábrica), una sesión
    * de la trastienda (una persona con su código), o un token de agente, que
-   * sólo alcanza para el vivero.
+   * sólo alcanza para lo que dice PERMISOS_AGENTE (método y ruta).
    */
-  function exigirAdmin(headers, ip, ruta = '') {
+  function exigirAdmin(headers, ip, ruta = '', metodo = 'GET') {
     if (!adminClave) falla(404, 'Ruta desconocida');
     limitar(`admin:${ip}`, 240, MIN);
     const token = bearer(headers);
@@ -325,8 +344,9 @@ export function crearApi({
       if (sesion) return { quien: 'sesion', email: sesion.email };
       const agente = db.agentePorToken(hash(token));
       if (agente) {
-        const permitidas = ALCANCE_RUTAS[agente.alcance] || RUTAS_VIVERO;
-        if (!permitidas.test(ruta)) falla(403, `Ese token sólo sirve para: ${agente.alcance}.`);
+        if (!agentePuede(agente.alcance, metodo, ruta)) {
+          falla(403, `Ese token (${agente.alcance}) no alcanza para ${metodo} ${ruta}.`);
+        }
         db.agenteUsado(agente.id, reloj());
         return { quien: 'agente', nombre: agente.nombre, alcance: agente.alcance };
       }
@@ -972,7 +992,7 @@ export function crearApi({
   const firmwareAdmin = ({ contenido: _c, ...f }) => ({ ...f, retirado: f.retirado || null });
 
   function administrar({ metodo, ruta, query, cuerpo, headers, ip }) {
-    const quien = exigirAdmin(headers, ip, ruta);
+    const quien = exigirAdmin(headers, ip, ruta, metodo);
     const t = reloj();
     let m;
 

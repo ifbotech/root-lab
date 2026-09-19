@@ -165,14 +165,25 @@ Los agentes que revisan el proyecto no usan la clave de administración: cada
 uno tiene su **token**, que se crea en Cuentas → Los agentes y se muestra una
 sola vez.
 
-| Alcance | Qué puede |
+| Alcance | Qué puede, método por método |
 |---|---|
-| `vivero` | leer y proponer ideas, y moverlas de estado. Nada más |
-| `jardinero` | lo mismo, y además mandar un informe por correo a quien administra |
+| `vivero` | `GET` estado, flota, lecturas y métricas; `GET` y `POST` ideas; `PATCH` una idea (moverla de estado). Nada más: no borra ideas |
+| `jardinero` | lo mismo, y `POST` informe: un correo a quien administra |
 
-Un token de `vivero` que se filtre no sirve para ver cuentas, ni la flota, ni
-publicar firmware: lo peor que puede hacer quien lo tenga es escribir ideas en
-una lista. Se revoca desde la misma pantalla y deja de servir al instante.
+El permiso mira **el método además de la ruta** (`PERMISOS_AGENTE` en
+`server/api.mjs`). No es un detalle: `/api/admin/aparatos` por `GET` lista,
+pero por `POST` registra una placa de fábrica y por `PATCH` la deshabilita. Un
+permiso que mirara sólo la ruta le daría todo eso a quien sólo tenía que leer.
+
+Lo que un agente lee son recuentos y ritmos: la flota pasa por `aparatoAdmin`,
+que deja al dueño afuera (dice si un aparato está vinculado, no a quién), y
+ninguna de las cuatro rutas trae emails, nombres, plantas ni ciudades. Hay una
+prueba que arma una cuenta con todo eso y comprueba que no aparece.
+
+Un token de agente que se filtre no sirve para ver cuentas, ni aparatos uno
+por uno, ni publicar firmware: lo peor que puede hacer quien lo tenga es leer
+cuántos aparatos hay y cómo andan, y escribir ideas en una lista. Se revoca
+desde la misma pantalla y deja de servir al instante.
 
 Los seis del proyecto ya están creados y guardados en el VPS, en
 `/root/vivero-tokens.txt` (sólo lo lee root). Para leer uno:

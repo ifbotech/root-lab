@@ -8,7 +8,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { escenario, cuenta, aparato } from './ayudas.mjs';
+import { escenario, cuenta, aparato, conRooti } from './ayudas.mjs';
 import { ADMIN_CODIGO_MS, ADMIN_CODIGO_INTENTOS, ADMIN_SESION_MS } from '../server/api.mjs';
 
 const ADMIN = 'una-clave-de-administracion-bien-larga';
@@ -206,11 +206,74 @@ describe('los tokens de los agentes', () => {
     });
     assert.equal(ci, 201, 'y proponer');
 
-    /* Y nada más: ni cuentas, ni firmware, ni la flota. */
-    for (const ruta of ['/api/admin/cuentas', '/api/admin/flota', '/api/admin/firmware', '/api/admin/estado']) {
+    /* Lee cómo anda el producto: recuentos y ritmos, por GET. */
+    for (const ruta of ['/api/admin/estado', '/api/admin/flota', '/api/admin/lecturas', '/api/admin/metricas']) {
+      assert.equal((await conToken('GET', ruta))[0], 200, `lee ${ruta}`);
+    }
+
+    /* Y nada más: ni cuentas, ni aparatos uno por uno, ni firmware, ni agentes. */
+    for (const ruta of ['/api/admin/cuentas', '/api/admin/aparatos', '/api/admin/firmware', '/api/admin/agentes', '/api/admin/yo']) {
       assert.equal((await conToken('GET', ruta))[0], 403, ruta);
     }
     assert.equal((await conToken('POST', '/api/admin/agentes', { nombre: 'otro' }))[0], 403, 'ni crear más agentes');
+  });
+
+  test('lo que un agente lee no tiene datos de personas', async () => {
+    /* Una cuenta con nombre y email, su Rooti y su planta con nombre: nada de
+       eso puede aparecer en lo que ve un agente, cuyo token vive en un entorno
+       que no controlamos del todo. */
+    const esc = panel();
+    const email = 'rocio.privada@ejemplo.com';
+    const t = await cuenta(esc, { email, nombre: 'Rocío Privada' });
+    await conRooti(esc, { token: t, nombre: 'Potus Secreto' });
+    const [, a] = await admin(esc, 'POST', '/api/admin/agentes', { nombre: 'agente-producto' });
+
+    for (const ruta of ['/api/admin/estado', '/api/admin/flota', '/api/admin/lecturas', '/api/admin/metricas']) {
+      const [c, r] = await esc.llamar('GET', ruta, { token: a.token });
+      assert.equal(c, 200, ruta);
+      const texto = JSON.stringify(r);
+      for (const dato of [email, 'rocio.privada', 'Rocío Privada', 'Potus Secreto']) {
+        assert.ok(!texto.includes(dato), `${ruta} no muestra "${dato}"`);
+      }
+    }
+    /* La flota sí dice si un aparato está vinculado, pero no a quién. */
+    const flota = (await esc.llamar('GET', '/api/admin/flota', { token: a.token }))[1];
+    assert.ok(flota.aparatos.some((d) => d.vinculado === true));
+    assert.ok(flota.aparatos.every((d) => !('planta' in d) && !('cuenta' in d)));
+  });
+
+  test('el método importa: la misma ruta que se lee no se escribe', async () => {
+    /* /api/admin/aparatos por POST registra una placa de fábrica, por PATCH
+       la deshabilita y por DELETE la borra. Un permiso que mirara sólo la
+       ruta le daría todo eso a quien sólo tenía que leer. */
+    const esc = panel();
+    const [, a] = await admin(esc, 'POST', '/api/admin/agentes', { nombre: 'jardinero', alcance: 'jardinero' });
+    const conToken = (metodo, ruta, cuerpo = null) => esc.llamar(metodo, ruta, { cuerpo, token: a.token });
+    const placa = aparato(esc, { id: 'D0D1D2D3D4D5' });
+
+    const escrituras = [
+      ['POST', '/api/admin/aparatos', { id: 'D0D1D2D3D4D5', token: placa.token, persona: 'brote' }],
+      ['PATCH', '/api/admin/aparatos/D0D1D2D3D4D5', { deshabilitado: true }],
+      ['DELETE', '/api/admin/aparatos/D0D1D2D3D4D5'],
+      ['PATCH', '/api/admin/lotes/L1', { deshabilitado: true }],
+      ['POST', '/api/admin/firmware', { version: '9.9.9' }],
+      ['DELETE', '/api/admin/firmware/1'],
+      ['POST', '/api/admin/estado'],
+      ['DELETE', '/api/admin/metricas'],
+      ['PATCH', '/api/admin/cuentas/c1', { rol: 'admin' }],
+      ['DELETE', '/api/admin/sesion'],
+    ];
+    for (const [metodo, ruta, cuerpo] of escrituras) {
+      assert.equal((await conToken(metodo, ruta, cuerpo))[0], 403, `${metodo} ${ruta}`);
+    }
+    assert.ok(!esc.db.dispositivo('D0D1D2D3D4D5'), 'no registró nada');
+
+    /* Las ideas: propone y mueve, pero no borra (eso es de una persona). */
+    const [, idea] = await conToken('POST', '/api/admin/ideas', {
+      area: 'producto', titulo: 'Una idea para probar el borrado', impacto: 'medio', esfuerzo: 'bajo', autor: 'jardinero',
+    });
+    assert.equal((await conToken('PATCH', `/api/admin/ideas/${idea.id}`, { estado: 'en_curso' }))[0], 200, 'mueve');
+    assert.equal((await conToken('DELETE', `/api/admin/ideas/${idea.id}`))[0], 403, 'no borra');
   });
 
   test('el jardinero además puede mandar su informe', async () => {
