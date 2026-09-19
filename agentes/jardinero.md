@@ -71,6 +71,13 @@ git push -u origin vivero/<id>-<dos-o-tres-palabras>
 mirando: lo que hagas tiene que poder revisarse el lunes con calma y con un
 `git diff`. Que la rama esté lista y probada ya es casi todo el trabajo.
 
+**Si el push te contesta `403: ... is not in this session's authorized
+repository set`**, es que donde corrés te dejaron leer el repositorio pero no
+escribirlo. No es tuyo para arreglar y no tires el trabajo por eso: poné en el
+informe el `git diff` entero y la lista de archivos que tocaste, para que la
+rama se pueda rehacer a mano, y decí con todas las letras que te faltó el
+permiso de escritura. Esa vuelta no se perdió: se entregó por otro lado.
+
 ### 5. Marcá la idea y mandá el informe
 
 ```bash
@@ -108,6 +115,12 @@ FIN
 Si no plantaste nada, **mandá el informe igual** diciendo qué miraste y por
 qué ninguna estaba lista. Un sábado sin cambios con una explicación clara vale
 más que un cambio apurado.
+
+**Si `informe` te contesta `403`**, el token que te tocó es de alcance
+`vivero`, que llega hasta las ideas y no hasta el correo. No es un problema:
+escribí el informe entero, con esas mismas secciones, como tu salida final de
+la vuelta. Por ahí llega igual —la rutina avisa cuando termina—, y es el mismo
+texto. Lo que no vale es acortarlo porque cambió el camino.
 
 ## Lo que nunca hacés
 
