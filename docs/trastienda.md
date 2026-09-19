@@ -36,9 +36,14 @@ Lo que cuida esa puerta:
   averiguar quién administra el servidor.
 - El código vence a los **diez minutos**, sirve **una sola vez** y aguanta
   **cinco intentos**; al sexto se quema y hay que pedir otro.
-- El rol se vuelve a mirar **al entrar**, no al pedir: si se lo sacaron en el
-  medio, ese código ya no abre nada.
+- El rol se mira **al entrar** y **en cada pedido**: si se lo sacaron entre
+  que pidió el código y lo usó, no entra; si se lo sacan con la sesión
+  abierta, la pierde en el pedido siguiente.
 - Diez pedidos de código por IP cada diez minutos, y cinco por email.
+- Un email aguanta **veinte códigos equivocados por día**. Seis dígitos son un
+  millón de posibilidades y `admin@` se adivina: sin ese techo, desde muchas
+  IPs, se probaban miles por día. Pasado el techo, ese día se entra sólo con
+  la clave del servidor.
 - Del código se guarda el **hash**, nunca el código.
 
 **Con la clave del servidor** (`ROOTLAB_ADMIN_CLAVE`) sigue entrando quien la
