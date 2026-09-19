@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# El token de GitHub sólo lee: ningún paso de las pruebas escribe en el repo.
+permissions:
+  contents: read
+
 jobs:
   pruebas:
     runs-on: ubuntu-latest
@@ -16,3 +20,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Ningún flujo usa secretos
+        # Las pruebas corren código del repo y de npm: no tienen que tener
+        # nada que robar. Ver root-kit/docs/ota.md, 'Quién firma'.
+        run: |
+          if grep -rnE 'secrets[.]' .github/workflows/; then exit 1; fi

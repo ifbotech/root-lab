@@ -237,7 +237,7 @@ y el prompt: [ia.md](ia.md).
 | `POST /api/push/probar` | manda una de prueba: `{ enviados }` |
 | `POST /api/evento` *(sin sesión)* | `{ evento }`: un contador anónimo, `alta:<paso>` o `vista:<pantalla>` → `204` · `400` si no está en la lista. Ver [operacion.md](operacion.md) |
 | `GET /api/config` *(sin sesión)* | `{ version, ia, ia_visible, firmware_publica, push, url_publica, probabilidades, clave_min, chat_max, cuotas }` |
-| `GET /api/salud` *(sin sesión)* | `{ ok, version, esquema, activo_s, cuentas, dispositivos, plantas, lecturas }` |
+| `GET /api/salud` *(sin sesión)* | `{ ok, version, esquema }`; desde el mismo servidor (sin pasar por el proxy) suma `activo_s, cuentas, dispositivos, plantas, lecturas` |
 
 ## De la administración
 

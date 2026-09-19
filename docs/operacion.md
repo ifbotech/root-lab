@@ -97,10 +97,12 @@ generó una vez:
 node tools/publicar-firmware.mjs generar-clave ~/.rootkit
 ```
 
-- `firmware.key` es la **privada**: no está en ningún repositorio ni en el
-  servidor. La tiene quien publica (y, para publicar desde GitHub, el secreto
-  `FIRMWARE_CLAVE` de root-kit). **Si se pierde, los aparatos en la calle no
-  se pueden actualizar más por aire**: se guarda como la clave maestra.
+- `firmware.key` es la **privada**: no está en ningún repositorio, ni en el
+  servidor, ni en GitHub. La tiene quien publica, **cifrada con frase**
+  (`publicar-firmware.mjs cifrar-clave ~/.rootkit/firmware.key --publica
+  deploy/firmware-publica.pem`, una vez). **Si se pierde, los aparatos en la
+  calle no se pueden actualizar más por aire**: dos copias fuera de la
+  computadora ([seguridad.md](seguridad.md), "La clave del firmware").
 - `deploy/firmware-publica.pem` es la pública: con ella el servidor rechaza
   cualquier binario que no venga bien firmado (`403`), y va compilada en el
   firmware (`esp32/ota_clave.h`), que vuelve a verificar. Ni siquiera quien
@@ -108,7 +110,12 @@ node tools/publicar-firmware.mjs generar-clave ~/.rootkit
 
 **Publicar.**
 
+El binario sale del CI de root-kit o de compilarlo acá; se firma y se sube
+**siempre desde la computadora**, que es donde está la clave:
+
 ```bash
+# El binario: el artefacto "firmware-c3-144" del commit en GitHub Actions
+# (trae firmware.bin.sha256 para comprobar que es ése), o compilarlo:
 cd ../rootkit/firmware && pio run -e c3-144
 cd ../../root-lab
 export ROOTLAB_ADMIN_CLAVE=...            # nunca en la línea de comandos
@@ -116,11 +123,15 @@ node tools/publicar-firmware.mjs publicar ../rootkit/firmware/.pio/build/c3-144/
      --version 0.6.1 --placa c3-supermini --canal beta \
      --clave ~/.rootkit/firmware.key --publica deploy/firmware-publica.pem \
      --nube https://ifbotech.com/rootkit --notas "qué cambia"
+# (pide la frase de la clave; ROOTLAB_FIRMA_FRASE sólo para automatizar)
 node tools/publicar-firmware.mjs listar --nube https://ifbotech.com/rootkit
 ```
 
-O desde GitHub: el flujo manual **publicar-firmware** de root-kit compila,
-prueba, firma y publica.
+**Por qué no desde GitHub.** Hubo un flujo que firmaba en un runner con la
+clave como secreto del repositorio. Ahí corren pip, PlatformIO, sus
+toolchains y las pruebas del repo: cualquiera de esas cosas comprometida se
+llevaba la clave de todos los aparatos. Se borró antes de usarse, y el CI de
+los dos repos falla si un flujo vuelve a usar un secreto.
 
 **Canales.** Cada aparato está en `estable` (por defecto) o `beta`
 (`PATCH /api/admin/aparatos/:id { "canal": "beta" }`, o el lote entero). Beta
@@ -196,16 +207,24 @@ token borra tan bien como escribe.
 
 ```powershell
 # Una vez, desde root-lab en la computadora:
-.\deploy\traer-respaldos.ps1 -Instalar      # tarea diaria a las 9:15
+.\deploy\traer-respaldos.ps1 -Instalar      # crea su llave y la tarea diaria de las 9:15
+# -Instalar imprime la línea que hay que agregar en el VPS, como root:
+#   echo 'restrict ssh-ed25519 AAAA... respaldos@PC' >> /etc/ssh/claves-respaldos
 .\deploy\traer-respaldos.ps1                # y para probarla ahora
 ```
 
-Trae sólo los `.db.enc` y la caja fuerte (las copias sin cifrar se quedan en
-el VPS, no tienen por qué andar dando vueltas), comprueba que cada archivo
-empiece con la marca `RKR1`, borra las que pasan de 30 y avisa fuerte si hace
-más de tres días que no llega una nueva o si falta la caja. Termina con código
-2 si no llegó ninguna copia sana y 3 si falta la caja, así que el historial
-del Programador de tareas dice la verdad.
+**Con una llave que sólo sirve para esto.** La tarea entra como `respaldos`,
+un usuario que crea `deploy/endurecer-vps.sh`: sólo SFTP, encerrado en
+`/srv/respaldos`, donde está montada de sólo lectura la carpeta de respaldos,
+y por grupo puede leer **únicamente** los `.db.enc` (las copias sin cifrar son
+600). No abre terminal, no escribe, no borra. La llave de root no participa:
+una tarea que corre sola todos los días no tiene en la mano el servidor.
+
+Trae los `.db.enc`, comprueba que cada archivo empiece con la marca `RKR1`,
+borra los que pasan de 30 y avisa fuerte si hace más de tres días que no
+llega uno nuevo o si falta la caja fuerte al lado. Termina con código 2 si no
+llegó ninguna copia sana y 3 si falta la caja, así que el historial del
+Programador de tareas dice la verdad.
 
 Si la carpeta está adentro de OneDrive, las copias 2 y 3 salen de la misma
 pasada. Con otro destino: `-Destino D:\Respaldos\ROOTLAB`.
@@ -222,24 +241,25 @@ sudo /opt/root-lab-node/bin/node /opt/root-lab/tools/caja-fuerte.mjs \
   sellar --salida /root/caja-fuerte.rkc
 ```
 
-Después la baja `traer-respaldos.ps1` con los respaldos, y queda al lado de
-ellos. **La frase no se guarda en ningún lado**: va en la cabeza y en el
-gestor de contraseñas.
-
-Dos cosas apenas baja, y una sola vez, desde la computadora:
+**La frase no se guarda en ningún lado**: va en la cabeza y en el gestor de
+contraseñas. Después, desde la computadora, tres pasos, una sola vez:
 
 ```powershell
-# 1. Que abra. Una caja que nadie abrió nunca no es una caja. `listar` pide la
+# 1. Traerla al lado de los respaldos (con la llave de root: la de respaldos
+#    no ve /root, a propósito).
+scp ifbotech-vps:/root/caja-fuerte.rkc "$env:USERPROFILE\OneDrive\Respaldos\ROOTLAB\"
+
+# 2. Que abra. Una caja que nadie abrió nunca no es una caja. `listar` pide la
 #    frase y muestra los nombres de las claves y su largo, nunca los valores.
 node tools\caja-fuerte.mjs listar "$env:USERPROFILE\OneDrive\Respaldos\ROOTLAB\caja-fuerte.rkc"
 
-# 2. Sacarla del VPS. Existe para el día que el servidor no esté, y ese día la
+# 3. Sacarla del VPS. Existe para el día que el servidor no esté, y ese día la
 #    copia que está EN el servidor tampoco está: ahí no protege de nada, y sí
 #    le deja a quien lo tome un archivo contra el que probar frases sin apuro.
-ssh -i ~\.ssh\rootkit_vps root@31.97.31.58 'rm -f /root/caja-fuerte.rkc'
+ssh ifbotech-vps 'rm -f /root/caja-fuerte.rkc'
 ```
 
-`traer-respaldos.ps1` avisa mientras la caja siga en el VPS.
+Se vuelve a sellar sólo si cambia alguna de las claves de adentro.
 
 ### Levantar todo de cero, sin el VPS
 

@@ -19,8 +19,24 @@ PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/root-lab
+# Lo mismo que el servicio principal: `systemd-analyze security` lo mide.
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+AmbientCapabilities=
+SystemCallArchitectures=native
 CapabilityBoundingSet=
 # Red: sólo para mandar la copia cifrada afuera (rclone o scp), si se configuró
 # ROOTLAB_RESPALDO_DESTINO. La configuración de rclone va en RCLONE_CONFIG.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-UMask=0027
+# 0077: la copia SIN cifrar nace 600 y no pasa ni un instante legible para el
+# grupo respaldos; la cifrada se abre a 640 a mano (tools/respaldar.mjs).
+UMask=0077

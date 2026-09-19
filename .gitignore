@@ -4,3 +4,15 @@ data/
 *.log
 .DS_Store
 Thumbs.db
+
+# Secretos: los repositorios son públicos. Nada de esto se sube nunca, ni por
+# accidente (docs/seguridad.md, "Dónde vive cada secreto").
+.env.*
+!.env.example
+*.key
+*.rkc
+*.db
+*.db.enc
+vapid*.json
+secreto.key
+analisis/capturas/

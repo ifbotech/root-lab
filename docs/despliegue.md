@@ -83,7 +83,9 @@ curl -fsSL https://raw.githubusercontent.com/ifbotech/root-lab/main/deploy/insta
 ```
 
 `deploy/instalar.sh` es idempotente: la primera vez baja Node 24 a
-`/opt/root-lab-node` (verificando su SHA-256), crea el usuario, clona el
+`/opt/root-lab-node` (verificando su SHA-256, de root, y en cada corrida
+posterior la última versión de la v24 si salió una: ahí vienen los parches de
+seguridad), crea el usuario, clona el
 repo, escribe `/etc/root-lab.env`, **genera la clave maestra** si falta y
 activa el servicio y el respaldo diario; las siguientes respaldan la base,
 traen `main`, instalan dependencias y reinician (si el esquema cambió, la
@@ -92,10 +94,38 @@ los datos. Si la actualización trae un instalador distinto, el que estaba
 corriendo le pasa la posta al nuevo apenas baja el código: lo que agregue una
 versión (una clave que falta, un temporizador) se aplica en esa misma corrida.
 
-**Después de la primera instalación, guardá la clave maestra fuera del
-servidor** (gestor de contraseñas): `sudo grep ROOTLAB_SECRETO
-/etc/root-lab.env`. Sin ella la base no se puede leer. Ver
-[seguridad.md](seguridad.md).
+**Después de la primera instalación, sacá las claves del servidor** con la
+caja fuerte ([operacion.md](operacion.md), "La caja fuerte"). Sin ellas la
+base no se puede leer.
+
+**Y endurecé la máquina**, una vez (se puede repetir):
+
+```bash
+sudo bash /opt/root-lab/deploy/endurecer-vps.sh
+```
+
+Deja SSH sólo con llave, crea el usuario `respaldos` (SFTP, encerrado, sólo
+lectura) para la tarea que baja los respaldos, pone el Node de root, mueve la
+administración de Caddy a un socket y activa el reinicio automático cuando un
+parche lo pide. Qué y por qué: [seguridad.md](seguridad.md), "El servidor".
+
+**Cómo se entra, desde entonces.** Sólo con la llave. En la computadora,
+`~/.ssh/config` tiene el alias:
+
+```
+Host 31.97.31.58 ifbotech-vps
+  HostName 31.97.31.58
+  User root
+  IdentityFile ~/.ssh/rootkit_vps
+  IdentitiesOnly yes
+```
+
+así que `ssh ifbotech-vps` (y VS Code Remote) entran sin contraseña. Si
+algún día se pierde la llave, la consola de emergencia del proveedor (VNC, en
+el panel de Hostinger) sigue entrando con la contraseña de root; la terminal
+"del navegador" del panel, si usa SSH, no. Antes de tocar SSH de nuevo, dejá
+programado un deshacer (`systemd-run --on-active=180 ...`), como hizo la
+primera corrida: si la config nueva te deja afuera, se revierte sola.
 
 ### Configurar la IA y el correo
 
@@ -189,7 +219,7 @@ centavo de dólar.
 systemctl status root-lab
 journalctl -u root-lab -f                 # log en vivo
 nano /etc/root-lab.env && systemctl restart root-lab
-curl -s 127.0.0.1:8090/rootkit/api/salud  # cuentas, plantas y lecturas guardadas
+curl -s 127.0.0.1:8090/rootkit/api/salud  # cuentas, plantas y lecturas (sólo desde el servidor)
 
 systemctl start root-lab-respaldo         # respaldo ya
 systemctl list-timers root-lab-respaldo   # cuándo toca el próximo
@@ -325,9 +355,13 @@ Cuando exista (por ejemplo `rootkit.app`):
    ```
 3. En `/etc/root-lab.env`: `ROOTLAB_BASE=` (vacía) y
    `ROOTLAB_URL_PUBLICA=https://rootkit.app`. Reiniciar.
-4. En el firmware: `RK_NUBE_URL` al dominio nuevo.
-5. Dejar `ifbotech.com/rootkit` redirigiendo al dominio nuevo un tiempo, para
-   los Rooties con el QR viejo.
+4. En el firmware: `RK_NUBE_URL` al dominio nuevo, y publicarlo **por aire**.
+   En el producto la nube es fija (el aparato no le manda su token a otra,
+   [seguridad.md](seguridad.md), "El Rooti"): la única forma de mudarlos es
+   una versión nueva, que bajan de la nube vieja.
+5. Dejar `ifbotech.com/rootkit` **sirviendo**, no redirigiendo, hasta que
+   todos los aparatos hayan tomado esa versión (el aparato no sigue una
+   redirección en un POST); después sí, redirigir, por los QR viejos.
 6. Autenticar el dominio nuevo en el relay de correo (SPF, DKIM, DMARC) y
    cambiar `ROOTLAB_CORREO_REMITENTE`.
 

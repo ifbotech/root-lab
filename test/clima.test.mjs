@@ -253,7 +253,7 @@ describe('por la API', () => {
     const esc = escenario({ clima: crearClima({ fetch: f }) });
     const { token, planta } = await plantaConHistorial(esc, { suelo0: 60, pctH: 1, horas: 24 });
     await esc.llamar('POST', '/api/push/suscripcion', {
-      token, cuerpo: { suscripcion: { endpoint: 'https://push.ejemplo/uno', keys: { p256dh: 'k', auth: 'a' } } },
+      token, cuerpo: { suscripcion: { endpoint: 'https://fcm.googleapis.com/fcm/send/uno', keys: { p256dh: 'k', auth: 'a' } } },
     });
     assert.equal(await esc.api.revisar(), 0, 'sin ciudad no hay previsión');
     await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { ubicacion: 'Rosario' } });

@@ -101,7 +101,7 @@ describe('el primer encendido hasta la cara', () => {
     /* Mide, se seca, pide agua. */
     await esc.llamar('POST', '/api/push/suscripcion', {
       token,
-      cuerpo: { suscripcion: { endpoint: 'https://push.ejemplo/abc', keys: { p256dh: 'k', auth: 'a' } } },
+      cuerpo: { suscripcion: { endpoint: 'https://fcm.googleapis.com/fcm/send/abc', keys: { p256dh: 'k', auth: 'a' } } },
     });
     maceta.medir({ suelo: 40, temp: 230, hr: 60, lux: 5000, animo: 'HAPPY', sev: 'OK' });
     maceta.pasar(900);
@@ -376,7 +376,7 @@ describe('bordes de la API', () => {
   test('las suscripciones vencidas se limpian solas', async () => {
     const token = await cuenta(esc);
     await esc.llamar('POST', '/api/push/suscripcion', {
-      token, cuerpo: { suscripcion: { endpoint: 'https://push.ejemplo/vencida', keys: { p256dh: 'k', auth: 'a' } } },
+      token, cuerpo: { suscripcion: { endpoint: 'https://fcm.googleapis.com/fcm/send/vencida', keys: { p256dh: 'k', auth: 'a' } } },
     });
     const [, r] = await esc.llamar('POST', '/api/push/probar', { token });
     assert.equal(r.enviados, 0);
@@ -403,7 +403,7 @@ describe('bordes de la API', () => {
     await esc.llamar('POST', `/api/plantas/${planta.id}/cofre`, { token });
     await esc.llamar('PATCH', `/api/plantas/${planta.id}`, { token, cuerpo: { nombre: 'Tito' } });
     await esc.llamar('POST', '/api/push/suscripcion', {
-      token, cuerpo: { suscripcion: { endpoint: 'https://push.ejemplo/1', keys: { p256dh: 'k', auth: 'a' } } },
+      token, cuerpo: { suscripcion: { endpoint: 'https://fcm.googleapis.com/fcm/send/1', keys: { p256dh: 'k', auth: 'a' } } },
     });
     await maceta.sync();
     esc.reloj.t += 7 * H;

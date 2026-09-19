@@ -130,7 +130,7 @@ exigen HTTPS. Ver [docs/despliegue.md](docs/despliegue.md).
 ## Pruebas
 
 ```bash
-npm test          # 518 pruebas
+npm test          # 535 pruebas
 ```
 
 Flujo completo con un Rooti virtual, cuentas y aislamiento entre cuentas,
@@ -185,8 +185,9 @@ public/                  la app (PWA sin build)
   caras/                 el firmware en WebAssembly y las imágenes de las caras
   fuentes/               Nunito (OFL), servida desde la app
 emulador/                el Rooti virtual
-deploy/                  instalación en el VPS: script, servicios systemd (respaldo diario y su prueba mensual),
-                         Caddy, la clave pública del firmware y la tarea que trae los respaldos a casa
+deploy/                  instalación en el VPS: script, endurecimiento de la máquina, servicios systemd
+                         (respaldo diario y su prueba mensual), Caddy, la clave pública del firmware y la
+                         tarea que trae los respaldos a casa
 tools/                   verificar un despliegue, respaldar y restaurar, la caja fuerte de las claves,
                          publicar firmware, uso de la IA, probar el correo, sincronizar el firmware
 test/

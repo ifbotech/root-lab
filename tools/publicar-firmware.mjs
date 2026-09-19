@@ -8,6 +8,12 @@
  *   node tools/publicar-firmware.mjs cabecera <firmware-publica.pem>
  *       Vuelve a imprimir la cabecera de C.
  *
+ *   node tools/publicar-firmware.mjs cifrar-clave <firmware.key> [--publica firmware-publica.pem]
+ *       Cifra la privada con una frase (AES-256, PKCS#8 estándar: la abre
+ *       también openssl). Desde ahí, firmar y publicar piden la frase. Es la
+ *       diferencia entre que un programa que corre con tu usuario se lleve la
+ *       clave de todos los aparatos, o se lleve un archivo que no sirve.
+ *
  *   node tools/publicar-firmware.mjs firmar <firmware.bin> --clave firmware.key
  *       Sólo firma: imprime sha256, firma y tamaño.
  *
@@ -24,8 +30,10 @@
  * root-kit/firmware/.pio/build/c3-144/firmware.bin. Ver docs/operacion.md y
  * root-kit/docs/ota.md.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync, renameSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { createPrivateKey, createPublicKey } from 'node:crypto';
+import { preguntarFrase, fraseNueva } from './frase.mjs';
 import {
   generarClaves, firmarFirmware, firmaValida, cabeceraC, versionValida, CANALES, RE_PLACA, FIRMWARE_MAX_BYTES,
 } from '../server/firmware.mjs';
@@ -38,6 +46,23 @@ for (let i = 0; i < resto.length; i++) {
   else sueltos.push(resto[i]);
 }
 const salir = (mensaje) => { console.error(mensaje); process.exit(1); };
+
+const CIFRADA = /-----BEGIN ENCRYPTED PRIVATE KEY-----/;
+
+/** La privada lista para firmar: si está cifrada, pide la frase. */
+async function privadaDe(ruta) {
+  const pem = readFileSync(ruta, 'utf8');
+  if (!CIFRADA.test(pem)) {
+    console.error(`OJO: ${ruta} está sin cifrar. Cifrala una vez con: publicar-firmware.mjs cifrar-clave ${ruta}`);
+    return createPrivateKey(pem);
+  }
+  const frase = await preguntarFrase('Frase de la clave de firma: ', 'ROOTLAB_FIRMA_FRASE');
+  try {
+    return createPrivateKey({ key: pem, format: 'pem', passphrase: frase });
+  } catch {
+    return salir('Esa frase no abre la clave de firma.');
+  }
+}
 
 async function admin(metodo, ruta, cuerpo) {
   const nube = String(opciones.nube || process.env.ROOTLAB_URL_PUBLICA || '').replace(/\/+$/, '');
@@ -61,10 +86,12 @@ switch (orden) {
     if (existsSync(privada)) salir(`ya existe ${privada}: no la piso (perderla deja a los aparatos sin actualizaciones)`);
     mkdirSync(carpeta, { recursive: true });
     const claves = generarClaves();
+    /* Nace sin cifrar para poder copiarla al gestor de contraseñas; el paso
+       siguiente es cifrar-clave. */
     writeFileSync(privada, claves.privada, { mode: 0o600 });
     try { chmodSync(privada, 0o600); } catch { /* Windows */ }
     writeFileSync(join(carpeta, 'firmware-publica.pem'), claves.publica);
-    console.error(`privada: ${privada}  (guardala en un gestor de contraseñas; NO va a ningún repositorio)`);
+    console.error(`privada: ${privada}  (copiala al gestor de contraseñas y después: cifrar-clave ${privada})`);
     console.error(`pública: ${join(carpeta, 'firmware-publica.pem')}  (va a root-lab/deploy/ y, como cabecera, a root-kit)`);
     console.log(cabeceraC(claves.publica));
     break;
@@ -72,6 +99,42 @@ switch (orden) {
   case 'cabecera': {
     if (!sueltos[0]) salir('uso: cabecera <firmware-publica.pem>');
     console.log(cabeceraC(readFileSync(sueltos[0], 'utf8')));
+    break;
+  }
+  case 'cifrar-clave': {
+    const ruta = sueltos[0];
+    if (!ruta || !existsSync(ruta)) salir('uso: cifrar-clave <firmware.key>');
+    const pem = readFileSync(ruta, 'utf8');
+    if (CIFRADA.test(pem)) salir(`${ruta} ya está cifrada.`);
+    const privada = createPrivateKey(pem);
+    /* Si se pasa la pública, se comprueba que sea el par que está en los
+       aparatos antes de tocar nada. */
+    if (opciones.publica) {
+      const derivada = createPublicKey(privada).export({ type: 'spki', format: 'pem' });
+      if (derivada.trim() !== readFileSync(opciones.publica, 'utf8').trim()) {
+        salir('Esa privada no es el par de esa pública: no toco nada.');
+      }
+    }
+    console.error('Antes de seguir: la privada SIN cifrar tiene que estar ya en tu gestor de');
+    console.error('contraseñas. La frase que elijas también: sin ella, esta clave no se abre más.');
+    let frase;
+    try {
+      frase = await fraseNueva('Frase para la clave de firma (no se muestra): ', 'ROOTLAB_FIRMA_FRASE');
+    } catch (e) {
+      salir(e.message);
+    }
+    const cifrada = privada.export({ type: 'pkcs8', format: 'pem', cipher: 'aes-256-cbc', passphrase: frase });
+    /* Se prueba que abre y que firma igual ANTES de reemplazar el archivo: un
+       error acá no puede costar la clave. */
+    const vuelta = createPrivateKey({ key: cifrada, format: 'pem', passphrase: frase });
+    const prueba = Buffer.from('rootkit');
+    const publica = createPublicKey(privada).export({ type: 'spki', format: 'pem' });
+    if (!firmaValida(prueba, firmarFirmware(prueba, vuelta).firma, publica)) salir('La clave cifrada no firma bien: no toco nada.');
+    const temporal = `${ruta}.cifrando`;
+    writeFileSync(temporal, cifrada, { mode: 0o600 });
+    renameSync(temporal, ruta);
+    try { chmodSync(ruta, 0o600); } catch { /* Windows */ }
+    console.error(`${ruta}: cifrada. Desde ahora, firmar y publicar piden la frase.`);
     break;
   }
   case 'firmar':
@@ -84,7 +147,7 @@ switch (orden) {
     /* Un binario de ESP32 empieza con 0xE9: evita publicar el archivo equivocado.
        (Para la placa "emulador" vale cualquier archivo: es para probar el camino.) */
     if (contenido[0] !== 0xe9 && opciones.placa !== 'emulador') salir('eso no parece un firmware de ESP32 (no empieza con 0xE9)');
-    const privada = readFileSync(opciones.clave, 'utf8');
+    const privada = await privadaDe(opciones.clave);
     const f = firmarFirmware(contenido, privada);
     if (opciones.publica && !firmaValida(contenido, f.firma, readFileSync(opciones.publica, 'utf8'))) {
       salir('la firma no verifica con esa pública: ¿es el par correcto?');
@@ -119,5 +182,5 @@ switch (orden) {
     break;
   }
   default:
-    salir('uso: publicar-firmware.mjs generar-clave | cabecera | firmar | publicar | listar | retirar   (ver el encabezado del archivo)');
+    salir('uso: publicar-firmware.mjs generar-clave | cabecera | cifrar-clave | firmar | publicar | listar | retirar   (ver el encabezado del archivo)');
 }

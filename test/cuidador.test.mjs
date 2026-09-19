@@ -55,7 +55,7 @@ describe('el cuidador', () => {
     const esc = escenario();
     const { token, planta } = await conSed(esc);
     await esc.llamar('POST', '/api/push/suscripcion', {
-      token, cuerpo: { suscripcion: { endpoint: 'https://push.ejemplo/dueno', keys: { p256dh: 'k', auth: 'a' } } },
+      token, cuerpo: { suscripcion: { endpoint: 'https://fcm.googleapis.com/fcm/send/dueno', keys: { p256dh: 'k', auth: 'a' } } },
     });
     const [, creado] = await esc.llamar('POST', `/api/plantas/${planta.id}/cuidador`, { token, cuerpo: { dias: 3, nombre: 'Ana' } });
     const enlace = creado.url.split('/sitter/')[1];

@@ -30,7 +30,7 @@
  * (docs/seguridad.md).
  */
 import { readFileSync, writeFileSync, existsSync, chmodSync } from 'node:fs';
-import { createInterface } from 'node:readline';
+import { preguntarFrase as pedir, fraseNueva } from './frase.mjs';
 import { cifrarRespaldo, descifrarRespaldo } from '../server/respaldo.mjs';
 
 const [orden, ...resto] = process.argv.slice(2);
@@ -66,18 +66,7 @@ function leerEnv(ruta) {
   return dentro;
 }
 
-/** Pide la frase por teclado, sin mostrarla. */
-function preguntarFrase(mensaje) {
-  if (process.env.ROOTLAB_CAJA_FRASE) return Promise.resolve(process.env.ROOTLAB_CAJA_FRASE);
-  return new Promise((ok) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    const salida = process.stdout;
-    /* Sin eco: lo que se escribe no queda en la pantalla ni en el historial. */
-    const escribir = rl._writeToOutput?.bind(rl);
-    rl._writeToOutput = (s) => { if (s.includes(mensaje)) escribir?.(s); else salida.write(''); };
-    rl.question(mensaje, (r) => { rl.close(); salida.write('\n'); ok(r); });
-  });
-}
+const preguntarFrase = (mensaje) => pedir(mensaje, 'ROOTLAB_CAJA_FRASE');
 
 const FRASE_MINIMA = 16;
 
@@ -99,11 +88,11 @@ switch (orden) {
     const vapid = String(opciones.vapid || '/var/lib/root-lab/vapid.json');
     if (existsSync(vapid)) caja.vapid = JSON.parse(readFileSync(vapid, 'utf8'));
 
-    const frase = await preguntarFrase('Frase para la caja (no se muestra): ');
-    if (String(frase).length < FRASE_MINIMA) salir(`La frase tiene que tener al menos ${FRASE_MINIMA} caracteres. Que sea larga y que te la acuerdes: no hay forma de recuperarla.`);
-    if (!process.env.ROOTLAB_CAJA_FRASE) {
-      const otra = await preguntarFrase('De nuevo, para estar seguros: ');
-      if (otra !== frase) salir('No coinciden: no se escribió nada.');
+    let frase;
+    try {
+      frase = await fraseNueva('Frase para la caja (no se muestra): ', 'ROOTLAB_CAJA_FRASE', { minimo: FRASE_MINIMA });
+    } catch (e) {
+      salir(e.message);
     }
 
     const salida = String(opciones.salida || 'caja-fuerte.rkc');

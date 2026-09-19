@@ -5,12 +5,18 @@
 .DESCRIPTION
   La copia diaria que hace el VPS vive en el mismo disco que la base: protege
   de un error, no de perder el servidor. Esto se trae las copias cifradas
-  (.db.enc) y la caja fuerte con las claves, que es lo que hace falta para
-  levantar ROOTLAB en otra máquina.
+  (.db.enc), que junto con la caja fuerte (docs/operacion.md) es lo que hace
+  falta para levantar ROOTLAB en otra máquina.
 
   TIRA, NO LE MANDAN. El VPS no sabe que esta computadora existe y no tiene
   credenciales para llegar acá: si alguien se mete en el servidor, no puede
   borrar ni pisar estas copias. Por eso el pedido sale de acá.
+
+  CON UNA LLAVE QUE SÓLO SIRVE PARA ESTO. Entra como el usuario `respaldos`
+  del VPS (deploy/endurecer-vps.sh): sólo SFTP, encerrado en una carpeta de
+  sólo lectura donde se ven únicamente las copias cifradas. No es la llave de
+  root: una tarea que corre sola todos los días no tiene en la mano el
+  servidor entero. La llave se crea con -Instalar.
 
   Si la carpeta destino está adentro de OneDrive, con una sola pasada quedan
   las tres copias que hay que tener: el VPS, esta computadora y la nube.
@@ -22,7 +28,8 @@
   Cuántas copias dejar. Por defecto 30.
 
 .PARAMETER Instalar
-  Deja una tarea programada que corre esto todos los días a las 9:15.
+  Crea la llave de esta tarea (si no existe), dice cómo darla de alta en el
+  VPS y deja una tarea programada que corre esto todos los días a las 9:15.
 
 .EXAMPLE
   .\deploy\traer-respaldos.ps1
@@ -32,9 +39,10 @@
 [CmdletBinding()]
 param(
   [string]$Destino = '',
-  [string]$Servidor = 'root@31.97.31.58',
-  [string]$Llave = "$env:USERPROFILE\.ssh\rootkit_vps",
-  [string]$Remoto = '/var/lib/root-lab/respaldos',
+  [string]$Servidor = 'respaldos@31.97.31.58',
+  [string]$Llave = "$env:USERPROFILE\.ssh\rootlab_respaldos",
+  # Adentro de la jaula del usuario respaldos, la carpeta se ve como /rootlab.
+  [string]$Remoto = '/rootlab',
   [int]$Conservar = 30,
   [switch]$Instalar
 )
@@ -50,6 +58,17 @@ if ([string]::IsNullOrWhiteSpace($Destino)) {
 }
 
 if ($Instalar) {
+  # La llave propia de esta tarea. Sin frase, porque corre sola: lo único que
+  # se puede hacer con ella es bajar archivos cifrados.
+  if (-not (Test-Path $Llave)) {
+    cmd /c "ssh-keygen -q -t ed25519 -N `"`" -C `"respaldos@$env:COMPUTERNAME`" -f `"$Llave`""
+    Write-Host "Llave nueva: $Llave"
+  }
+  $publica = (Get-Content "$Llave.pub" -Raw).Trim()
+  Write-Host ""
+  Write-Host "Para que el VPS la acepte (una vez, como root):"
+  Write-Host "  echo 'restrict $publica' >> /etc/ssh/claves-respaldos"
+  Write-Host ""
   # La tarea se registra con los mismos parámetros con los que se la llamó.
   $guion = $MyInvocation.MyCommand.Path
   $argumentos = "-NoProfile -ExecutionPolicy Bypass -File `"$guion`" -Destino `"$Destino`" -Conservar $Conservar"
@@ -66,27 +85,25 @@ if ($Instalar) {
   return
 }
 
-if (-not (Test-Path $Llave)) { throw "No encuentro la llave SSH en $Llave" }
+if (-not (Test-Path $Llave)) { throw "No encuentro la llave $Llave (se crea con -Instalar)" }
 New-Item -ItemType Directory -Force -Path $Destino | Out-Null
 
 Write-Host "Trayendo de $Servidor a $Destino"
 
-# Sólo lo cifrado y la caja. Las copias .db sin cifrar se quedan en el VPS: no
-# tienen por qué andar dando vueltas.
+# Sólo lo cifrado: es lo único que el usuario respaldos puede ver. Las copias
+# .db sin cifrar se quedan en el VPS, que no tienen por qué andar dando vueltas.
 # scp escribe en stderr cuando un patrón no encuentra nada, y PowerShell
 # convierte eso en un error que corta el script. Se llama a través de cmd,
 # que devuelve el código de salida y se traga el ruido.
 function Traer([string]$patron) {
   $destinoCmd = $Destino.TrimEnd([char]92)
-  cmd /c "scp -q -i `"$Llave`" -o StrictHostKeyChecking=accept-new `"${Servidor}:$patron`" `"$destinoCmd`" 2>nul"
+  cmd /c "scp -q -i `"$Llave`" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new `"${Servidor}:$patron`" `"$destinoCmd`" 2>nul"
   return $LASTEXITCODE
 }
 
 if ((Traer "$Remoto/*.db.enc") -ne 0) {
-  Write-Host "  no pude traer las copias cifradas: ¿hay alguna en el VPS?" -ForegroundColor Yellow
+  Write-Host "  no pude traer las copias cifradas: ¿está dada de alta la llave en el VPS?" -ForegroundColor Yellow
 }
-$cajaEnElVps = (Traer '/root/caja-fuerte.rkc') -eq 0
-if (-not $cajaEnElVps) { Write-Host "  (no hay caja fuerte en el VPS)" -ForegroundColor DarkGray }
 
 # Lo que llegó tiene que ser lo que decimos que es: los .enc empiezan con RKR1.
 $copias = Get-ChildItem -Path $Destino -Filter '*.db.enc' -ErrorAction SilentlyContinue |
@@ -118,20 +135,13 @@ if ($ultima) {
 } else {
   Write-Host "  No hay ninguna copia todavía." -ForegroundColor Yellow
 }
+# La caja fuerte no la baja esta tarea: se sella una vez, se trae a mano y no
+# se deja en el VPS (docs/operacion.md). Acá se comprueba que esté al lado.
 if (Test-Path $caja) {
   Write-Host "Caja fuerte: sí (sin ella los respaldos no se pueden abrir)"
-  if ($cajaEnElVps) {
-    # La caja existe para el día que el VPS no esté. Ese día, la que está EN el
-    # VPS tampoco está: ahí no protege de nada, y sí le da a quien tome el
-    # servidor un archivo contra el que probar frases sin apuro.
-    Write-Host "  Ya la tenés acá: en el VPS no hace falta que quede (ese día se pierde con él)." -ForegroundColor Yellow
-    Write-Host "    ssh -i `"$Llave`" $Servidor 'rm -f /root/caja-fuerte.rkc'"
-  }
 } else {
   Write-Host "Caja fuerte: NO ESTÁ. Sin ella estos respaldos no sirven de nada." -ForegroundColor Red
-  Write-Host "  Se sella una sola vez, en el VPS (pide una frase que elijas vos):"
-  Write-Host "    ssh -i ~/.ssh/rootkit_vps root@31.97.31.58"
-  Write-Host "    /opt/root-lab-node/bin/node /opt/root-lab/tools/caja-fuerte.mjs sellar --salida /root/caja-fuerte.rkc"
+  Write-Host "  Se sella en el VPS y se trae una vez: docs/operacion.md, 'La caja fuerte'."
 }
 if ($Destino -like "*OneDrive*") { Write-Host "En OneDrive: cuenta como copia en la nube además de en esta compu." }
 

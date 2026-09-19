@@ -17,7 +17,7 @@
  */
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname, join, normalize, sep } from 'node:path';
 
 import { crearCacheComprimidos, elegirCodificacion, etagDe, coincide, seComprime } from './estatico.mjs';
 
@@ -70,6 +70,33 @@ export const CABECERAS_SEGURIDAD = {
   'cross-origin-resource-policy': 'same-origin',
   'permissions-policy': 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
 };
+
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+/**
+ * La IP de quien pide, para los límites contra abuso.
+ *
+ * `X-Forwarded-For` lo puede escribir cualquiera: sólo se le cree cuando el
+ * pedido llega desde la misma máquina, que es donde está el proxy (Caddy). Y
+ * de esa lista se toma el ÚLTIMO valor, el que agregó el proxy: los de antes
+ * los manda el cliente. (Caddy hoy reemplaza el encabezado entero, así que
+ * primero y último coinciden; con otro proxy que agregue, sólo el último vale.)
+ * Sin esto, cambiar el encabezado en cada pedido esquivaría todos los límites.
+ */
+export function ipDelPedido(req) {
+  const par = req.socket?.remoteAddress || '';
+  const reenviado = req.headers?.['x-forwarded-for'];
+  if (LOOPBACK.has(par) && reenviado) {
+    const saltos = String(reenviado).split(',').map((x) => x.trim()).filter(Boolean);
+    if (saltos.length) return saltos.at(-1);
+  }
+  return par;
+}
+
+/** Si el pedido lo hace alguien en el mismo servidor, sin pasar por el proxy. */
+export function esLocalDirecto(req) {
+  return LOOPBACK.has(req.socket?.remoteAddress || '') && !req.headers?.['x-forwarded-for'];
+}
 
 /** "/rootkit/" -> "/rootkit"; "" y "/" -> "". */
 export function normalizarBase(b) {
@@ -175,7 +202,7 @@ export function crearServidorHttp({ api, raiz, base = '', registro = null }) {
       return;
     }
     const destino = join(dir, limpia);
-    if (!destino.startsWith(dir)) {
+    if (destino !== dir && !destino.startsWith(dir + sep)) {
       res.writeHead(403).end();
       return;
     }
@@ -212,6 +239,10 @@ export function crearServidorHttp({ api, raiz, base = '', registro = null }) {
 
   return createServer(async (req, res) => {
     for (const [k, v] of Object.entries(CABECERAS_SEGURIDAD)) res.setHeader(k, v);
+    /* Ni la trastienda ni la API tienen nada que hacer en un buscador. */
+    if (/\/(admin|api)(\/|$)/i.test(String(req.url || '').split('?')[0])) {
+      res.setHeader('x-robots-tag', 'noindex, nofollow');
+    }
     /* La ruta que se anota es la que queda DESPUÉS de sacar la base: detrás
        del proxy todo llega como /rootkit/api/..., y sin esto la API entera se
        anotaba como "estático". Se lee al terminar, cuando ya se calculó. */
@@ -246,7 +277,8 @@ export function crearServidorHttp({ api, raiz, base = '', registro = null }) {
           query: Object.fromEntries(url.searchParams),
           cuerpo,
           headers: req.headers,
-          ip: String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim(),
+          ip: ipDelPedido(req),
+          local: esLocalDirecto(req),
         });
         /* Un `429` dice tambien cuando volver: un aparato o un telefono
            bien educado espera en vez de insistir. */
@@ -304,8 +336,13 @@ export function crearServidorHttp({ api, raiz, base = '', registro = null }) {
       }
       return await archivo(req, res, PUBLICO, ruta);
     } catch (e) {
-      res.writeHead(e.codigo || 500, { 'content-type': MIME['.json'] })
-        .end(JSON.stringify({ error: e.message }));
+      /* Los errores propios (413, JSON inválido) dicen qué pasó. Uno
+         inesperado no: su mensaje puede traer rutas del disco o de la base. */
+      const propio = Number.isInteger(e.codigo) && e.codigo >= 400 && e.codigo < 500;
+      if (!propio) console.error(e);
+      if (res.headersSent) { res.end(); return; }
+      res.writeHead(propio ? e.codigo : 500, { 'content-type': MIME['.json'] })
+        .end(JSON.stringify({ error: propio ? e.message : 'Error interno' }));
     }
   });
 }

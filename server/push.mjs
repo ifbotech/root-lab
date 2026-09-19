@@ -13,6 +13,30 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import webpush from 'web-push';
 
+/* Los servicios de avisos de los navegadores. Una suscripción es una URL a la
+ * que el SERVIDOR le hace un POST: si se aceptara cualquiera, una cuenta
+ * podría hacer que el servidor le pegue a lo que quiera —127.0.0.1, la red
+ * del VPS, un tercero— y usar la respuesta ("enviados: 1") para ver qué hay.
+ * Sólo estos, por HTTPS y en el puerto de siempre. */
+export const SERVICIOS_PUSH = [
+  'fcm.googleapis.com',                 /* Chrome, Android, Opera, Samsung */
+  'android.googleapis.com',             /* Chrome viejo */
+  'push.services.mozilla.com',          /* Firefox (updates.push.…) */
+  'push.apple.com',                     /* Safari: web.push.apple.com */
+  'notify.windows.com',                 /* Edge en Windows: wns2-….notify.windows.com */
+];
+
+/** Si esa URL es de un servicio de avisos de verdad. */
+export function endpointPushValido(endpoint) {
+  if (typeof endpoint !== 'string' || endpoint.length > 1000) return false;
+  let u;
+  try { u = new URL(endpoint); } catch { return false; }
+  if (u.protocol !== 'https:' || u.username || u.password) return false;
+  if (u.port && u.port !== '443') return false;
+  const host = u.hostname.toLowerCase();
+  return SERVICIOS_PUSH.some((s) => host === s || host.endsWith(`.${s}`));
+}
+
 export function crearPush({
   dirDatos,
   contacto = process.env.ROOTLAB_CONTACTO || 'https://github.com/ifbotech/root-lab',
@@ -42,6 +66,9 @@ export function crearPush({
     clavePublica: claves.publicKey,
     /** Devuelve 'ok', 'vencida' (hay que borrar la suscripción) o 'error'. */
     async enviar(suscripcion, carga) {
+      /* Una que se guardó antes de que existiera el control, o que alguien
+         metió a mano en la base: no sale, y se borra como vencida. */
+      if (!endpointPushValido(suscripcion?.endpoint)) return 'vencida';
       try {
         await webpush.sendNotification(suscripcion, JSON.stringify(carga), {
           TTL: 6 * 3600,
