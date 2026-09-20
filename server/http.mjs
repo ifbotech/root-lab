@@ -334,6 +334,16 @@ export function crearServidorHttp({ api, raiz, base = '', registro = null }) {
       if (ruta.toLowerCase().startsWith('/emulador/')) {
         return await archivo(req, res, EMULADOR, ruta.slice('/emulador'.length));
       }
+      /* La lámina del elenco: los cuatro Rooties con todas sus pieles y
+         ánimos, para ajustar el arte. Es una herramienta, no una vista de la
+         app: vive aparte y necesita su índice, como el emulador. */
+      if (/^\/elenco\/?$/i.test(ruta)) {
+        if (!ruta.endsWith('/')) {
+          res.writeHead(301, { location: `${BASE}/elenco/` }).end();
+          return;
+        }
+        return await pagina(req, res, join(PUBLICO, 'elenco', 'index.html'));
+      }
       return await archivo(req, res, PUBLICO, ruta);
     } catch (e) {
       /* Los errores propios (413, JSON inválido) dicen qué pasó. Uno

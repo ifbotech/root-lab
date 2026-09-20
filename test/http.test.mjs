@@ -109,6 +109,20 @@ describe('servidor en /rootkit', () => {
     assert.match(js.headers.get('content-type'), /javascript/);
   });
 
+  test('la lamina del elenco vive debajo de la base', async () => {
+    /* Es la herramienta para ajustar el arte: si deja de servirse, o le falta
+       la base, los modulos buscan las caras dentro de /elenco/ y no se ve
+       nada. Paso lo segundo mientras se escribia. */
+    const r = await pedir(`${s.url}/rootkit/elenco`);
+    assert.equal(r.status, 301);
+    assert.equal(r.headers.get('location'), '/rootkit/elenco/');
+    const html = await (await pedir(`${s.url}/rootkit/elenco/`)).text();
+    assert.match(html, /<base href="\/rootkit\/">/);
+    const js = await pedir(`${s.url}/rootkit/elenco/elenco.mjs`);
+    assert.equal(js.status, 200);
+    assert.match(js.headers.get('content-type'), /javascript/);
+  });
+
   test('la trastienda se sirve aparte de la app', async () => {
     const r = await pedir(`${s.url}/rootkit/admin`);
     assert.equal(r.status, 301);

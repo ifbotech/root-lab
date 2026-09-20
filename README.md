@@ -1,25 +1,46 @@
 # ROOTLAB (root-lab)
 
 La app y la nube de **ROOTKIT**, la maceta con sensores y pantalla. Cada
-ROOTKIT es uno de cinco **Rooties** botánicos —Brote, Musgo, Pinchito, Bulbo
-y Champi—: al principio muestra un QR, y después de abrir su cofre, unos ojos
-que reaccionan a cómo está tu planta.
+ROOTKIT es uno de cuatro **Rooties** —**Kip, Nori, Blink y Plum**—: al
+principio muestra un QR, y después de abrir su cofre, una cara que reacciona a
+cómo está tu planta.
+
+![Los cuatro Rooties: Kip, Nori, Blink y Plum](docs/personajes/cuerpos.png)
+
+| | Quién es | Se reconoce por |
+|---|---|---|
+| **Kip** | el piloto audaz: impetuoso, dramatiza cuando la cosa se complica | la cresta de tres rulos, las cejas tupidas y la media sonrisa ladeada |
+| **Nori** | la crítica sofisticada: estándares altos, juzga en silencio | el corte bob con flequillo, las pecas y una boca que apenas se curva |
+| **Blink** | el cíclope optimista: nada lo alarma y siempre sale ileso | UN ojo enorme entre dos cuernitos |
+| **Plum** | la berenjenita empática: tímida, leal, un cachorro | el cuerpo de gota con su cabito y los ojos de súplica |
+
+**Ver el elenco entero**: `npm start` y abrir **`/elenco/`**. Están los cuatro
+con sus tres pieles y sus once ánimos, con un botón para bajarse la lámina en
+PNG. Es la herramienta para ajustar el arte: se edita un número en
+`public/lib/rooti3d/formas.mjs` (los cuerpos) o en
+`root-kit/firmware/core/persona.c` (las caras y los colores, y después
+`npm run firmware`), se recarga, y se ve a los cuatro juntos.
 
 **ROOTLAB** es todo lo que el aparato no hace:
 
 - **Cuentas** con email y contraseña: cada persona ve sólo sus plantas, desde
   cualquier teléfono. Recuperar la contraseña y confirmar el email por correo.
 - **Vincular** un Rooti por su QR (la app lo reconoce: "¡Conectaste a tu
-  Brote!") y **abrir el cofre**, que sortea su **piel**: común (70 %), rara
-  (25 %) o épica (5 %). La maceta se pinta con esa paleta y la app también.
+  Kip!") y **abrir el cofre**, que sortea su **piel**: común (70 %), rara
+  (25 %) o épica (5 %). Las tres comparten la paleta del personaje —es parte
+  de quién es— y lo que cambia es el **acabado**: el fuego de Kip, el acero y
+  el cristal de Nori, el oro de Blink, el aura de Plum. Se reconocen en
+  movimiento, no en una captura.
+
+  ![Las doce pieles, con sus acabados](docs/personajes/pieles.png)
 - **Reconocer la planta** con una foto y armar su **ficha de cuidados**.
 - **Charlar con la planta**: contesta con su nombre, la personalidad de su
   Rooti y lo que miden sus sensores en ese momento.
 - **Tablero** con tareas del día, gráficos, diagnóstico por foto y
   **notificaciones** cuando la planta necesita algo.
 - **Paletas dinámicas**: clara como un libro de cuentos, la app se pinta con
-  los colores de la piel de tu Rooti (quince pieles pastel) y **de noche** se
-  apaga sola: de 22 a 8, con el sistema, o como elijas.
+  los colores de la piel de tu Rooti (doce pieles) y **de noche** se apaga
+  sola: de 22 a 8, con el sistema, o como elijas.
 - **El Rooti entero**: en el teléfono se ve el personaje completo, con la
   cara del firmware en la ventana de su pantalla. Es una **mascota**: dos
   barras (salud, que dan los sensores, y felicidad, que dan los mimos),
@@ -65,7 +86,8 @@ El firmware, el hardware y las carcasas están en
 ## En línea
 
 **https://ifbotech.com/rootkit/** · emulador en
-**https://ifbotech.com/rootkit/emulador/** · la trastienda (el panel de quien
+**https://ifbotech.com/rootkit/emulador/** · el elenco en
+**https://ifbotech.com/rootkit/elenco/** · la trastienda (el panel de quien
 hace el producto) en **https://ifbotech.com/rootkit/admin/**. Cómo se instala, se actualiza y
 se verifica: [docs/despliegue.md](docs/despliegue.md).
 
@@ -82,17 +104,18 @@ npm start
 |---|---|
 | **App** | http://localhost:8080 |
 | **Emulador** | http://localhost:8080/emulador/ |
+| **El elenco** | http://localhost:8080/elenco/ (los cuatro Rooties, para ajustar el arte) |
 | **La trastienda** | http://localhost:8080/admin/ (con `ROOTLAB_ADMIN_CLAVE`) |
 
 El **emulador** es un Rooti en el navegador que corre el firmware real
 compilado a WebAssembly y habla con este servidor igual que la placa:
 
-1. Abrí el emulador. En *Fábrica* elegí qué Rooti es la figura (Brote por
+1. Abrí el emulador. En *Fábrica* elegí qué Rooti es la figura (Kip por
    defecto).
 2. **Pasarle el wifi** simula el portal cautivo.
 3. **Abrir la app** (o escaneá el QR con el teléfono en la misma red).
 4. En la app: empezar → crear cuenta → avisos → vincular ("¡Conectaste a tu
-   Brote!") → **cofre**.
+   Kip!") → **cofre**.
 5. Mirá el emulador cuando se abre el cofre: abre los ojos con la piel que
    salió, y la carcasa toma su color.
 6. Nombre, foto de una planta, y **Hablar con** tu planta.
@@ -130,7 +153,7 @@ exigen HTTPS. Ver [docs/despliegue.md](docs/despliegue.md).
 ## Pruebas
 
 ```bash
-npm test          # 546 pruebas
+npm test          # 543 pruebas
 ```
 
 Flujo completo con un Rooti virtual, cuentas y aislamiento entre cuentas,
@@ -205,7 +228,7 @@ docs/
 | [seguridad.md](docs/seguridad.md) | Cifrado, contraseñas, clave maestra, cabeceras, servidor |
 | [ia.md](docs/ia.md) | Reconocer, diagnosticar, charlar; tope de gasto y cuotas |
 | [correo.md](docs/correo.md) | Nodemailer + Brevo, SPF/DKIM/DMARC, plantillas |
-| [rooties.md](docs/rooties.md) | Los cinco Rooties, sus pieles, el cofre y el cuerpo que se imprime sin soportes |
+| [rooties.md](docs/rooties.md) | Los cuatro Rooties, sus pieles y acabados, el cofre y cómo se esculpen los cuerpos |
 | [mascota.md](docs/mascota.md) | Salud y felicidad: caricias, polvo, gotas de rocío y la noche |
 | [riego.md](docs/riego.md) | Calibrar el sensor de tierra y decir cuánta agua |
 | [operacion.md](docs/operacion.md) | Administración, firmware firmado, fábrica, respaldos que se prueban, vigía y métricas |

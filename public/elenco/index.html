@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- El servidor escribe acá la base de la app (ROOTLAB_BASE), igual que en el
+     emulador: sin esto, los módulos buscarían las caras dentro de /elenco/. -->
+<base href="/">
+<meta name="robots" content="noindex">
+<title>El elenco · ROOTLAB</title>
+<link rel="icon" href="iconos/favicon.svg">
+<!-- La hoja de la app, por las reglas del componente `.cuerpo`: sin ellas los
+     canvas se posicionan contra la página y salen volando. Lo de abajo va
+     después a propósito, para ganarle al tema. -->
+<link rel="stylesheet" href="style.css">
+<style>
+  :root {
+    color-scheme: light dark;
+    --papel: #f5f8ee; --tinta: #1d2a1f; --panel: #ffffff; --borde: #d8e3d0;
+    --suave: #5e7060;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --papel: #161a18; --tinta: #e8f0e6; --panel: #1f2522; --borde: #33403a; --suave: #9fb3a4; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: var(--papel) !important; color: var(--tinta);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: block;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 16px; color: var(--suave); max-width: 70ch; }
+  .mandos {
+    display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+    background: var(--panel); border: 1px solid var(--borde); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 18px; position: sticky; top: 8px; z-index: 2;
+  }
+  .mandos label { display: flex; gap: 6px; align-items: center; font-size: 14px; }
+  select, button { font: inherit; padding: 5px 9px; border-radius: 9px;
+    border: 1px solid var(--borde); background: var(--panel); color: inherit; }
+  button { cursor: pointer; }
+  button.activo { background: var(--tinta); color: var(--papel); }
+  .fila { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 22px; }
+  figure { margin: 0; text-align: center; }
+  figcaption { font-size: 12px; color: var(--suave); margin-top: 2px; }
+  figcaption b { display: block; color: var(--tinta); font-size: 13px; }
+  .escena { border-radius: 16px; padding: 4px; }
+  h2 { font-size: 15px; margin: 18px 0 8px; text-transform: uppercase;
+       letter-spacing: .08em; color: var(--suave); }
+  .caras { display: flex; flex-wrap: wrap; gap: 8px; }
+  .caras figure img, .caras figure canvas { border-radius: 10px; display: block; }
+  small.nota { color: var(--suave); }
+</style>
+</head>
+<body>
+<h1>El elenco</h1>
+<p class="sub">
+  Los cuatro Rooties, con sus tres pieles y sus once ánimos, dibujados por el
+  mismo código que usa la app. Editá
+  <code>lib/rooti3d/formas.mjs</code> (los cuerpos) o
+  <code>root-kit/firmware/core/persona.c</code> (las caras y los colores, y
+  después <code>npm run firmware</code>) y recargá: acá se ve todo junto.
+</p>
+
+<div class="mandos">
+  <label>Piel
+    <select id="rareza">
+      <option value="comun">común</option>
+      <option value="raro">rara</option>
+      <option value="epico">épica</option>
+      <option value="todas">las tres</option>
+    </select>
+  </label>
+  <label>Ánimo
+    <select id="animo"></select>
+  </label>
+  <label><input type="checkbox" id="noche"> noche</label>
+  <label><input type="checkbox" id="dormido"> sin despertar</label>
+  <label><input type="checkbox" id="polvo"> con polvo</label>
+  <label>Tamaño
+    <select id="lado">
+      <option value="200">chico</option>
+      <option value="300" selected>mediano</option>
+      <option value="440">grande</option>
+    </select>
+  </label>
+  <button id="mimo">Acariciar a todos</button>
+  <button id="saludo">Que saluden</button>
+  <button id="bajar">Bajar la lámina (PNG)</button>
+</div>
+
+<div class="fila" id="cuerpos"></div>
+
+<h2>Las caras, ánimo por ánimo</h2>
+<p class="sub">
+  Esto es lo que se ve en la pantalla de la maceta: lo dibuja el firmware, el
+  mismo WebAssembly que corre en el ESP32.
+</p>
+<div id="hoja"></div>
+
+<script type="module" src="elenco/elenco.mjs"></script>
+</body>
+</html>
