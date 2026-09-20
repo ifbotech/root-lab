@@ -205,13 +205,14 @@ function respirar(t, lento) {
  * La pose completa en el milisegundo `t`.
  *
  * estado: { animo, noche, dormido, despertar, mimo, saludo, desde }
- *   desde   el milisegundo en que empezó el despertar o el saludo, para que
- *           esas dos animaciones (que tienen principio y fin) sepan por dónde
- *           van. Si falta, se toma 0.
+ *   desde        el milisegundo en que empezó el despertar, que es la única
+ *                animación con principio y fin que viene de afuera;
+ *   desdeSaludo  lo mismo para el saludo, que puede pasar mientras tanto.
  */
 export function pose(figura, estado = {}, t = 0) {
   const {
-    animo = 'HAPPY', noche = false, dormido = false, despertar = false, mimo = 0, saludo = false, desde = 0,
+    animo = 'HAPPY', noche = false, dormido = false, despertar = false, mimo = 0,
+    saludo = false, desde = 0, desdeSaludo = desde,
   } = estado;
 
   const durmiendo = dormido || (noche && ['HAPPY', 'SLEEPING', 'OFFLINE', 'UNKNOWN'].includes(animo));
@@ -259,7 +260,7 @@ export function pose(figura, estado = {}, t = 0) {
   /* El saludo: el brazo derecho arriba, dos segundos. */
   let brazoDer = brazos;
   if (saludo) {
-    const k = limitar((t - desde) / 2000, 0, 1);
+    const k = limitar((t - desdeSaludo) / 2000, 0, 1);
     const alto = Math.sin(Math.PI * limitar(k * 1.15, 0, 1)) ** 0.6;
     brazoDer = brazos + alto * (62 + 16 * onda(t, 340));
     mirada = [limitar(mirada[0] + 0.3 * alto, -1, 1), mirada[1]];

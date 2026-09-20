@@ -216,7 +216,8 @@ export function cuerpo({
   const figura = construir(id);
   const uid = `rc${++secuencia}`;
   const estado = {
-    persona: id, rareza, animo, noche, polvo, dormido, despertar, lux, mimo: 0, motas: [], desde: 0,
+    persona: id, rareza, animo, noche, polvo, dormido, despertar, lux,
+    mimo: 0, saludo: false, motas: [], desde: 0, desdeSaludo: 0,
   };
 
   const raiz = document.createElement('div');
@@ -382,10 +383,25 @@ export function cuerpo({
     requestAnimationFrame(bucle);
   }
 
+  /* El saludo: el brazo arriba dos segundos. Lo tira la primera vez que el
+     Rooti aparece en pantalla, que es cuando alguien lo está mirando. Un
+     dormido no saluda, y uno que ya está durmiendo de noche tampoco. */
+  let saludado = quieto || dormido || noche;
+  function saludar() {
+    if (!raiz.isConnected) return;
+    saludado = true;
+    estado.saludo = true;
+    estado.desdeSaludo = performance.timeOrigin + performance.now();
+    arrancar();
+    setTimeout(() => { estado.saludo = false; }, 2100);
+  }
+  raiz.saludar = saludar;
+
   const observador = typeof IntersectionObserver !== 'undefined'
     ? new IntersectionObserver((e) => {
       visible = e[0].isIntersecting;
       if (visible) arrancar();
+      if (visible && !saludado && !estado.dormido && !estado.noche) setTimeout(saludar, 420);
     }, { rootMargin: '80px' })
     : null;
   observador?.observe(raiz);
