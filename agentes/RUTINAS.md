@@ -112,12 +112,12 @@ columna de la izquierda es la hora de acá (UTC−3), que es la que importa.
 
 | Rutina | Cuándo | En UTC | Abre |
 |---|---|---|---|
-| Vivero · infraestructura | todos los días, 04:10 | `10 7 * * *` | `agentes/infraestructura.md` |
-| Vivero · experiencia | todos los días, 04:25 | `25 7 * * *` | `agentes/experiencia.md` |
-| Vivero · firmware | todos los días, 04:40 | `40 7 * * *` | `agentes/firmware.md` |
-| Vivero · producto | todos los días, 04:55 | `55 7 * * *` | `agentes/producto.md` |
-| Vivero · seguridad | todos los días, 05:10 | `10 8 * * *` | `agentes/seguridad.md` |
-| Vivero · el jardinero | **sábados**, 06:20 | `20 9 * * 6` | `agentes/jardinero.md` |
+| Vivero · infraestructura | todos los días, 03:10 | `10 6 * * *` | `agentes/infraestructura.md` |
+| Vivero · experiencia | todos los días, 03:25 | `25 6 * * *` | `agentes/experiencia.md` |
+| Vivero · firmware | todos los días, 03:40 | `40 6 * * *` | `agentes/firmware.md` |
+| Vivero · producto | todos los días, 03:55 | `55 6 * * *` | `agentes/producto.md` |
+| Vivero · seguridad | todos los días, 04:10 | `10 7 * * *` | `agentes/seguridad.md` |
+| Vivero · el jardinero | **sábados**, 05:20 | `20 8 * * 6` | `agentes/jardinero.md` |
 
 La instrucción de cada rutina es corta a propósito: dice quién es el agente y
 lo manda a abrir su archivo. **El prompt largo vive en el repositorio**, así
@@ -125,10 +125,15 @@ que si mañana mejoramos lo que tiene que hacer un agente, la rutina lo toma
 sola sin tocar nada en la pantalla. Por eso acá no se copia el texto: se copia
 en la rutina una vez y después se edita el `.md`.
 
-**Por qué a esas horas.** Los cinco que miran arrancan de a quince minutos:
-así no compiten entre ellos por el mismo minuto y, si uno tarda, no arrastra a
-los demás. El jardinero va después de todos, el sábado, para elegir sobre una
-lista que ya tiene lo de la semana.
+**Por qué a esas horas.** Las tres de la mañana es cuando la casa duerme y el
+VPS está tranquilo, y deja el informe esperando para cuando alguien se
+levanta. Los cinco que miran arrancan de a quince minutos: así no compiten
+entre ellos por el mismo minuto y, si uno tarda, no arrastra a los demás. El
+jardinero va después de todos, el sábado, para elegir sobre una lista que ya
+tiene lo de la semana.
+
+El cron de `deploy/vivero.cron`, que es la otra forma de dejarlos corriendo,
+sigue en las cuatro: son mecanismos alternativos y nunca corren los dos.
 
 **Por qué el jardinero sólo los sábados.** Los otros cinco proponen; él
 implementa. Todos los días serían siete ramas por semana esperando revisión, y

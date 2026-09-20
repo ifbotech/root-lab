@@ -242,6 +242,39 @@ describe('los tokens de los agentes', () => {
     assert.ok(flota.aparatos.every((d) => !('planta' in d) && !('cuenta' in d)));
   });
 
+  test('la flota devuelve los campos parseados, no crudos de SQLite', async () => {
+    /* `db.flota()` armaba las filas con un SELECT crudo y no las pasaba por
+       `filaDispositivo`, así que `ota` volvía como texto JSON y
+       `deshabilitado` como 0/1. La trastienda compara `d.ota?.estado ===
+       'fallo'` (admin/admin.mjs), que contra un string nunca da true: una OTA
+       fallada no se marcaba en rojo y quien opera no se enteraba. */
+    const esc = panel();
+    const a = aparato(esc, { id: 'E0E1E2E3E4E5' });
+    await a.sync({ ota: { version: '0.6.0', estado: 'fallo' } });
+    const [, flota] = await admin(esc, 'GET', '/api/admin/flota');
+    const d = flota.aparatos.find((x) => x.id === 'E0E1E2E3E4E5');
+    assert.ok(d, 'el aparato está en la flota');
+    assert.strictEqual(d.deshabilitado, false, 'deshabilitado es booleano, no 0');
+    assert.equal(typeof d.ota, 'object', 'ota viene parseada, no como texto');
+    assert.equal(d.ota?.estado, 'fallo', 'y la trastienda puede leerle el estado');
+  });
+
+  test('el freno de un agente cuelga del token, así que no se esquiva rotando de IP', async () => {
+    /* El freno por IP se esquiva con un proxy. Éste no, y hace falta desde que
+       un agente lee producción: /api/admin/lecturas recorre una tabla que
+       crece ~35.000 filas por maceta por año, con SQLite sincrónico y un solo
+       proceso. Un token filtrado —que el diseño asume posible, porque vive en
+       una variable de entorno compartida— podría dejar el servicio afuera sin
+       escribir un byte. */
+    const esc = panel();
+    const [, a] = await admin(esc, 'POST', '/api/admin/agentes', { nombre: 'agente-infra' });
+    let ultimo = 200;
+    for (let i = 0; i < 80 && ultimo !== 429; i += 1) {
+      ultimo = (await esc.llamar('GET', '/api/admin/estado', { token: a.token, ip: `10.0.0.${i % 250}` }))[0];
+    }
+    assert.equal(ultimo, 429, 'el token se frena aunque cambie la IP en cada pedido');
+  });
+
   test('el método importa: la misma ruta que se lee no se escribe', async () => {
     /* /api/admin/aparatos por POST registra una placa de fábrica, por PATCH
        la deshabilita y por DELETE la borra. Un permiso que mirara sólo la
@@ -262,6 +295,13 @@ describe('los tokens de los agentes', () => {
       ['DELETE', '/api/admin/metricas'],
       ['PATCH', '/api/admin/cuentas/c1', { rol: 'admin' }],
       ['DELETE', '/api/admin/sesion'],
+      /* Las dos destructivas de verdad. Un agente que pudiera borrar agentes
+         se revoca a sí mismo y a los otros cinco; uno que pudiera borrar
+         cuentas se lleva puesta a la gente. Ninguna estaba probada, así que
+         agregarlas a PERMISOS_AGENTE no habría puesto una sola prueba en
+         rojo. */
+      ['DELETE', '/api/admin/agentes/1'],
+      ['DELETE', '/api/admin/cuentas/c1'],
     ];
     for (const [metodo, ruta, cuerpo] of escrituras) {
       assert.equal((await conToken(metodo, ruta, cuerpo))[0], 403, `${metodo} ${ruta}`);

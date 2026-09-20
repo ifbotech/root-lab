@@ -88,17 +88,20 @@ que sigue es motivo para cortar la vuelta:
 
   Normalmente ya viene resuelto: el hook de arranque del repo
   (`.claude/hooks/session-start.sh`, registrado en `.claude/settings.json`)
-  deja la sesión en la 24 antes de que empieces. Si igual no estás en la 24,
-  corré el mismo hook a mano y cargá lo que deja:
+  deja la sesión en la 24 antes de que empieces.
+
+  Si igual no estás en la 24, **no hace falta instalar nada ni salir a la
+  red**: la imagen ya trae el binario, sólo hay que ponerlo adelante.
   ```bash
-  CLAUDE_CODE_REMOTE=true CLAUDE_ENV_FILE=/tmp/node24.env bash root-lab/.claude/hooks/session-start.sh
-  . /tmp/node24.env && node -v
+  for bin in "$HOME"/.nvm/versions/node/v*/bin /opt/nvm/versions/node/v*/bin; do
+    [ -x "$bin/node" ] || continue
+    case "$("$bin/node" -v)" in v2[4-9].*|v[3-9][0-9].*) export PATH="$bin:$PATH"; break ;; esac
+  done
+  node -v
   ```
-  (Prueba `nvm`, que está en la imagen pero es una función de shell —`command
-  -v nvm` no la ve—, y si nodejs.org está bloqueado, el paquete `node@24` del
-  registro de npm.) Si aun así no aparece, **no pelees con eso**: no persigas
-  ese rojo, que no es tuyo. Los cinco que miran no necesitan correr pruebas
-  para proponer. Anotalo en tu salida final y seguí.
+  Si aun así no aparece, **no pelees con eso**: no persigas ese rojo, que no es
+  tuyo. Los cinco que miran no necesitan correr pruebas para proponer. Anotalo
+  en tu salida final y seguí.
 
 Lo que te haya faltado, **decilo en tu salida final**. Quien configura el
 vivero no ve tu sesión: si no lo contás, no se arregla.

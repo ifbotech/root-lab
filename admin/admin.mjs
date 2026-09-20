@@ -425,13 +425,17 @@ function bloqueAgentes() {
     const nombre = prompt('¿Cómo se llama el agente? (agente-infra, agente-ux…)');
     if (!nombre) return;
     try {
-      const r = await api('/agentes', { metodo: 'POST', cuerpo: { nombre, alcance: 'vivero' } });
+      /* El alcance se elige acá: RUTINAS.md lo llama "la única decisión real",
+         y hasta ahora el panel creaba siempre `vivero`, así que un token de
+         jardinero no se podía sacar de esta pantalla. */
+      const informa = confirm('¿Este agente además manda el informe por correo?\n\nEl jardinero, sí. Los cinco que sólo miran, no.');
+      const r = await api('/agentes', { metodo: 'POST', cuerpo: { nombre, alcance: informa ? 'jardinero' : 'vivero' } });
       await cargar('cuentas');
       pintar();
       /* El token se ve una vez: se muestra grande y se copia. */
       const caja = h('section', { class: 'panel' },
         h('h2', {}, `El token de ${r.nombre}`),
-        h('p', { class: 'nota', style: 'margin-top:0' }, 'Copialo ahora: no se vuelve a mostrar. Va en la variable ROOTLAB_ADMIN_CLAVE del agente, y sólo sirve para el vivero.'),
+        h('p', { class: 'nota', style: 'margin-top:0' }, `Copialo ahora: no se vuelve a mostrar. Va en la variable ROOTLAB_ADMIN_CLAVE del agente. Lee cómo anda el producto y escribe en el vivero${r.alcance === 'jardinero' ? ', y manda el informe por correo' : ''}: nada de cuentas, datos de personas ni firmware.`),
         h('textarea', { readonly: true, rows: '2', onFocus: (e) => e.target.select() }, r.token),
         h('button', { class: 'boton', type: 'button', onClick: () => pintar() }, 'Listo, lo copié'));
       render($('#vista'), caja);

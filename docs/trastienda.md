@@ -177,13 +177,19 @@ permiso que mirara sólo la ruta le daría todo eso a quien sólo tenía que lee
 
 Lo que un agente lee son recuentos y ritmos: la flota pasa por `aparatoAdmin`,
 que deja al dueño afuera (dice si un aparato está vinculado, no a quién), y
-ninguna de las cuatro rutas trae emails, nombres, plantas ni ciudades. Hay una
-prueba que arma una cuenta con todo eso y comprueba que no aparece.
+ninguna de las cuatro rutas trae emails, plantas, charlas ni ciudades. Hay una
+prueba que arma una cuenta con todo eso y comprueba que no aparece. El único
+nombre que sale es el de quien grabó la placa en la fábrica (`persona`), que es
+de la casa y no de un cliente.
 
-Un token de agente que se filtre no sirve para ver cuentas, ni aparatos uno
-por uno, ni publicar firmware: lo peor que puede hacer quien lo tenga es leer
-cuántos aparatos hay y cómo andan, y escribir ideas en una lista. Se revoca
-desde la misma pantalla y deja de servir al instante.
+Un token de agente que se filtre no sirve para ver cuentas, ni datos de
+personas, ni publicar firmware, ni borrar nada: lo peor que puede hacer quien
+lo tenga es leer la flota —aparato por aparato, pero sin dueño: MAC, lote,
+firmware, batería y señal— junto con los recuentos del producto, y escribir
+ideas en una lista. Además tiene su propio freno, de 60 pedidos por minuto,
+que cuelga del token y no de la IP: el de la IP se esquiva con un proxy, y
+`/api/admin/lecturas` es cara. Se revoca desde la misma pantalla y deja de
+servir al instante.
 
 Los seis del proyecto ya están creados y guardados en el VPS, en
 `/root/vivero-tokens.txt` (sólo lo lee root). Para leer uno:

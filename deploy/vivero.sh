@@ -12,13 +12,17 @@
 #
 #   ROOTLAB_NUBE=https://ifbotech.com/rootkit
 #   ROOTLAB_ADMIN_CLAVE=agt_...        el TOKEN DEL AGENTE, no la clave del
-#                                      servidor: sólo puede escribir en el
-#                                      vivero (trastienda → Cuentas → Agentes)
+#                                      servidor: lee cómo anda el producto y
+#                                      escribe en el vivero, nada más
+#                                      (trastienda → Cuentas → Agentes)
 #   PROYECTO=/home/rootlab/proyecto    la carpeta con root-kit y root-lab
 #
-# Por qué un token de agente y no la clave: esto corre solo, todos los días,
-# en una máquina que no está mirando nadie. Si el archivo se filtra, lo peor
-# que puede pasar es que alguien escriba ideas en una lista.
+# Por qué un token de agente y no la clave: esto corre solo, todos los días, en
+# una máquina que no está mirando nadie. Si el archivo se filtra, quien lo tenga
+# puede leer la flota aparato por aparato y los recuentos del producto, y
+# escribir ideas en una lista; no puede tocar cuentas, ni datos de personas, ni
+# firmware. Con la clave del servidor podría todo eso. Por eso este archivo va
+# con chmod 600 y en una máquina que no sea la de producción.
 
 set -euo pipefail
 
