@@ -36,7 +36,7 @@
 
 import { mezclar } from './paletas.mjs';
 import { pielDe, modeloPorId } from './rooties.mjs';
-import { cara, imagenCara } from './caras.mjs';
+import { cara, imagenCara, cargarCaras } from './caras.mjs';
 import { ROOTIES, construir } from './rooti3d/formas.mjs';
 import { pose, efectos, motasDePolvo, limitar } from './rooti3d/animacion.mjs';
 import { motor } from './rooti3d/motor.mjs';
@@ -253,6 +253,8 @@ export function cuerpo({
 
   const gl = motor();
 
+
+
   let piel = null;
   let colores = null;
   let dpr = 1;
@@ -307,6 +309,10 @@ export function cuerpo({
       luz: estado.noche ? [-0.3, 0.9, 0.42] : [-0.45, 0.78, 0.65],
       /* Lo que dice el sensor de luz: la misma cuenta que usa la cara. */
       ambiente: estado.dormido ? null : iluminacion(estado.lux),
+      /* El fondo que la textura trae y que no hay que pintar. Dormido, el
+         firmware apaga la pantalla y el fondo es negro; despierto, es el color
+         del cuerpo, porque la cara va pintada encima. */
+      fondoCara: estado.dormido ? '#000000' : colores.cuerpo,
     });
     const adornos = estado.dormido ? [] : piel.adornos || [];
     dibujarMotas(ctx, estado.motas, proyectar, dpr);
@@ -419,9 +425,18 @@ export function cuerpo({
      ve como un error. */
   cuadro(estado.desde);
   if (quieto) {
-    /* El estático necesita un segundo cuadro cuando la cara del WASM terminó
-       de cargar, que es asincrónico y no avisa. */
-    setTimeout(() => { if (raiz.isConnected) cuadro(estado.desde); }, 300);
+    /* El estático dibuja UN cuadro, pero la cara la pinta un WebAssembly que
+       carga después: si no se espera, la textura que se sube está en blanco y
+       el Rooti se queda sin cara para siempre. Se redibuja cuando el módulo
+       terminó de cargar y una vez más cuando ya pintó su primer cuadro. */
+    cargarCaras().then(() => {
+      /* Tres repasos: el módulo ya cargó, pero cada cara tarda todavía un
+         cuadro o dos en pintarse, y el estático no tiene bucle que la
+         alcance. Son tres dibujos de un canvas chico: sale gratis. */
+      for (const cuando of [0, 260, 900]) {
+        setTimeout(() => { if (raiz.isConnected) cuadro(estado.desde); }, cuando);
+      }
+    }).catch(() => { /* sin caras, el cuerpo igual se ve */ });
   } else {
     arrancar();
   }

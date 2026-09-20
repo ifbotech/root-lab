@@ -267,7 +267,7 @@ export function pose(figura, estado = {}, t = 0) {
   }
 
   const grupos = {};
-  for (const nombre of Object.keys(figura.grupos || {})) {
+  for (const nombre of Object.keys(figura.pivotes || {})) {
     if (nombre === 'cuerpo') continue;
     if (nombre === 'copa') { grupos.copa = copa; continue; }
     if (nombre === 'brazo-izq') { grupos[nombre] = { en: [0, 0, 0], giro: [0, 0, -brazos], esc: [1, 1, 1] }; continue; }
@@ -277,6 +277,10 @@ export function pose(figura, estado = {}, t = 0) {
 
   /* La sombra delata la altura: cuando salta, se achica y se aclara. */
   const alto = cuerpo.en[1];
+  /* El motor pide siempre los cuatro huesos: los que la figura no tenga se
+     quedan quietos en vez de faltar. */
+  for (const nombre of ['copa', 'brazo-izq', 'brazo-der']) if (!grupos[nombre]) grupos[nombre] = quieto();
+
   return {
     cuerpo,
     grupos,

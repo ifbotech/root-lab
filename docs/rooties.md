@@ -25,10 +25,10 @@ maceta y otra en la app.
 | Rooti | Figura | Rasgo que manda | Personalidad | Cara |
 |---|---|---|---|---|
 | **Brote** | semilla germinando: cuerpo lleno y gordito | dos cotiledones en V sobre un tallo corto | curiosa y entusiasta | ojos redondos enormes con brillos de cachorro, sin cejas |
-| **Musgo** | almohadón bajo y ancho, con tres capas de flecos | dos esporofitos (los tallitos con cápsula que el musgo saca de verdad) | serena y zen | ojos en medialuna "u u", boca de gato |
-| **Pinchito** | cactus barril con costillas verticales | una flor de cinco pétalos arriba y un brazo levantado que saluda | hiperactiva y alegre | ojos en arco "^ ^" que guiñan, sonrisa con dientecito |
-| **Bulbo** | bulbo de cebolla con gajos suaves y raicitas por patas | un brote con su hoja saliendo de la punta | soñadora y un poco mágica | ojos grandes con doble brillo, cejas flotantes |
-| **Champi** | hongo: tallo macizo con anillo | un sombrero de campana que le hace de visera a la cara | glotona y charlatana | cejas finas, boca ":D" con lengua, pecas |
+| **Musgo** | almohadón bajo y ancho, con montículos en la espalda | dos esporofitos (los tallitos con cápsula que el musgo saca de verdad) | serena y zen | ojos en medialuna "u u", boca de gato |
+| **Pinchito** | cactus barril: panza ancha, arriba y abajo más angosto | una flor de cuatro pétalos y el brazo levantado que saluda | hiperactiva y alegre | ojos en arco "^ ^" que guiñan, sonrisa con dientecito |
+| **Bulbo** | gota gorda que termina en punta, parada sobre sus raíces | un brote con su hoja saliendo de la cabeza | soñadora y un poco mágica | ojos grandes con doble brillo, cejas flotantes |
+| **Champi** | hongo: tallo corto y gordo con su anillo | un sombrero de campana con pintas que le hace de visera | glotona y charlatana | cejas finas, boca ":D" con lengua, pecas |
 
 La tabla de datos es una sola: `root-kit/firmware/core/persona.c`.
 `npm run firmware` la copia a `public/lib/rooties.mjs` (nombres, lemas y los
@@ -37,30 +37,29 @@ de las notificaciones.
 
 ### De dónde salen las formas
 
-De dos lados a la vez, y ninguno es negociable:
+De dos lados:
 
 1. **De una planta de verdad.** Una semilla germinando, un almohadón de musgo
    con esporofitos, un cactus barril, un bulbo de cebolla, un hongo con
    anillo. Es lo que hace que un Rooti se entienda sin explicación.
-2. **De lo que la impresora sabe hacer.** Cada forma es una que sale en FDM
-   sin soportes: cuerpos de revolución, bultos con el culo en cono de 45°,
-   tallos que suben y hojas lanceoladas. Una hoja horizontal no existe en este
-   elenco porque no se imprime.
+2. **De la escuela de los juguetes de vinilo**: cuerpo gordito de una sola
+   pieza, un rasgo botánico que manda arriba, patitas y bracitos mínimos, cara
+   grande pintada sobre el cuerpo, colores saturados y un contorno oscuro que
+   los recorta. Los juegos de criaturas-vegetales con esa estética —Ooblets es
+   el ejemplo evidente— fueron el norte.
 
-La escuela visual es la de los **juguetes de vinilo**: cuerpo simple y
-gordito, UN rasgo que manda arriba, patitas mínimas, cara pintada sobre el
-cuerpo, colores brillantes y un contorno oscuro que los recorta. Los juegos de
-criaturas-vegetales con esa estética —Ooblets es el ejemplo evidente— fueron
-el norte del refactor.
+**Lo que NO condiciona las formas es la impresora.** Se probó, y salió mal:
+atar el arte a que la figura se imprimiera sin soportes dejó cinco cuerpos
+redondos y sin carácter. Las carcasas son otro objeto y se diseñan aparte.
 
 **Distancia legal.** La inspiración es de escuela, no de personaje: tomamos el
-lenguaje (formas simples, paleta saturada, un rasgo botánico por bicho) y no
-la silueta de nadie. Cada Rooti sale de su planta, tiene su nombre, su
+lenguaje (formas simples, paleta saturada, un rasgo botánico por bicho) y no la
+silueta de nadie. Cada Rooti sale de su planta, tiene su nombre, su
 personalidad y su cara propia —la cara es la del firmware, que es nuestra y
 existe desde antes—, y ninguno reproduce las proporciones, el rasgo ni la
 paleta de una criatura concreta de otro juego. Si alguna vez una figura se
-parece demasiado a algo existente, se cambia: hay cinco figuras y son cinco
-tablas de números.
+pareciera demasiado a algo existente, se cambia: una figura son treinta
+números en una tabla.
 
 ### Los colores de una piel
 
@@ -68,7 +67,7 @@ Cada piel son **cinco** colores en `persona.c` más los adornos:
 
 | Color | Dónde va |
 |---|---|
-| `piel` | el cuerpo. Y el fondo de la cara, que va **igual**: la cara está pintada sobre el cuerpo, no metida en un marco |
+| `piel` | el cuerpo. Y el fondo de la cara, que va **igual**: así el motor sabe qué parte de la textura es fondo y la descarta, y quedan pintados sólo los rasgos |
 | `fondo` | el fondo de la pantalla; es el mismo valor que `piel` por lo de arriba, y el firmware lo comprueba |
 | `ojos` | ojos, boca, cejas y —aclarado hacia el cuerpo— el contorno de la figura |
 | `rubor` | las mejillas |
@@ -117,65 +116,97 @@ hace con plantas, aparatos y colecciones.
 
 ## El 3D (`public/lib/rooti3d/`)
 
-**El modelo es la figura que se imprime.** No hay una versión "bonita" para la
-pantalla y otra para la impresora: es una sola malla, en milímetros, que sale
-en STL con `npm run carcasas` y que en cada commit se mide contra las reglas
-de FDM y contra el hardware que tiene que entrar adentro.
+**El personaje de la app y la carcasa del aparato son dos objetos distintos.**
+Lo fueron a propósito desde el segundo intento: la primera versión ató el
+diseño de los Rooties a que salieran de una impresora sin soportes, y el
+resultado fueron cinco papas redondas, correctas y sin gracia. Las carcasas se
+diseñan aparte, en el CAD del hardware; acá mandan el carácter y la silueta.
+
+De los modelos sale igual un STL (`npm run carcasas`), pero como **referencia
+de forma** para quien modele el aparato, no como la carcasa.
 
 ### Sin bibliotecas
 
 No hay three.js. La app pesa 89 KB comprimida y una biblioteca 3D la
-duplicaría para dibujar cinco bichos hechos de esferas; además la CSP es
-`script-src 'self' 'wasm-unsafe-eval'` y no queremos aflojarla. Son cuatro
-primitivas, un par de matrices y un shader de treinta líneas.
+duplicaría; además la CSP es `script-src 'self' 'wasm-unsafe-eval'` y no
+queremos aflojarla. Son unas pocas funciones de distancia, un mallador y un
+shader de treinta líneas.
 
 | Archivo | Qué hace |
 |---|---|
-| `geometria.mjs` | matrices y las cuatro primitivas: `revolucion`, `gota`, `capsula`, `hoja`, más `elipsoide` para las patitas. Cada una devuelve su malla **y** un `dentro(p)` |
-| `formas.mjs` | los cinco Rooties como tablas: un perfil que gira y una lista de piezas encima. `ENVOLVENTE` es lo que tiene que entrar adentro |
-| `imprimible.mjs` | las mediciones: voladizos, piezas sin apoyo, base, centro de masa, curvatura de la cara, si entra el hardware, y el STL |
+| `esculpir.mjs` | las funciones de distancia, la unión suave y el mallador (surface nets) |
+| `formas.mjs` | los cinco Rooties como listas de bultos, en milímetros |
 | `animacion.mjs` | `pose(figura, estado, t)`: funciones puras, sin estado ni DOM |
 | `motor.mjs` | un contexto WebGL compartido por toda la página; dibuja y copia a cada canvas |
+| `geometria.mjs` | las matrices, nada más |
 
-### Las primitivas son formas que la impresora sabe hacer
+### Los bichos se esculpen, no se arman
 
-| Primitiva | Qué es | Por qué así |
-|---|---|---|
-| `revolucion` | un perfil que gira, achatable de adelante hacia atrás, con costillas opcionales | es el cuerpo; su voladizo es la pendiente del perfil. Las costillas **se apagan solas cerca del frente**: ahí va el vidrio del TFT, que es plano |
-| `gota` | media esfera arriba y un cono de 45° abajo | un bulto redondo de verdad tendría la panza mirando al piso. Es la forma de brazos, matas, raicitas y manchas |
-| `capsula` | un tubo que puede afinarse | tallos, esporofitos, pinchos, el brazo del cactus. Sólo vale si sube |
-| `hoja` | una placa lanceolada con espesor y una raíz que queda metida en el tallo | el canto de una hoja que se abre de golpe es una pared que mira al piso; una lanceolada abre a una pendiente que se elige (`abre`) y después cierra |
+Cada criatura es una lista de bultos —esferas, elipsoides, cápsulas, hojas,
+toros— que **se funden entre sí**. No se pegan: en vez de quedarse con la
+superficie más cercana, se mezclan las dos con un radio (`fundir`), y ahí
+aparece el menisco de plastilina. Por eso un bracito SALE del torso con su
+hombro, y la fusión de las ancas con el torso hace el cogote sin modelarlo.
 
-Cada pieza sabe decir si un punto está adentro (`dentro(p)`). Con eso, la
-prueba de voladizos ignora los triángulos escondidos dentro de otra pieza: se
-mide la superficie de verdad, no las costuras.
+La receta de un cuerpo se lee de abajo hacia arriba, como se lo dibujaría:
+
+| Parte | Para qué |
+|---|---|
+| ancas | el bulto de abajo, el más ancho: la pose de juguete bien plantado |
+| torso | el bulto de arriba, donde va la cara |
+| patitas | dos bultos achatados un poco adelante; justo abajo darían un huevo |
+| bracitos | dos cápsulas cortas que salen del torso |
+| copa | lo que lleva arriba y lo identifica: hojas, flor, esporas, sombrero, brote |
+| manchas | bultos metidos adentro que no cambian la forma, sólo el color: la panza clara, las pintas del sombrero |
+
+Un detalle que costó aprender: los surcos **restados** (las costillas del
+cactus, los gajos de la cebolla) parten el cuerpo en tentáculos en cuanto la
+resta llega al borde de la silueta. Las costillas son lomos sumados, no
+zanjas.
+
+De esa lista sale una malla con surface nets: se recorre una grilla, se busca
+dónde el campo cambia de signo y se cose. Las normales salen del gradiente del
+campo, no de los triángulos, así que la superficie se ve lisa aunque la grilla
+sea gruesa. Son unos 10 000 triángulos y una décima de segundo por Rooti, una
+sola vez.
+
+### Un color por rol y cuatro huesos, en el mismo vértice
+
+El vértice no guarda un color: guarda **cuánto le toca de cada rol** (cuerpo,
+acento, claro, oscuro). Los cuatro colores llegan al shader como uniformes, así
+que la misma malla sirve para las tres pieles y el verde de una hoja se
+derrite en el cuerpo en vez de cortarse.
+
+Y guarda **cuánto le toca de cada hueso** (cuerpo, copa, brazo izquierdo, brazo
+derecho): el shader mezcla las cuatro matrices en esa proporción. Por eso la
+copa se inclina arrastrando el cogote y el brazo que saluda dobla el hombro,
+sin juntas. Las dos cosas —color y hueso— salen del mismo peso con el que se
+fundieron los bultos, que es lo que hace que nunca haya una costura.
 
 ### Lo que se comprueba en cada commit
 
 `test/rooti3d.test.mjs`, para los cinco:
 
-- **Ningún voladizo visible pasa de 45°** y **ninguna pieza empieza en el
-  aire** (su punto más bajo está en la cama o dentro de otra pieza).
-- **Todas las mallas están del derecho**: volumen con signo positivo (fue así
-  como se encontró que media figura tenía los triángulos al revés).
-- **Base plana** de al menos el 45 % del ancho y **centro de masa** en la
-  mitad de abajo.
-- **Entra la 18650 parada** (23 × 76 × 21, con 1,6 mm de pared) y **el módulo
-  del TFT** detrás de la cara, comprobado punto por punto contra la geometría.
-- **La cara queda en una zona plana**: la ventana se curva menos de 6 mm y el
-  hueco del módulo entero, menos de 8.
-- **Nada tapa la pantalla** y **nada es más fino que dos hilos de boquilla**.
-- **La animación es determinista** y no se sale de escala.
+- las mallas están **cerradas y del derecho** (volumen con signo positivo) y
+  sin NaN;
+- cada Rooti **apoya en el piso** y mide lo que mide una criatura de bolsillo,
+  con proporción de personaje y no de palo ni de torta;
+- los **pesos de cada vértice suman uno**, en los roles y en los huesos;
+- la **copa manda arriba** y no llega a los pies;
+- la **cara cae sobre el frente**;
+- las funciones de distancia y la unión suave dan lo que deben, y esculpir una
+  esfera da el volumen de una esfera;
+- la **animación es determinista** y no se sale de escala.
 
 Medidas de hoy:
 
-| Rooti | Tamaño (mm) | Base | Centro de masa | Hueco del módulo |
-|---|---|---|---|---|
-| Brote | 90,7 × 152,1 × 76 | 56 % | 34 % | 4,9 mm |
-| Musgo | 86,4 × 145,5 × 82,1 | 67 % | 36 % | 5,6 mm |
-| Pinchito | 92,8 × 132,3 × 72,3 | 48 % | 42 % | 4,9 mm |
-| Bulbo | 89,7 × 146,6 × 79 | 54 % | 35 % | 5,1 mm |
-| Champi | 80 × 132 × 76 | 69 % | 28 % | 5,3 mm |
+| Rooti | Tamaño (mm) | Triángulos |
+|---|---|---|
+| Brote | 83 × 129 × 63 | 12 024 |
+| Musgo | 91 × 99 × 73 | 9 596 |
+| Pinchito | 93 × 106 × 62 | 11 136 |
+| Bulbo | 88 × 116 × 64 | 9 644 |
+| Champi | 87 × 118 × 83 | 14 328 |
 
 ### Cómo se mueve
 
@@ -224,20 +255,23 @@ envuelta (para que la sombra no sea un borde duro), un brillo especular ancho
 dibujado con las caras de atrás infladas: es lo que le da el aire de
 ilustración y no de render.
 
-Dos detalles que se ven cuando faltan:
+Tres detalles que se ven cuando faltan:
 
+- **La cara se pinta, no se pega.** De la textura sólo se toman los RASGOS: el
+  shader descarta los píxeles que traen el color de fondo de esa cara. Si se
+  pegara el cuadro entero, ese fondo plano taparía el sombreado del cuerpo y
+  la cara se vería como una calcomanía pegada en la panza. El color de fondo a
+  descartar se le pasa al motor, porque no siempre es el del cuerpo: el que
+  todavía no despertó tiene la pantalla apagada, y su fondo es negro.
 - **La cara se linealiza igual que el cuerpo.** Llega en sRGB y el color del
-  cuerpo está en lineal; sin convertirla, el fondo de la cara —que es el mismo
-  color del cuerpo— queda más claro y aparece el recuadro de la pantalla como
-  un parche pegado.
+  cuerpo está en lineal.
 - **La luz del cuarto se la pone el motor al bicho entero.** El sensor de luz
-  hace que la cara se ponga cálida en penumbra y contrastada a pleno sol
+  hace que todo se ponga cálido en penumbra y contrastado a pleno sol
   (`lib/luz.mjs`). Si eso se le aplicara sólo a la cara, la pantalla tendría
-  una luz y el cuerpo otra. La textura se dibuja limpia y el ambiente se
-  aplica al final, sobre todo.
+  una luz y el cuerpo otra.
 
-**Un contexto WebGL para toda la página.** En la colección hay quince Rooties
-a la vez y un navegador da unos ocho contextos antes de empezar a tirar los
+**Un contexto WebGL para toda la página.** En la colección hay quince Rooties a
+la vez y un navegador da unos ocho contextos antes de empezar a tirar los
 viejos: hay uno solo, escondido, y lo que dibuja se copia con `drawImage` al
 canvas 2D de cada uno.
 
@@ -285,10 +319,13 @@ un snack. Adentro vive el canvas de la cara, invisible, que es la textura.
 | Archivo | Qué hace |
 |---|---|
 | `public/lib/rooties.mjs` | generado: `MODELOS`, `RAREZAS`, `pielDe`, `idPiel` |
-| `public/lib/rooti3d/*.mjs` | la geometría, las figuras, las mediciones, la animación y el motor |
+| `public/lib/rooti3d/esculpir.mjs` | las distancias, la unión suave y el mallador |
+| `public/lib/rooti3d/formas.mjs` | los cinco Rooties como listas de bultos |
+| `public/lib/rooti3d/animacion.mjs` | las poses, puras y deterministas |
+| `public/lib/rooti3d/motor.mjs` | el WebGL: skinning, roles de color y la cara |
 | `public/lib/cuerpo.mjs` | el componente: colores por rol, el reloj y los adornos en 2D |
 | `public/lib/caras.mjs` | la cara del firmware |
 | `server/cofre.mjs` | `PROBABILIDADES`, `sortearRareza`, `personaDeAparato`, `LEGADO` |
 | `server/api.mjs` | `POST /api/cofre/abrir`, `rareza` en el sync, la colección de pieles |
 | `tools/sincronizar-firmware.mjs` | lee `persona.c` y genera `rooties.mjs`, el wasm y las imágenes |
-| `tools/rooties-stl.mjs` | `npm run carcasas`: escribe los cinco STL en el repo del hardware |
+| `tools/rooties-stl.mjs` | `npm run carcasas`: los STL de referencia para el hardware |

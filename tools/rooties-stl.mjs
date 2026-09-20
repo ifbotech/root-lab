@@ -1,108 +1,102 @@
-/* rooties-stl.mjs — saca las carcasas en STL desde el mismo modelo que la app.
+/* rooties-stl.mjs — saca los cinco Rooties en STL, como REFERENCIA de forma.
  *
- * El Rooti que gira en el teléfono y la carcasa que sale de la impresora son
- * la misma malla: lib/rooti3d/formas.mjs, en milímetros. Este script la
- * escribe en STL binario y, de paso, deja al lado un informe con lo que hay
- * que saber antes de laminar (tamaño, voladizos, dónde entra la celda).
+ * OJO: esto NO son las carcasas.
+ *
+ * Los personajes de la app se esculpen para verse bien, no para salir de una
+ * impresora: tienen patas separadas, brazos en alto y sombreros voladores, y
+ * varias de esas cosas necesitarían soporte. Las carcasas se diseñan aparte,
+ * en el CAD del hardware, y son otro objeto: tienen que alojar la 18650, el
+ * módulo del TFT y la electrónica.
+ *
+ * Para qué sirve entonces: para tener la forma del personaje en la mano
+ * cuando se modela la carcasa, y para imprimir una figura decorativa si se
+ * quiere (con soportes).
  *
  *   node tools/rooties-stl.mjs [carpeta]
  *
- * Por defecto escribe en ../rootkit/carcasas/, que es el repo del hardware:
- * los STL viven con el firmware y las carcasas, no con la app.
- *
- * NO hay un modelo "de impresión" aparte del de pantalla. Si alguna vez hay
- * dos, el que se imprime deja de estar probado, y entonces las pruebas de
- * voladizos y de hardware que corren en cada commit no dicen nada del objeto
- * que el usuario tiene en la mano.
+ * Por defecto escribe en ../rootkit/carcasas/, que es el repo del hardware.
  */
 import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ROOTIES, construir, ENVOLVENTE } from '../public/lib/rooti3d/formas.mjs';
-import { analizar, stlBinario, CAMA } from '../public/lib/rooti3d/imprimible.mjs';
+import { ROOTIES, construir } from '../public/lib/rooti3d/formas.mjs';
+import { volumen } from '../public/lib/rooti3d/esculpir.mjs';
 import { MODELOS } from '../public/lib/rooties.mjs';
 
-const aqui = path.dirname(fileURLToPath(import.meta.url));
-const destino = path.resolve(aqui, '..', process.argv[2] || '../rootkit/carcasas');
-
-await mkdir(destino, { recursive: true });
-
-const filas = [];
-for (const id of ROOTIES) {
-  const figura = construir(id);
-  const modelo = MODELOS.find((m) => m.id === id);
-  const a = analizar(figura);
-  const stl = stlBinario(figura, modelo?.nombre || id);
-  await writeFile(path.join(destino, `${id}.stl`), stl);
-  filas.push({ id, nombre: modelo?.nombre || id, a, kb: Math.round(stl.length / 1024) });
-  const problema = [
-    a.entraEnLaCama ? null : 'no entra en la cama',
-    a.voladizos.length ? `voladizos: ${a.voladizos.map((v) => `${v.parte} ${v.grados}°`).join(', ')}` : null,
-    a.sinApoyo.length ? `en el aire: ${a.sinApoyo.map((s) => s.parte).join(', ')}` : null,
-    a.hardware.bateria ? null : 'no entra la celda',
-    a.hardware.pantalla ? null : 'no entra la pantalla',
-  ].filter(Boolean);
-  console.log(`${id.padEnd(9)} ${a.tamano.join(' × ').padEnd(22)} ${String(a.triangulos).padStart(6)} tri  ${String(Math.round(stl.length / 1024)).padStart(4)} KB  ${problema.length ? `⚠ ${problema.join('; ')}` : 'ok'}`);
+/** La malla en STL binario. */
+export function stlBinario(malla, titulo = '') {
+  const n = malla.idx.length / 3;
+  const buf = new ArrayBuffer(84 + n * 50);
+  const v = new DataView(buf);
+  new Uint8Array(buf, 0, 80).set(new TextEncoder().encode(`ROOTKIT ${titulo}`.slice(0, 79)));
+  v.setUint32(80, n, true);
+  let o = 84;
+  const p = malla.pos;
+  for (let i = 0; i < malla.idx.length; i += 3) {
+    const a = malla.idx[i] * 3; const b = malla.idx[i + 1] * 3; const c = malla.idx[i + 2] * 3;
+    const ux = p[b] - p[a]; const uy = p[b + 1] - p[a + 1]; const uz = p[b + 2] - p[a + 2];
+    const vx = p[c] - p[a]; const vy = p[c + 1] - p[a + 1]; const vz = p[c + 2] - p[a + 2];
+    const nx = uy * vz - uz * vy; const ny = uz * vx - ux * vz; const nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1;
+    v.setFloat32(o, nx / l, true); v.setFloat32(o + 4, ny / l, true); v.setFloat32(o + 8, nz / l, true);
+    o += 12;
+    for (const k of [a, b, c]) {
+      v.setFloat32(o, p[k], true); v.setFloat32(o + 4, p[k + 1], true); v.setFloat32(o + 8, p[k + 2], true);
+      o += 12;
+    }
+    v.setUint16(o, 0, true);
+    o += 2;
+  }
+  return new Uint8Array(buf);
 }
 
-const md = `# Las carcasas, en STL
+if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('rooties-stl.mjs')) {
+  const aqui = path.dirname(fileURLToPath(import.meta.url));
+  const destino = path.resolve(aqui, '..', process.argv[2] || '../rootkit/carcasas');
+  await mkdir(destino, { recursive: true });
 
-<!-- GENERADO por root-lab/tools/rooties-stl.mjs. No editar a mano: los STL y
-     esta tabla salen del mismo modelo que dibuja la app, así que para cambiar
-     una figura se edita root-lab/public/lib/rooti3d/formas.mjs y se vuelve a
-     correr el script. -->
+  const filas = [];
+  for (const id of ROOTIES) {
+    /* Con paso fino: acá no importa que tarde, y el STL se ve mejor. */
+    const figura = construir(id, { paso: 1.6 });
+    const modelo = MODELOS.find((m) => m.id === id);
+    const stl = stlBinario(figura.malla, modelo?.nombre || id);
+    await writeFile(path.join(destino, `${id}.stl`), stl);
+    const l = figura.limites;
+    const tam = [l.hi[0] - l.lo[0], l.hi[1] - l.lo[1], l.hi[2] - l.lo[2]].map((n) => Math.round(n * 10) / 10);
+    filas.push({ id, nombre: modelo?.nombre || id, tam, tri: figura.malla.triangulos, vol: volumen(figura.malla) });
+    console.log(`${id.padEnd(9)} ${tam.join(' × ').padEnd(22)} ${String(figura.malla.triangulos).padStart(6)} tri  ${String(Math.round(stl.length / 1024)).padStart(4)} KB`);
+  }
 
-Estos cinco archivos son los mismos Rooties que se ven girando en ROOTLAB. No
-hay una versión "para imprimir" y otra "para la pantalla": es una sola malla,
-en milímetros, y por eso lo que se prueba en cada commit
-(\`root-lab/test/rooti3d.test.mjs\`) vale para el objeto que vas a tener en la
-mano.
+  const md = `# Los Rooties en STL — referencia de forma
 
-## Cómo se imprimen
+<!-- GENERADO por root-lab/tools/rooties-stl.mjs (npm run carcasas). Para
+     cambiar una figura se edita root-lab/public/lib/rooti3d/formas.mjs. -->
 
-Sin soportes, sin balsa y sin ajustes raros:
+**Esto no son las carcasas.** Son los cinco personajes tal como se ven en
+ROOTLAB, exportados para tenerlos a mano mientras se modela el aparato.
 
-* **Orientación**: como vienen. La base plana apoya en la cama y ningún
-  voladizo pasa de 45°.
-* **Boquilla** 0,4 mm, **capa** 0,2 mm. Nada de la figura es más fino que
-  2 mm, o sea cinco hilos.
-* **Relleno** 15 % giroide. La celda va adentro: no hace falta más.
-* **Perímetros** 3, que es lo que aguanta una caída de la mesa.
-* **Material** PLA o PETG. El PETG aguanta mejor el sol de una ventana, que
-  es donde va a vivir.
+El personaje y la carcasa son dos objetos distintos, a propósito:
 
-## Qué tiene que entrar adentro
-
-| Pieza | Medida | Dónde |
-| --- | --- | --- |
-| Celda 18650 con portapilas | ${ENVOLVENTE.bateria.ancho} × ${ENVOLVENTE.bateria.alto} × ${ENVOLVENTE.bateria.fondo} mm | parada, desde ${ENVOLVENTE.bateria.desdeY} mm del piso, centrada y ${Math.abs(ENVOLVENTE.bateria.z)} mm hacia atrás |
-| Módulo TFT 1,44" | ${ENVOLVENTE.pantalla.ancho} × ${ENVOLVENTE.pantalla.alto} × ${ENVOLVENTE.pantalla.fondo} mm | detrás de la cara, a ${ENVOLVENTE.pantalla.detras} mm del frente plano |
-| Pared mínima | ${ENVOLVENTE.pared} mm | en todo el contorno |
-
-La cama de referencia es de ${CAMA.join(' × ')} mm (una Ender 3 o parecida).
+* el **personaje** se esculpe para verse bien: tiene patitas separadas, brazos
+  levantados y sombreros que vuelan. Varias de esas cosas no salen de una
+  impresora sin soporte, y está bien que así sea;
+* la **carcasa** tiene que alojar la celda 18650 parada, el módulo del TFT de
+  1,44" y la electrónica, apoyarse sin volcarse y salir de la impresora. Se
+  diseña aparte, en el CAD del hardware, tomando de acá la silueta y el
+  carácter.
 
 ## Los cinco
 
-| Rooti | Archivo | Tamaño (mm) | Triángulos | Base | Centro de masa | Hueco del módulo |
-| --- | --- | --- | --- | --- | --- | --- |
-${filas.map((f) => `| ${f.nombre} | \`${f.id}.stl\` | ${f.a.tamano.join(' × ')} | ${f.a.triangulos} | ${Math.round(f.a.base.proporcion * 100)} % del ancho | ${Math.round((f.a.centroDeMasa / f.a.tamano[1]) * 100)} % del alto | ${f.a.hueco.mm.toFixed(1)} mm |`).join('\n')}
+| Rooti | Archivo | Tamaño (mm) | Triángulos |
+| --- | --- | --- | --- |
+${filas.map((f) => `| ${f.nombre} | \`${f.id}.stl\` | ${f.tam.join(' × ')} | ${f.tri} |`).join('\n')}
 
-El **centro de masa** es de la carcasa vacía; con la celda puesta baja todavía
-más, porque la celda es lo más pesado y va abajo. El **hueco del módulo** es
-cuánto hay que rebajar el frente para que el TFT, que es una plaquita rígida y
-plana, apoye derecho.
-
-## Lo que falta por hacer a mano
-
-Los STL son el cuerpo. Todavía hay que modelar, y se hace en el CAD del
-hardware, no acá:
-
-* la tapa de abajo con sus tornillos y el hueco del USB-C;
-* los pilares del PCB y los agarres del portapilas;
-* el pasaje de la sonda de tierra;
-* los agujeros del sensor de luz y del de temperatura.
+Las mallas son cerradas y con las normales hacia afuera (volumen con signo
+positivo), así que un laminador las acepta sin reparaciones. Si querés
+imprimir la figura como adorno, va con soportes y a 0,15 mm de capa.
 `;
-
-await writeFile(path.join(destino, 'README.md'), md);
-console.log(`\n${filas.length} carcasas y un README en ${destino}`);
+  await writeFile(path.join(destino, 'README.md'), md);
+  console.log(`\n${filas.length} figuras y un README en ${destino}`);
+}

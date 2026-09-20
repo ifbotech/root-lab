@@ -1,305 +1,281 @@
-/* formas.mjs — los cinco Rooties en 3D. ARTE COMO DATOS.
+/* formas.mjs — los cinco Rooties, esculpidos. ARTE COMO DATOS.
  *
- * Cada figura es una tabla: un perfil que gira (el cuerpo) y una lista de
- * piezas encima (hojas, flor, sombrero, brazos, patitas). Rocío cambia un
- * número y cambia el personaje; no hay que tocar código. Los colores no están
- * acá: cada pieza dice qué ROL usa ('cuerpo', 'acento', 'claro'...) y los
- * colores salen de la piel que sorteó el cofre (core/persona.c en el
- * firmware, lib/rooties.mjs en la app).
+ * Cada criatura es una lista de bultos que se funden entre sí (esculpir.mjs).
+ * No hay una sola línea de código por personaje: hay números. Rocío mueve un
+ * bulto, le cambia el radio o le sube el cuello, y es otro bicho.
  *
- * TODO EN MILÍMETROS DE VERDAD
+ * CÓMO ESTÁ ARMADO UN ROOTI
  *
- * Es la figura que se imprime, no un dibujo: el mismo modelo se ve girando en
- * el teléfono, sale en STL (tools/rooties-stl.mjs) y tiene que tener lugar
- * adentro para la 18650 parada y para la pantalla de 1,44". Las tres cosas
- * las comprueba test/rooti3d.test.mjs en cada Rooti:
+ * La receta de un cuerpo se lee de abajo hacia arriba, como se lo dibujaría:
  *
- *   - ningún voladizo pasa de 45° (FDM sin soportes), base plana y ancha;
- *   - el centro de masa cae bajo y sobre la base: no se vuelca en la tierra;
- *   - la 18650 (75 × 21 × 19) y el módulo del TFT entran con 1,6 mm de pared;
- *   - la cara queda en una zona lo bastante plana para el vidrio del TFT.
+ *   ancas      el bulto de abajo, el más ancho: es lo que lo hace parecer
+ *              pesado y bien plantado, y lo que le da la pose de juguete;
+ *   torso      el bulto de arriba, donde va la cara. La fusión de los dos
+ *              hace el cogote solo, sin modelarlo;
+ *   patitas    dos bultos achatados apoyados en el piso, un poco adelante:
+ *              si van justo abajo, el bicho parece un huevo;
+ *   bracitos   dos cápsulas cortas que SALEN del torso. La fusión les hace el
+ *              hombro;
+ *   la copa    lo que lleva arriba y lo identifica: hojas, flor, esporas,
+ *              sombrero, brote;
+ *   manchas    bultos metidos adentro del cuerpo, que no cambian la forma
+ *              pero sí el color: la panza clara, las pintas del sombrero.
  *
- * DE DÓNDE SALEN LAS FORMAS
+ * LOS CAMPOS DE UNA PIEZA
  *
- * De la escuela de los juguetes de vinilo: un cuerpo simple y gordito, UN
- * rasgo que manda arriba, patitas mínimas y la cara pintada sobre el cuerpo.
- * Cada Rooti sale de una planta de verdad —una semilla germinando, un
- * almohadón de musgo con esporofitos, un cactus barril, un bulbo de cebolla,
- * un hongo con anillo— y de ahí salen su silueta y su rasgo. Qué tomamos de
- * qué y qué cambiamos a propósito está en docs/rooties.md.
+ *   tipo       esfera | elipsoide | capsula | caja | toro | hoja
+ *   rol        de qué color se pinta: cuerpo, acento, claro, oscuro
+ *   hueso      qué parte la mueve: cuerpo, copa, brazo-izq, brazo-der
+ *   fundir     cuántos milímetros de menisco con lo que ya había. Un número
+ *              grande derrite la pieza en el cuerpo; uno chico la deja
+ *              asomar como un bulto aparte
+ *
+ * NO SE IMPRIME NADA DE ESTO
+ *
+ * Es el personaje de la app. Las carcasas se diseñan aparte, y por eso acá los
+ * bichos pueden tener patas separadas, brazos en alto y sombreros voladores.
  */
 
-import { revolucion, gota, capsula, hoja, elipsoide, transformacion, limites, aplicar } from './geometria.mjs';
+import { superficie, limitesDe, campo } from './esculpir.mjs';
 
-/** Lo que tiene que entrar adentro de cualquier Rooti (docs/carcasas.md). */
-export const ENVOLVENTE = {
-  /* La celda parada, con su portapilas, desde un poco más arriba del piso. */
-  bateria: { ancho: 23, alto: 76, fondo: 21, desdeY: 6, z: -6 },
-  /* El módulo del TFT, justo detrás de la cara. */
-  pantalla: { ancho: 30, alto: 39, fondo: 6, detras: 2.2 },
-  pared: 1.6,
-};
+/** De qué color se pinta cada pieza. El rubor se usa sólo en la cara. */
+export const ROLES = ['cuerpo', 'acento', 'claro', 'oscuro'];
 
-/* Los roles de color que puede pedir una pieza. */
-export const ROLES = ['cuerpo', 'acento', 'claro', 'oscuro', 'rubor', 'ojos'];
+/** Qué parte del bicho mueve cada pieza. */
+export const HUESOS = ['cuerpo', 'copa', 'brazo-izq', 'brazo-der'];
+
+/* Atajos para no repetir: una pata y un bracito se declaran igual siempre. */
+const pata = (x, z, [rx, ry, rz] = [13, 7.5, 15]) => ({
+  tipo: 'elipsoide', en: [x, ry * 0.92, z], r: [rx, ry, rz], rol: 'cuerpo', fundir: 5,
+});
+const bracito = (lado, desde, hasta, ra, rb) => ({
+  tipo: 'capsula', a: desde, b: hasta, ra, rb, rol: 'cuerpo',
+  hueso: lado < 0 ? 'brazo-izq' : 'brazo-der', fundir: 7,
+});
 
 export const FIGURAS = {
   brote: {
-    /* La semilla que germina: gordita, ancha abajo, con dos cotiledones
-       redondos en V. La V no es un capricho: una hoja horizontal no se
-       imprime y una que sube a 60° sí, y encima le da el gesto de brote
-       recién salido. El cuerpo se mantiene lleno hasta pasados los 84 mm
-       porque ahí adentro termina la celda. */
-    cuerpo: {
-      perfil: [[25.6, 0], [32.0, 10], [36.8, 22], [39.2, 34], [40.0, 46], [40.0, 60], [38.4, 72], [34.4, 84], [28.0, 95],
-        [20.0, 104], [11.2, 111], [4.8, 115], [2.4, 117]],
-      profundidad: 0.95,
-    },
-    cara: { y: 52, ancho: 27, alto: 27 },
-    corona: [0, 120],
-    pivotes: { copa: [0.0, 108, 0.0], 'brazo-izq': [-33, 56, 4.8], 'brazo-der': [33, 56, 4.8] },
-    partes: [
-      { id: 'tallo', tipo: 'capsula', color: 'acento', grupo: 'copa', a: [0.0, 108, 0.0], b: [0.0, 130, 1.6], r0: 5.2, r1: 4.0 },
-      { id: 'hoja-izq', tipo: 'hoja', color: 'acento', grupo: 'copa', en: [0.0, 122, 1.1], giro: [8, -12, 24], largo: 33.4, ancho: 19.4, grosor: 3 },
-      { id: 'hoja-der', tipo: 'hoja', color: 'acento', grupo: 'copa', en: [0.0, 120, 1.1], giro: [8, 12, -24], largo: 30.8, ancho: 17.6, grosor: 3 },
-      { id: 'brazo-izq', tipo: 'gota', color: 'cuerpo', grupo: 'brazo-izq', en: [-38.5, 56, 4.8], r: 9.5, esc: [0.72, 1, 0.72] },
-      { id: 'brazo-der', tipo: 'gota', color: 'cuerpo', grupo: 'brazo-der', en: [38.5, 56, 4.8], r: 9.5, esc: [0.72, 1, 0.72] },
-      { id: 'pata-izq', tipo: 'elipsoide', color: 'cuerpo', en: [-13.6, 0, 22.4], r: [10.8, 9, 9.0], desdeY: 0 },
-      { id: 'pata-der', tipo: 'elipsoide', color: 'cuerpo', en: [13.6, 0, 22.4], r: [10.8, 9, 9.0], desdeY: 0 },
+    /* LA SEMILLA QUE GERMINA. Un bichito con forma de pera al revés: ancas
+       anchas, torso más chico y dos cotiledones enormes que le hacen de pelo.
+       Es el más "bebé" de los cinco, así que cabeza grande y brazos cortitos. */
+    cara: { y: 72, ancho: 36, alto: 36 },
+    corona: [0, 104],
+    piso: 0,
+    piezas: [
+      { tipo: 'elipsoide', en: [0, 32, -1], r: [33, 29, 29], rol: 'cuerpo' },
+      { tipo: 'elipsoide', en: [0, 68, 2], r: [29, 29, 26], rol: 'cuerpo', fundir: 20 },
+      /* La panza clara: no cambia la forma, sólo el color. */
+      { tipo: 'elipsoide', en: [0, 30, 17], r: [20, 13, 15], rol: 'claro', fundir: 10 },
+      pata(-17, 12, [13, 7.5, 16]),
+      pata(17, 12, [13, 7.5, 16]),
+      bracito(-1, [-24, 56, 4], [-36, 44, 9], 7.5, 6),
+      bracito(1, [24, 56, 4], [36, 44, 9], 7.5, 6),
+      /* El tallito y los dos cotiledones, que es lo que se ve de lejos. */
+      { tipo: 'capsula', a: [0, 88, 0], b: [0, 103, 2], ra: 5, rb: 4, rol: 'acento', hueso: 'copa', fundir: 6 },
+      { tipo: 'hoja', a: [-1, 99, 1], b: [-21, 130, 5], ancho: 28, grosor: 6, curva: 0.1, rol: 'acento', hueso: 'copa', fundir: 4 },
+      { tipo: 'hoja', a: [1, 100, 1], b: [22, 127, 2], ancho: 26, grosor: 6, curva: 0.12, rol: 'acento', hueso: 'copa', fundir: 4 },
     ],
   },
 
   musgo: {
-    /* El almohadón: bajo, ancho y estable, con tres capas de flecos. Cada
-       fleco sale hacia afuera a 45° justos y vuelve hacia adentro: así se lee
-       como musgo en capas y se imprime igual. Arriba, dos esporofitos —los
-       tallitos con cápsula que el musgo saca de verdad—, que son su rasgo. */
-    cuerpo: {
-      perfil: [[28.8, 0], [36.8, 10], [41.6, 17], [38.4, 26], [43.2, 32], [40.0, 40], [43.2, 45], [40.8, 68], [43.2, 73],
-        [39.2, 84], [34.4, 94], [27.2, 103], [17.6, 110], [8.0, 114], [3.2, 116]],
-      profundidad: 0.95,
-    },
-    cara: { y: 54, ancho: 27, alto: 27 },
-    corona: [0, 118],
-    pivotes: { copa: [0.0, 106, 0.0] },
-    partes: [
-      { id: 'espora-izq', tipo: 'capsula', color: 'oscuro', grupo: 'copa', a: [-5.6, 108, 0.0], b: [-12.0, 134, 2.4], r0: 2.1, r1: 1.7 },
-      { id: 'capsula-izq', tipo: 'gota', color: 'acento', grupo: 'copa', en: [-12.0, 141, 2.4], r: 4.5 },
-      { id: 'espora-der', tipo: 'capsula', color: 'oscuro', grupo: 'copa', a: [4.8, 109, -0.8], b: [10.4, 130, 1.6], r0: 2.1, r1: 1.7 },
-      { id: 'capsula-der', tipo: 'gota', color: 'acento', grupo: 'copa', en: [10.4, 134.8, 1.6], r: 4.0 },
-      { id: 'mata-izq', tipo: 'gota', color: 'claro', en: [-24.8, 82, 20.0], r: 6.8 },
-      { id: 'mata-der', tipo: 'gota', color: 'claro', en: [24.0, 86, 20.8], r: 6.1 },
-      { id: 'mata-atras', tipo: 'gota', color: 'claro', en: [4.8, 94, -25.6], r: 7.7 },
-      { id: 'pata-izq', tipo: 'elipsoide', color: 'cuerpo', en: [-16.8, 0, 24.0], r: [11.6, 8, 9.9], desdeY: 0 },
-      { id: 'pata-der', tipo: 'elipsoide', color: 'cuerpo', en: [16.8, 0, 24.0], r: [11.6, 8, 9.9], desdeY: 0 },
+    /* EL ALMOHADON. Bajo, ancho y con tres monticulos bien marcados: es una
+       mata de musgo, y una mata tiene bultos. Si se funden de mas queda un
+       sillon. No tiene cuello: la cara va en el frente del monton. Los dos
+       esporofitos -los tallitos con capsula que el musgo saca- son su firma. */
+    cara: { y: 47, ancho: 34, alto: 34 },
+    corona: [0, 96],
+    piso: 0,
+    piezas: [
+      { tipo: 'elipsoide', en: [0, 26, 0], r: [38, 24, 32], rol: 'cuerpo' },
+      { tipo: 'esfera', en: [-20, 44, -6], r: 18, rol: 'cuerpo', fundir: 7 },
+      { tipo: 'esfera', en: [14, 48, 2], r: 15, rol: 'cuerpo', fundir: 7 },
+      { tipo: 'esfera', en: [3, 40, -22], r: 15, rol: 'cuerpo', fundir: 7 },
+      { tipo: 'esfera', en: [-6, 52, 6], r: 13, rol: 'cuerpo', fundir: 9 },
+      /* Los claros del musgo: manchas de color sobre los monticulos. */
+      { tipo: 'esfera', en: [-26, 52, -8], r: 10, rol: 'claro', fundir: 6 },
+      { tipo: 'esfera', en: [20, 56, 0], r: 8, rol: 'claro', fundir: 6 },
+      { tipo: 'elipsoide', en: [0, 12, 26], r: [20, 9, 10], rol: 'claro', fundir: 8 },
+      pata(-20, 20, [12, 6.5, 13]),
+      pata(20, 20, [12, 6.5, 13]),
+      bracito(-1, [-30, 26, 8], [-40, 16, 12], 7, 5.5),
+      bracito(1, [30, 26, 8], [40, 16, 12], 7, 5.5),
+      { tipo: 'capsula', a: [-9, 50, -2], b: [-16, 86, 2], ra: 2.6, rb: 2, rol: 'oscuro', hueso: 'copa', fundir: 2 },
+      { tipo: 'elipsoide', en: [-16, 91, 2], r: [6, 8, 6], rol: 'acento', hueso: 'copa', fundir: 2 },
+      { tipo: 'capsula', a: [6, 52, -3], b: [12, 80, 1], ra: 2.4, rb: 1.9, rol: 'oscuro', hueso: 'copa', fundir: 2 },
+      { tipo: 'elipsoide', en: [12, 84.5, 1], r: [5, 7, 5], rol: 'acento', hueso: 'copa', fundir: 2 },
     ],
   },
 
   pinchito: {
-    /* El cactus barril: costillas verticales, pinchitos que salen hacia
-       arriba (nunca de costado: eso no se imprime), una flor arriba y un
-       brazo levantado que saluda desde que lo sacás de la caja. */
-    cuerpo: {
-      perfil: [[22.4, 0], [28.8, 10], [32.8, 22], [35.2, 34], [36.0, 48], [36.0, 64], [34.4, 80], [30.4, 94], [24.8, 105],
-        [16.0, 113], [7.2, 119], [2.4, 122]],
-      profundidad: 0.98,
-      costillas: { n: 10, amp: 0.05 },
-    },
-    cara: { y: 56, ancho: 27, alto: 27 },
-    corona: [0, 125],
-    pivotes: { copa: [0.0, 114, 0.0], 'brazo-der': [22, 60, 0.0] },
-    partes: [
-      { id: 'brazo', tipo: 'capsula', color: 'cuerpo', grupo: 'brazo-der', a: [22, 58, 0.0], b: [50, 100, 1.6], r0: 8.4, r1: 6.8 },
-      { id: 'flor-centro', tipo: 'gota', color: 'rubor', grupo: 'copa', en: [0.0, 124, 0.0], r: 5.6 },
-      { id: 'petalo-1', tipo: 'hoja', color: 'acento', grupo: 'copa', en: [0.0, 118, 0.0], giro: [20, 0, 0], largo: 15.8, ancho: 12.3, grosor: 2.6 },
-      { id: 'petalo-2', tipo: 'hoja', color: 'acento', grupo: 'copa', en: [0.0, 118, 0.0], giro: [20, 72, 0], largo: 15.8, ancho: 12.3, grosor: 2.6 },
-      { id: 'petalo-3', tipo: 'hoja', color: 'acento', grupo: 'copa', en: [0.0, 118, 0.0], giro: [20, 144, 0], largo: 15.8, ancho: 12.3, grosor: 2.6 },
-      { id: 'petalo-4', tipo: 'hoja', color: 'acento', grupo: 'copa', en: [0.0, 118, 0.0], giro: [20, 216, 0], largo: 15.8, ancho: 12.3, grosor: 2.6 },
-      { id: 'petalo-5', tipo: 'hoja', color: 'acento', grupo: 'copa', en: [0.0, 118, 0.0], giro: [20, 288, 0], largo: 15.8, ancho: 12.3, grosor: 2.6 },
-      { id: 'pincho-1', tipo: 'capsula', color: 'claro', a: [-24.0, 70, 9.6], b: [-30.4, 82, 12.0], r0: 1.8, r1: 1.2 },
-      { id: 'pincho-2', tipo: 'capsula', color: 'claro', a: [19.2, 44, 17.6], b: [24.0, 56, 21.6], r0: 1.8, r1: 1.2 },
-      { id: 'pincho-3', tipo: 'capsula', color: 'claro', a: [-9.6, 26, 24.0], b: [-12.8, 38, 29.6], r0: 1.8, r1: 1.2 },
-      { id: 'pincho-4', tipo: 'capsula', color: 'claro', a: [8.0, 84, 19.2], b: [10.4, 96, 22.4], r0: 1.7, r1: 1.2 },
-      { id: 'pata-izq', tipo: 'elipsoide', color: 'cuerpo', en: [-12.0, 0, 19.2], r: [9.9, 8, 9.0], desdeY: 0 },
-      { id: 'pata-der', tipo: 'elipsoide', color: 'cuerpo', en: [12.0, 0, 19.2], r: [9.9, 8, 9.0], desdeY: 0 },
+    /* EL CACTUS. Un barril: ancho en la panza y mas angosto arriba y abajo.
+       Es el unico que levanta el brazo, y saluda desde que lo sacas de la
+       caja. Las costillas son lomos suaves, no zanjas: probamos restarlas y el
+       cuerpo se partia en tentaculos. */
+    cara: { y: 60, ancho: 34, alto: 34 },
+    corona: [0, 104],
+    piso: 0,
+    piezas: [
+      { tipo: 'elipsoide', en: [0, 52, 0], r: [31, 40, 28], rol: 'cuerpo' },
+      { tipo: 'elipsoide', en: [0, 24, 0], r: [28, 20, 26], rol: 'cuerpo', fundir: 16 },
+      { tipo: 'elipsoide', en: [0, 28, 21], r: [16, 11, 11], rol: 'claro', fundir: 10 },
+      pata(-16, 16, [12, 6.5, 13]),
+      pata(16, 16, [12, 6.5, 13]),
+      /* El brazo que saluda: dos capsulas, y el codo lo hace la fusion. */
+      { tipo: 'capsula', a: [22, 58, 0], b: [38, 64, 0], ra: 9.5, rb: 8.5, rol: 'cuerpo', hueso: 'brazo-der', fundir: 8 },
+      { tipo: 'capsula', a: [38, 64, 0], b: [41, 88, 1], ra: 8.5, rb: 7.5, rol: 'cuerpo', hueso: 'brazo-der', fundir: 8 },
+      { tipo: 'capsula', a: [-22, 48, 0], b: [-38, 40, 3], ra: 8.5, rb: 7, rol: 'cuerpo', hueso: 'brazo-izq', fundir: 8 },
+      /* La flor, corrida: centrada pareceria un sombrero. */
+      { tipo: 'esfera', en: [2, 92, 2], r: 8, rol: 'oscuro', hueso: 'copa', fundir: 4 },
+      { tipo: 'hoja', a: [2, 90, 2], b: [-12, 103, 2], ancho: 14, grosor: 5, curva: 0.05, rol: 'acento', hueso: 'copa', fundir: 2 },
+      { tipo: 'hoja', a: [2, 90, 2], b: [15, 102, 4], ancho: 14, grosor: 5, curva: 0.05, rol: 'acento', hueso: 'copa', fundir: 2 },
+      { tipo: 'hoja', a: [2, 90, 2], b: [3, 106, -9], ancho: 14, grosor: 5, curva: 0.05, rol: 'acento', hueso: 'copa', fundir: 2 },
+      { tipo: 'hoja', a: [2, 90, 2], b: [0, 103, 13], ancho: 14, grosor: 5, curva: 0.05, rol: 'acento', hueso: 'copa', fundir: 2 },
+      /* Cuatro pinchitos, casi sin fundir: tienen que verse como pinchos. */
+      { tipo: 'capsula', a: [-26, 60, 10], b: [-33, 70, 13], ra: 2.4, rb: 1, rol: 'claro', fundir: 2 },
+      { tipo: 'capsula', a: [21, 38, 18], b: [26, 48, 23], ra: 2.4, rb: 1, rol: 'claro', fundir: 2 },
+      { tipo: 'capsula', a: [-10, 30, 25], b: [-13, 40, 31], ra: 2.4, rb: 1, rol: 'claro', fundir: 2 },
+      { tipo: 'capsula', a: [9, 72, 19], b: [12, 82, 23], ra: 2.2, rb: 1, rol: 'claro', fundir: 2 },
     ],
+    /* Las costillas: ocho lomos suaves alrededor de la panza. */
+    extras: Array.from({ length: 8 }, (_, i) => {
+      const a = (i / 8) * Math.PI * 2 + 0.4;
+      return {
+        tipo: 'capsula',
+        a: [Math.sin(a) * 27, 26, Math.cos(a) * 25],
+        b: [Math.sin(a) * 24, 82, Math.cos(a) * 22],
+        ra: 4, rb: 3, rol: 'cuerpo', fundir: 7,
+      };
+    }),
   },
 
   bulbo: {
-    /* El bulbo de cebolla: gajos suaves, punta arriba de la que sale un
-       brote, y raicitas por patas. Es el más "mágico" de los cinco: todo lo
-       que tiene apunta al cielo. */
-    cuerpo: {
-      perfil: [[24.0, 0], [30.4, 9], [36.0, 20], [39.2, 31], [40.0, 44], [40.0, 58], [38.4, 72], [33.6, 85], [25.6, 97],
-        [16.0, 107], [8.0, 113], [2.4, 117]],
-      profundidad: 0.97,
-      costillas: { n: 8, amp: 0.035 },
-    },
-    cara: { y: 52, ancho: 27, alto: 27 },
-    corona: [0, 120],
-    pivotes: { copa: [0.0, 110, 0.0], 'brazo-izq': [-33, 50, 3.2], 'brazo-der': [33, 50, 3.2] },
-    partes: [
-      { id: 'brote', tipo: 'capsula', color: 'acento', grupo: 'copa', a: [0.0, 111, 0.0], b: [4.8, 137, 3.2], r0: 4.0, r1: 3.1 },
-      { id: 'brote-hoja', tipo: 'hoja', color: 'acento', grupo: 'copa', en: [3.5, 129, 2.4], giro: [14, 20, -16], largo: 19.4, ancho: 12.3, grosor: 2.4 },
-      /* La gota baja r·√2 desde su centro (el cono de 45°); las raicitas van
-         justo a esa altura, para tocar la cama sin hundirse. */
-      { id: 'raiz-1', tipo: 'gota', color: 'claro', en: [-20.8, 6.65, 16.0], r: 4.7 },
-      { id: 'raiz-2', tipo: 'gota', color: 'claro', en: [20.8, 6.65, 14.4], r: 4.7 },
-      { id: 'raiz-3', tipo: 'gota', color: 'claro', en: [0.0, 7.35, 24.8], r: 5.2 },
-      { id: 'raiz-4', tipo: 'gota', color: 'claro', en: [-4.8, 6.65, -23.2], r: 4.7 },
-      { id: 'brazo-izq', tipo: 'gota', color: 'cuerpo', grupo: 'brazo-izq', en: [-38.5, 50, 3.2], r: 8.8, esc: [0.72, 1, 0.72] },
-      { id: 'brazo-der', tipo: 'gota', color: 'cuerpo', grupo: 'brazo-der', en: [38.5, 50, 3.2], r: 8.8, esc: [0.72, 1, 0.72] },
+    /* EL BULBO. Una gota gorda que termina en punta, parada sobre sus propias
+       raices, con un brote saliendole de la cabeza. Es el mas "magico": todo
+       lo que tiene apunta al cielo. Las raices van poco fundidas, para que se
+       lean como raices y no como una pollera. */
+    cara: { y: 48, ancho: 34, alto: 34 },
+    corona: [0, 100],
+    piso: 0,
+    piezas: [
+      { tipo: 'elipsoide', en: [0, 44, 0], r: [33, 36, 30], rol: 'cuerpo' },
+      { tipo: 'capsula', a: [0, 68, 0], b: [0, 92, 1], ra: 17, rb: 3, rol: 'cuerpo', fundir: 14 },
+      { tipo: 'elipsoide', en: [0, 26, 22], r: [18, 12, 12], rol: 'claro', fundir: 10 },
+      /* Las raices, que tambien son las patas: tocan el piso. */
+      { tipo: 'capsula', a: [-13, 24, 5], b: [-24, 0, 13], ra: 7, rb: 5, rol: 'claro', fundir: 4 },
+      { tipo: 'capsula', a: [13, 24, 3], b: [25, 0, 10], ra: 7, rb: 5, rol: 'claro', fundir: 4 },
+      { tipo: 'capsula', a: [0, 22, -8], b: [3, 0, -20], ra: 7, rb: 5, rol: 'claro', fundir: 4 },
+      { tipo: 'capsula', a: [-3, 20, 12], b: [-5, 0, 22], ra: 6.5, rb: 5, rol: 'claro', fundir: 4 },
+      bracito(-1, [-26, 48, 4], [-38, 36, 9], 7.5, 6),
+      bracito(1, [26, 48, 4], [38, 36, 9], 7.5, 6),
+      { tipo: 'capsula', a: [0, 86, 0], b: [5, 108, 3], ra: 4, rb: 3, rol: 'acento', hueso: 'copa', fundir: 5 },
+      { tipo: 'hoja', a: [4, 102, 2], b: [20, 116, 6], ancho: 16, grosor: 5, curva: 0.12, rol: 'acento', hueso: 'copa', fundir: 2 },
     ],
   },
 
   champi: {
-    /* El honguito: tallo macizo con anillo y un sombrero de campana que le
-       hace de visera a la cara. La cara va en el tallo, que es claro; el
-       sombrero es el acento, con sus manchas. El sombrero se abre a 45°
-       justos: es lo que lo hace imprimible de una pieza, y adentro de él
-       termina de subir la celda. */
-    cuerpo: {
-      perfil: [[27.4, 0], [30.3, 10], [30.9, 24], [30.3, 40], [29.7, 54], [30.3, 66], [31.4, 74]],
-      profundidad: 0.95,
-    },
-    cara: { y: 40, ancho: 27, alto: 27 },
-    corona: [0, 140],
-    pivotes: { copa: [0.0, 74, 0.0] },
-    partes: [
-      {
-        id: 'sombrero',
-        tipo: 'revolucion',
-        color: 'acento',
-        grupo: 'copa',
-        perfil: [[19.4, 66], [27.4, 76], [33.1, 86], [37.7, 96], [40.0, 106], [38.3, 114], [33.1, 121], [21.7, 127], [8.0, 132]],
-        profundidad: 0.95,
-      },
-      {
-        id: 'anillo',
-        tipo: 'revolucion',
-        color: 'claro',
-        perfil: [[26.4, 58], [32.8, 66], [27.2, 70]],
-        profundidad: 0.95,
-      },
-      { id: 'mancha-1', tipo: 'gota', color: 'claro', grupo: 'copa', en: [-17.6, 110, 19.2], r: 5.6 },
-      { id: 'mancha-2', tipo: 'gota', color: 'claro', grupo: 'copa', en: [13.6, 117, 16.0], r: 4.7 },
-      { id: 'mancha-3', tipo: 'gota', color: 'claro', grupo: 'copa', en: [1.6, 122, -17.6], r: 5.2 },
-      { id: 'mancha-4', tipo: 'gota', color: 'claro', grupo: 'copa', en: [24.0, 108, -7.2], r: 4.3 },
-      { id: 'pata-izq', tipo: 'elipsoide', color: 'cuerpo', en: [-12.0, 0, 18.4], r: [9.9, 7, 8.2], desdeY: 0 },
-      { id: 'pata-der', tipo: 'elipsoide', color: 'cuerpo', en: [12.0, 0, 18.4], r: [9.9, 7, 8.2], desdeY: 0 },
+    /* EL HONGO. Tallo corto y gordo, sombrero grande de campana que le hace de
+       visera, y su anillo. La cara va en el tallo, que es el color claro; el
+       sombrero es el acento y lleva las pintas. El sombrero es lo que más pesa
+       visualmente, así que el tallo es bien ancho: fino parecería que se lo
+       lleva el viento. */
+    cara: { y: 42, ancho: 32, alto: 32 },
+    corona: [0, 96],
+    piso: 0,
+    piezas: [
+      { tipo: 'capsula', a: [0, 16, 0], b: [0, 60, 0], ra: 24, rb: 21, rol: 'cuerpo' },
+      { tipo: 'elipsoide', en: [0, 16, 17], r: [15, 9, 9], rol: 'claro', fundir: 9 },
+      pata(-14, 16, [12, 6, 13]),
+      pata(14, 16, [12, 6, 13]),
+      bracito(-1, [-20, 38, 4], [-32, 28, 8], 7, 5.5),
+      bracito(1, [20, 38, 4], [32, 28, 8], 7, 5.5),
+      /* El anillo, justo debajo del ala. */
+      { tipo: 'toro', en: [0, 58, 0], R: 22, r: 4.5, rol: 'claro', hueso: 'copa', fundir: 5 },
+      /* El sombrero: una campana, no una bola. La cápsula que se abre hacia
+         arriba le hace la caída del ala. */
+      { tipo: 'capsula', a: [0, 62, 0], b: [0, 78, 0], ra: 22, rb: 40, rol: 'acento', hueso: 'copa', fundir: 8 },
+      { tipo: 'elipsoide', en: [0, 80, 0], r: [42, 20, 38], rol: 'acento', hueso: 'copa', fundir: 10 },
+      /* Las pintas: bultos de color metidos en el sombrero. */
+      { tipo: 'esfera', en: [-24, 88, 16], r: 9, rol: 'claro', hueso: 'copa', fundir: 6 },
+      { tipo: 'esfera', en: [18, 92, 10], r: 7.5, rol: 'claro', hueso: 'copa', fundir: 6 },
+      { tipo: 'esfera', en: [2, 94, -18], r: 8, rol: 'claro', hueso: 'copa', fundir: 6 },
+      { tipo: 'esfera', en: [30, 84, -14], r: 7, rol: 'claro', hueso: 'copa', fundir: 6 },
+      { tipo: 'esfera', en: [-32, 82, -6], r: 7, rol: 'claro', hueso: 'copa', fundir: 6 },
     ],
   },
 };
 
 export const ROOTIES = Object.keys(FIGURAS);
 
-/* ------------------------------------------------------------- construir --- */
+/* ------------------------------------------------------------ construir --- */
 const cache = new Map();
 
-function pieza(p, cara) {
-  switch (p.tipo) {
-    case 'revolucion':
-      return revolucion({ perfil: p.perfil, profundidad: p.profundidad ?? 1, costillas: p.costillas || null, cara: p.cara || null });
-    case 'gota':
-      return gota({ r: p.r, esc: p.esc || [1, 1, 1] });
-    case 'capsula':
-      return capsula({ a: p.a, b: p.b, r0: p.r0, r1: p.r1 ?? null });
-    case 'hoja':
-      return hoja({ largo: p.largo, ancho: p.ancho, grosor: p.grosor, curva: p.curva ?? 0.18, abre: p.abre, raiz: p.raiz });
-    case 'elipsoide':
-      return elipsoide({ r: p.r, desdeY: p.desdeY ?? -1 });
-    default:
-      throw new Error(`pieza desconocida: ${p.tipo} (${cara})`);
-  }
-}
-
 /**
- * La figura armada: el cuerpo y sus piezas, cada una con su malla, su matriz
- * y su `dentro(p)` en coordenadas del mundo. Se arma una sola vez por Rooti.
+ * La figura lista para dibujar: una sola malla, con el rol de color y el
+ * hueso de cada vértice. Se esculpe una vez por Rooti y se guarda.
+ *
+ * `paso` es el tamaño de la grilla en milímetros: 2,4 da mallas de unos
+ * veinte mil triángulos y tarda un par de décimas. Más fino no se nota.
  */
-export function construir(id) {
-  if (cache.has(id)) return cache.get(id);
-  const f = FIGURAS[id] || FIGURAS.brote;
-  const partes = [];
-
-  const cuerpo = revolucion({ ...f.cuerpo, cara: f.cara });
-  partes.push({
-    id: 'cuerpo', color: 'cuerpo', grupo: 'cuerpo', conCara: true,
-    malla: cuerpo.malla, matriz: transformacion({}), dentro: cuerpo.dentro, receta: { tipo: 'revolucion', ...f.cuerpo },
-  });
-
-  for (const p of f.partes) {
-    const g = pieza(p, id);
-    /* Las cápsulas y las revoluciones ya vienen en coordenadas del cuerpo. */
-    const propia = p.tipo === 'capsula' || p.tipo === 'revolucion';
-    const matriz = propia ? transformacion({}) : transformacion({ en: p.en || [0, 0, 0], giro: p.giro || [0, 0, 0] });
-    const inv = propia ? null : invertirSimple(p.en || [0, 0, 0], p.giro || [0, 0, 0]);
-    partes.push({
-      id: p.id,
-      color: p.color,
-      grupo: p.grupo || 'cuerpo',
-      malla: g.malla,
-      matriz,
-      receta: p,
-      dentro: propia ? g.dentro : (q) => g.dentro(inv(q)),
-    });
-  }
-
-  const lim = partes.reduce((acc, p) => {
-    const l = limites(p.malla, p.matriz);
-    return {
-      lo: acc ? acc.lo.map((v, i) => Math.min(v, l.lo[i])) : l.lo,
-      hi: acc ? acc.hi.map((v, i) => Math.max(v, l.hi[i])) : l.hi,
-    };
-  }, null);
-
-  /* Los grupos son lo que se anima: cada uno gira alrededor de su pivote, que
-     es donde la pieza nace del cuerpo. Sin pivote declarado se usa el punto
-     más bajo del grupo, que para una copa es exactamente el nacimiento del
-     tallo; para un brazo conviene declararlo (el hombro está adentro). */
-  const grupos = {};
-  for (const parte of partes) {
-    const g = (grupos[parte.grupo] ||= { nombre: parte.grupo, partes: [], pivote: null });
-    g.partes.push(parte.id);
-  }
-  for (const [nombre, g] of Object.entries(grupos)) {
-    if (f.pivotes && f.pivotes[nombre]) { g.pivote = f.pivotes[nombre].slice(); continue; }
-    if (nombre === 'cuerpo') { g.pivote = [0, 0, 0]; continue; }
-    const mias = partes.filter((p) => p.grupo === nombre);
-    const l = mias.reduce((acc, p) => {
-      const q = limites(p.malla, p.matriz);
-      return acc ? { lo: acc.lo.map((v, i) => Math.min(v, q.lo[i])), hi: acc.hi.map((v, i) => Math.max(v, q.hi[i])) } : q;
-    }, null);
-    g.pivote = [(l.lo[0] + l.hi[0]) / 2, l.lo[1], (l.lo[2] + l.hi[2]) / 2];
-  }
-
-  const figura = { id, partes, grupos, cara: f.cara, corona: f.corona, limites: lim, alto: lim.hi[1] - lim.lo[1] };
-  cache.set(id, figura);
+export function construir(id, { paso = 2.4 } = {}) {
+  const clave = `${id}/${paso}`;
+  if (cache.has(clave)) return cache.get(clave);
+  const base = FIGURAS[id] || FIGURAS.brote;
+  /* `extras` es una lista que se calcula (las costillas del cactus): va al
+     final, despues de los bultos declarados a mano. */
+  const receta = base.extras ? { ...base, piezas: [...base.piezas, ...base.extras] } : base;
+  const reloj = typeof performance !== 'undefined' ? performance : { now: () => 0 };
+  const t0 = reloj.now();
+  const malla = superficie(receta, { paso, huesos: HUESOS, roles: ROLES, cara: receta.cara });
+  const lim = medir(malla);
+  const figura = {
+    id,
+    malla,
+    cara: receta.cara,
+    corona: receta.corona,
+    limites: lim,
+    alto: lim.hi[1] - lim.lo[1],
+    /* Dónde pivota cada hueso: la copa, donde nace su pieza más baja; los
+       brazos, en el hombro. Sale de la receta, así que mover un bulto mueve
+       también su pivote. */
+    pivotes: pivotesDe(receta),
+    ms: Math.round(reloj.now() - t0),
+  };
+  cache.set(clave, figura);
   return figura;
 }
 
-/* La inversa de traslación+rotación ZXY, que es lo único que usan las piezas
-   con transformación propia. */
-function invertirSimple(en, giro) {
-  const m = transformacion({ en, giro });
-  const inv = invertirMatriz(m);
-  return (p) => aplicar(inv, p);
+function medir(malla) {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < malla.pos.length; i += 3) {
+    for (let j = 0; j < 3; j++) {
+      lo[j] = Math.min(lo[j], malla.pos[i + j]);
+      hi[j] = Math.max(hi[j], malla.pos[i + j]);
+    }
+  }
+  return { lo, hi };
 }
 
-function invertirMatriz(m) {
-  /* Rígida: la transpuesta de la rotación y la traslación al revés. */
-  const r = [m[0], m[4], m[8], m[1], m[5], m[9], m[2], m[6], m[10]];
-  const t = [m[12], m[13], m[14]];
-  const inv = new Float32Array(16);
-  inv[0] = r[0]; inv[4] = r[1]; inv[8] = r[2];
-  inv[1] = r[3]; inv[5] = r[4]; inv[9] = r[5];
-  inv[2] = r[6]; inv[6] = r[7]; inv[10] = r[8];
-  inv[12] = -(r[0] * t[0] + r[1] * t[1] + r[2] * t[2]);
-  inv[13] = -(r[3] * t[0] + r[4] * t[1] + r[5] * t[2]);
-  inv[14] = -(r[6] * t[0] + r[7] * t[1] + r[8] * t[2]);
-  inv[15] = 1;
-  return inv;
+function pivotesDe(receta) {
+  const p = { cuerpo: [0, 0, 0] };
+  for (const hueso of ['copa', 'brazo-izq', 'brazo-der']) {
+    const mias = receta.piezas.filter((z) => z.hueso === hueso);
+    if (!mias.length) continue;
+    let mejor = null;
+    for (const pieza of mias) {
+      const punto = pieza.a || pieza.en;
+      if (!mejor || punto[1] < mejor[1]) mejor = punto;
+    }
+    p[hueso] = mejor.slice();
+  }
+  return p;
 }
 
-/** Si un punto del mundo está adentro de la figura (de cualquier pieza). */
-export const dentroDe = (figura, p) => figura.partes.some((x) => x.dentro(p));
+/** ¿Este punto está adentro de la criatura? Lo usan las pruebas. */
+export function dentroDe(figura, punto) {
+  const base = FIGURAS[figura.id] || FIGURAS.brote;
+  const receta = base.extras ? { ...base, piezas: [...base.piezas, ...base.extras] } : base;
+  return campo(receta, HUESOS, ROLES).distancia(punto[0], punto[1], punto[2]) <= 0;
+}
+
+export { limitesDe };

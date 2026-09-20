@@ -1,20 +1,20 @@
-/* Los Rooties en 3D: que la figura que se ve en la app sea la que sale de la
- * impresora, que adentro entre el hardware y que se mueva sin volverse loca.
+/* Los Rooties en 3D: que los cinco se esculpan bien, que se muevan sin
+ * volverse locos y que los colores de cada piel se lean.
  *
- * Es la prueba que reemplaza a la de las siluetas: antes el cuerpo de la app
- * era un dibujo 2D que "cumplía las reglas de FDM" sobre su contorno; ahora es
- * la malla de verdad, así que se mide sobre los triángulos.
+ * Lo que NO se prueba acá, a propósito: si la figura se puede imprimir. El
+ * personaje de la app y la carcasa del aparato son dos objetos distintos —la
+ * carcasa se diseña aparte, en el CAD del hardware— y atar el arte a las
+ * reglas de la impresora fue lo que, en la versión anterior, dejó a los cinco
+ * convertidos en papas redondas.
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ROOTIES, FIGURAS, ENVOLVENTE, ROLES, construir, dentroDe } from '../public/lib/rooti3d/formas.mjs';
-import { volumenConSigno, triangulos, limites } from '../public/lib/rooti3d/geometria.mjs';
-import {
-  analizar, voladizos, sinApoyo, base, centroDeMasa, curvaturaCara, entraElHardware, CAMA, VOLADIZO_MAX, stlBinario,
-} from '../public/lib/rooti3d/imprimible.mjs';
+import { ROOTIES, FIGURAS, ROLES, HUESOS, construir, dentroDe } from '../public/lib/rooti3d/formas.mjs';
+import { volumen, superficie, unir, restar, distanciaDe, campo } from '../public/lib/rooti3d/esculpir.mjs';
 import { pose, efectos, motasDePolvo, onda, pulso, rebote, limitar } from '../public/lib/rooti3d/animacion.mjs';
-import { matrizDeGrupo } from '../public/lib/rooti3d/motor.mjs';
+import { matrizDeHueso, aRGB } from '../public/lib/rooti3d/motor.mjs';
+import { stlBinario } from '../tools/rooties-stl.mjs';
 import { coloresDe, PIEL_DORMIDA } from '../public/lib/cuerpo.mjs';
 import { MODELOS, RAREZAS, pielDe } from '../public/lib/rooties.mjs';
 import { contraste } from '../public/lib/paletas.mjs';
@@ -30,118 +30,146 @@ describe('el elenco', () => {
     assert.deepEqual(ROOTIES.slice().sort(), MODELOS.map((m) => m.id).sort());
   });
 
-  test('cada pieza pide un rol de color que existe', () => {
-    for (const f of figuras) {
-      for (const p of f.partes) assert.ok(ROLES.includes(p.color), `${f.id}/${p.id}: rol ${p.color}`);
+  test('cada bulto pide un rol de color y un hueso que existen', () => {
+    for (const [id, f] of Object.entries(FIGURAS)) {
+      for (const p of [...f.piezas, ...(f.extras || [])]) {
+        assert.ok(ROLES.includes(p.rol), `${id}: rol ${p.rol}`);
+        assert.ok(!p.hueso || HUESOS.includes(p.hueso), `${id}: hueso ${p.hueso}`);
+        assert.ok(p.fundir === undefined || p.fundir >= 0, `${id}: fundir ${p.fundir}`);
+      }
     }
   });
 
-  test('cada figura tiene cara, corona y un grupo copa para animar', () => {
+  test('cada figura tiene cara, corona y una copa para animar', () => {
     for (const f of figuras) {
-      assert.ok(f.cara.ancho >= 25 && f.cara.alto >= 25, `${f.id}: la ventana es chica`);
+      assert.ok(f.cara.ancho >= 30, `${f.id}: la cara es chica`);
       assert.equal(f.corona.length, 2);
-      assert.ok(f.grupos.copa, `${f.id}: no tiene copa`);
-      assert.ok(f.grupos.copa.partes.length > 0);
+      assert.ok(f.pivotes.copa, `${f.id}: no tiene copa`);
+      assert.ok(f.pivotes.copa[1] > 30, `${f.id}: la copa nace demasiado abajo`);
     }
+  });
+
+  test('todas tienen bracitos, y el cactus levanta uno solo', () => {
+    for (const f of figuras) {
+      assert.ok(f.pivotes['brazo-izq'], `${f.id}: sin brazo izquierdo`);
+      assert.ok(f.pivotes['brazo-der'], `${f.id}: sin brazo derecho`);
+    }
+    const p = construir('pinchito');
+    assert.ok(p.pivotes['brazo-der'][1] > p.pivotes['brazo-izq'][1], 'el brazo que saluda va más arriba');
   });
 });
 
-describe('se imprime en FDM sin soportes', () => {
-  test('ningún triángulo visible mira al piso más de 45°', () => {
+describe('la escultura', () => {
+  test('las mallas están cerradas y del derecho', () => {
     for (const f of figuras) {
-      const malos = voladizos(f);
-      assert.deepEqual(malos, [], `${f.id}: ${malos.map((v) => `${v.parte} ${v.grados}°`).join(', ')}`);
+      assert.ok(volumen(f.malla) > 1000, `${f.id}: volumen ${Math.round(volumen(f.malla))}`);
+      assert.ok(f.malla.triangulos > 2000, `${f.id}: sólo ${f.malla.triangulos} triángulos`);
+      assert.ok(f.malla.pos.every(Number.isFinite), `${f.id}: posiciones rotas`);
+      assert.ok(f.malla.nor.every(Number.isFinite), `${f.id}: normales rotas`);
     }
   });
 
-  test('ninguna pieza empieza en el aire', () => {
+  test('cada Rooti apoya en el piso y ninguno se hunde', () => {
     for (const f of figuras) {
-      const sueltas = sinApoyo(f);
-      assert.deepEqual(sueltas, [], `${f.id}: ${sueltas.map((s) => s.parte).join(', ')}`);
+      assert.ok(Math.abs(f.limites.lo[1]) < 1.5, `${f.id}: empieza en y=${f.limites.lo[1].toFixed(1)}`);
     }
   });
 
-  test('todas las mallas están del derecho (volumen positivo)', () => {
+  test('miden lo que tiene que medir una criatura de bolsillo', () => {
     for (const f of figuras) {
-      for (const p of f.partes) {
-        assert.ok(volumenConSigno(p.malla) > 0, `${f.id}/${p.id}: triángulos al revés`);
+      const [ancho, alto] = [f.limites.hi[0] - f.limites.lo[0], f.alto];
+      assert.ok(alto > 90 && alto < 160, `${f.id}: mide ${alto.toFixed(0)} de alto`);
+      assert.ok(ancho > 60 && ancho < 120, `${f.id}: mide ${ancho.toFixed(0)} de ancho`);
+      /* Ni un palo ni una torta: la proporción de un personaje. */
+      assert.ok(alto / ancho > 0.9 && alto / ancho < 2, `${f.id}: proporción ${(alto / ancho).toFixed(2)}`);
+    }
+  });
+
+  test('los pesos de cada vértice suman uno, en los roles y en los huesos', () => {
+    for (const f of figuras) {
+      const { rol, hue } = f.malla;
+      for (let i = 0; i < rol.length; i += 4) {
+        const sr = rol[i] + rol[i + 1] + rol[i + 2] + rol[i + 3];
+        const sh = hue[i] + hue[i + 1] + hue[i + 2] + hue[i + 3];
+        assert.ok(Math.abs(sr - 1) < 0.02, `${f.id}: los roles suman ${sr}`);
+        assert.ok(Math.abs(sh - 1) < 0.02, `${f.id}: los huesos suman ${sh}`);
       }
     }
   });
 
-  test('la base es plana y ancha, y el centro de masa cae abajo', () => {
+  test('la copa manda arriba y el cuerpo abajo', () => {
     for (const f of figuras) {
-      const b = base(f);
-      assert.ok(b.plana, `${f.id}: la base no apoya`);
-      assert.ok(b.proporcion >= 0.45, `${f.id}: base ${b.proporcion} del ancho`);
-      const cdm = centroDeMasa(f);
-      assert.ok(cdm < f.alto * 0.5, `${f.id}: centro de masa a ${Math.round((cdm / f.alto) * 100)}%`);
-      assert.ok(cdm < b.radio * 3.2, `${f.id}: alto y flaco, se vuelca`);
-    }
-  });
-
-  test('entra en la cama de una impresora casera', () => {
-    for (const f of figuras) {
-      const a = analizar(f);
-      assert.ok(a.entraEnLaCama, `${f.id}: ${a.tamano.join(' x ')} no entra en ${CAMA.join(' x ')}`);
-    }
-  });
-
-  test('nada más fino que dos hilos de boquilla', () => {
-    for (const f of figuras) {
-      const g = analizar(f).grosorMinimo;
-      if (g !== null) assert.ok(g >= 2, `${f.id}: pieza de ${g} mm`);
-    }
-  });
-
-  test('el límite de voladizo es el de la carcasa', () => {
-    assert.equal(VOLADIZO_MAX, 45);
-  });
-});
-
-describe('adentro entra el hardware', () => {
-  test('la 18650 parada y el módulo del TFT', () => {
-    for (const f of figuras) {
-      const h = entraElHardware(f);
-      assert.ok(h.bateria, `${f.id}: no entra la celda`);
-      assert.ok(h.pantalla, `${f.id}: no entra la pantalla`);
-    }
-  });
-
-  test('la celda está de verdad adentro de la figura, no sólo del bounding', () => {
-    const b = ENVOLVENTE.bateria;
-    for (const f of figuras) {
-      const esquinas = [];
-      for (const x of [-1, 1]) for (const y of [0, 1]) for (const z of [-1, 1]) {
-        esquinas.push([x * (b.ancho / 2), b.desdeY + y * b.alto, b.z + z * (b.fondo / 2)]);
+      const { pos, hue } = f.malla;
+      let arribaCopa = 0; let abajoCopa = 0;
+      for (let i = 0; i < pos.length / 3; i++) {
+        const y = pos[i * 3 + 1];
+        const copa = hue[i * 4 + 1];
+        if (y > f.alto * 0.9) arribaCopa += copa;
+        if (y < f.alto * 0.25) abajoCopa += copa;
       }
-      for (const p of esquinas) assert.ok(dentroDe(f, p), `${f.id}: la celda se sale en ${p.map((n) => Math.round(n))}`);
+      assert.ok(arribaCopa > 0, `${f.id}: arriba no hay nada de copa`);
+      assert.ok(abajoCopa < arribaCopa, `${f.id}: la copa llega hasta los pies`);
     }
   });
 
-  test('la cara queda en una zona bastante plana para el vidrio', () => {
+  test('la cara cae sobre el frente del bicho', () => {
     for (const f of figuras) {
-      const ventana = curvaturaCara(f);
-      const hueco = curvaturaCara(f, ENVOLVENTE.pantalla.ancho + ENVOLVENTE.pared, ENVOLVENTE.pantalla.alto + ENVOLVENTE.pared);
-      assert.ok(ventana.mm < 6, `${f.id}: la ventana se curva ${ventana.mm.toFixed(1)} mm`);
-      assert.ok(hueco.mm < 8, `${f.id}: el hueco del módulo sería de ${hueco.mm.toFixed(1)} mm`);
+      const { pos, uv } = f.malla;
+      let enRango = 0; let alFrente = 0;
+      for (let i = 0; i < uv.length / 2; i++) {
+        const u = uv[i * 2]; const v = uv[i * 2 + 1];
+        if (u > 0 && u < 1 && v > 0 && v < 1) {
+          enRango++;
+          if (pos[i * 3 + 2] > 0) alFrente++;
+        }
+      }
+      assert.ok(enRango > 100, `${f.id}: la cara no tiene dónde pintarse (${enRango})`);
+      assert.ok(alFrente / enRango > 0.4, `${f.id}: la cara cae atrás`);
     }
   });
 
-  test('la pantalla no queda tapada por una pieza de adelante', () => {
-    for (const f of figuras) {
-      const c = f.cara;
-      const delante = f.partes.filter((p) => p.id !== 'cuerpo' && p.dentro([0, c.y, f.limites.hi[2] + 1]));
-      assert.deepEqual(delante.map((p) => p.id), [], `${f.id}: ${delante.map((p) => p.id).join(', ')} tapa la cara`);
-    }
+  test('la unión suave devuelve la distancia menor y su peso', () => {
+    assert.equal(unir(3, 8, 0).d, 3);
+    assert.equal(unir(3, 8, 0).t, 0);
+    const u = unir(2, 2, 4);
+    assert.ok(u.d < 2, 'en el medio la unión abulta');
+    assert.ok(Math.abs(u.t - 0.5) < 1e-9);
+    assert.ok(restar(-5, -1, 0) > -5, 'restar saca material');
+  });
+
+  test('las primitivas dan distancias con signo coherentes', () => {
+    const esfera = { tipo: 'esfera', en: [0, 0, 0], r: 10 };
+    assert.ok(Math.abs(distanciaDe(esfera, 0, 0, 0) + 10) < 1e-9);
+    assert.ok(Math.abs(distanciaDe(esfera, 15, 0, 0) - 5) < 1e-9);
+    const cap = { tipo: 'capsula', a: [0, 0, 0], b: [0, 20, 0], ra: 5, rb: 5 };
+    assert.ok(Math.abs(distanciaDe(cap, 0, 10, 8) - 3) < 1e-9);
+  });
+
+  test('esculpir una esfera da una esfera', () => {
+    const m = superficie({ piezas: [{ tipo: 'esfera', en: [0, 30, 0], r: 20, rol: 'cuerpo' }] }, { paso: 2, roles: ROLES, huesos: HUESOS });
+    const v = volumen(m);
+    const esperado = (4 / 3) * Math.PI * 20 ** 3;
+    assert.ok(Math.abs(v - esperado) / esperado < 0.05, `volumen ${v.toFixed(0)} contra ${esperado.toFixed(0)}`);
+  });
+
+  test('el piso corta lo que se hunde', () => {
+    const receta = { piso: 0, piezas: [{ tipo: 'esfera', en: [0, 5, 0], r: 20, rol: 'cuerpo' }] };
+    const d = campo(receta, HUESOS, ROLES).distancia(0, -3, 0);
+    assert.ok(d > 0, 'bajo el piso no hay criatura');
+  });
+
+  test('dentroDe distingue el adentro del afuera', () => {
+    const f = construir('brote');
+    assert.ok(dentroDe(f, [0, 30, 0]), 'el centro está adentro');
+    assert.ok(!dentroDe(f, [0, 300, 0]), 'el cielo no');
   });
 });
 
-describe('el STL', () => {
+describe('el STL de referencia', () => {
   test('sale binario, con todos los triángulos y cabecera de 84 bytes', () => {
     const f = construir('brote');
-    const stl = stlBinario(f);
-    const n = f.partes.reduce((s, p) => s + p.malla.idx.length / 3, 0);
+    const stl = stlBinario(f.malla, 'Brote');
+    const n = f.malla.idx.length / 3;
     assert.equal(stl.byteLength, 84 + n * 50);
     assert.equal(new DataView(stl.buffer, stl.byteOffset).getUint32(80, true), n);
   });
@@ -151,9 +179,7 @@ describe('cómo se mueve', () => {
   const brote = construir('brote');
 
   test('con el mismo milisegundo da la misma pose', () => {
-    const a = pose(brote, { animo: 'HAPPY' }, 4321);
-    const b = pose(brote, { animo: 'HAPPY' }, 4321);
-    assert.deepEqual(a, b);
+    assert.deepEqual(pose(brote, { animo: 'HAPPY' }, 4321), pose(brote, { animo: 'HAPPY' }, 4321));
   });
 
   test('todos los ánimos tienen pose, y ninguna se va de escala', () => {
@@ -171,6 +197,13 @@ describe('cómo se mueve', () => {
     }
   });
 
+  test('la pose trae siempre los cuatro huesos que el motor necesita', () => {
+    for (const f of figuras) {
+      const p = pose(f, { animo: 'HAPPY' }, 700);
+      assert.deepEqual(Object.keys(p.grupos).sort(), ['brazo-der', 'brazo-izq', 'copa']);
+    }
+  });
+
   test('sólo el contento despega los pies del piso', () => {
     const suben = [];
     for (const animo of ['HAPPY', 'THIRSTY', 'COLD', 'HOT', 'DROWNING', 'SCORCHED', 'SLEEPING']) {
@@ -178,16 +211,13 @@ describe('cómo se mueve', () => {
       for (let t = 0; t < 9000; t += 50) max = Math.max(max, pose(brote, { animo }, t).cuerpo.en[1]);
       if (max > 6) suben.push(animo);
     }
-    /* El ahogo también flota, pero poquito y sin salto: es otra cosa. */
     assert.deepEqual(suben, ['HAPPY']);
   });
 
   test('el mimo no le borra la sed', () => {
     const conSed = pose(brote, { animo: 'THIRSTY' }, 1000).grupos.copa.giro[0];
     const mimado = pose(brote, { animo: 'THIRSTY', mimo: 1 }, 1000).grupos.copa.giro[0];
-    assert.ok(conSed > 10, 'la sed tiene que vencer la copa');
-    assert.ok(mimado < conSed, 'el mimo tiene que levantarla');
-    assert.ok(mimado > 0, 'pero no hasta hacerle olvidar que tiene sed');
+    assert.ok(conSed > 10 && mimado < conSed && mimado > 0);
   });
 
   test('de noche se sienta, aunque esté contento', () => {
@@ -204,18 +234,15 @@ describe('cómo se mueve', () => {
   });
 
   test('el saludo levanta el brazo derecho y lo baja', () => {
-    const arriba = pose(brote, { saludo: true, desde: 0 }, 900).grupos['brazo-der'].giro[2];
-    const despues = pose(brote, { saludo: true, desde: 0 }, 2600).grupos['brazo-der'].giro[2];
+    const arriba = pose(brote, { saludo: true, desdeSaludo: 0 }, 900).grupos['brazo-der'].giro[2];
+    const despues = pose(brote, { saludo: true, desdeSaludo: 0 }, 2600).grupos['brazo-der'].giro[2];
     assert.ok(arriba > 45, `el brazo llegó a ${arriba}°`);
     assert.ok(despues < 25);
   });
 
-  test('cada Rooti mueve todos sus grupos, y ninguno que no tenga', () => {
-    for (const f of figuras) {
-      const p = pose(f, { animo: 'HAPPY' }, 700);
-      const suyos = Object.keys(f.grupos).filter((g) => g !== 'cuerpo').sort();
-      assert.deepEqual(Object.keys(p.grupos).sort(), suyos, f.id);
-    }
+  test('el saludo y el despertar llevan relojes distintos', () => {
+    const a = pose(brote, { saludo: true, desde: 0, desdeSaludo: 5000 }, 5900).grupos['brazo-der'].giro[2];
+    assert.ok(a > 45, 'el saludo empieza cuando dice desdeSaludo');
   });
 
   test('la sombra se achica cuando salta', () => {
@@ -225,13 +252,12 @@ describe('cómo se mueve', () => {
       if (!arriba || p.cuerpo.en[1] > arriba.alto) arriba = { alto: p.cuerpo.en[1], s: p.sombra };
       if (!abajo || p.cuerpo.en[1] < abajo.alto) abajo = { alto: p.cuerpo.en[1], s: p.sombra };
     }
-    assert.ok(arriba.s.esc < abajo.s.esc);
-    assert.ok(arriba.s.alfa < abajo.s.alfa);
+    assert.ok(arriba.s.esc < abajo.s.esc && arriba.s.alfa < abajo.s.alfa);
   });
 
-  test('la matriz de un grupo deja el pivote quieto', () => {
-    const pivote = [0, 108, 0];
-    const m = matrizDeGrupo({ en: [0, 0, 0], giro: [20, 10, -5], esc: [1.1, 0.9, 1.1] }, pivote);
+  test('la matriz de un hueso deja su pivote quieto', () => {
+    const pivote = [0, 88, 0];
+    const m = matrizDeHueso({ en: [0, 0, 0], giro: [20, 10, -5], esc: [1.1, 0.9, 1.1] }, pivote);
     const movido = [
       m[0] * pivote[0] + m[4] * pivote[1] + m[8] * pivote[2] + m[12],
       m[1] * pivote[0] + m[5] * pivote[1] + m[9] * pivote[2] + m[13],
@@ -291,8 +317,7 @@ describe('lo que flota alrededor', () => {
   test('el polvo cae sobre el cuerpo, adelante, y siempre en el mismo lugar', () => {
     for (const f of figuras) {
       const a = motasDePolvo(f, 8, 'nodo-1');
-      const b = motasDePolvo(f, 8, 'nodo-1');
-      assert.deepEqual(a, b, `${f.id}: el polvo se mueve solo`);
+      assert.deepEqual(a, motasDePolvo(f, 8, 'nodo-1'), `${f.id}: el polvo se mueve solo`);
       assert.notDeepEqual(a, motasDePolvo(f, 8, 'nodo-2'));
       assert.equal(a.length, 8);
       for (const m of a) {
@@ -321,11 +346,9 @@ describe('los colores del cuerpo', () => {
     for (const m of MODELOS) {
       for (const r of RAREZAS) {
         const c = coloresDe(pielDe(m.id, r));
-        /* Entre dos colores pegados uno al lado del otro no manda el contraste
-           de luminancia (el de leer texto) sino la distancia de color: un
-           verde y un lavanda igual de claros se distinguen perfecto. */
+        /* Entre dos colores pegados no manda el contraste de luminancia (el de
+           leer texto) sino la distancia de color. */
         assert.ok(distancia(c.cuerpo, c.acento) >= 60, `${m.id}/${r}: el acento se pierde en el cuerpo`);
-        /* El contorno sí es una línea fina, y para eso hace falta luminancia. */
         assert.ok(contraste(c.cuerpo, c.contorno) >= 2.2, `${m.id}/${r}: el contorno no se ve`);
       }
     }
@@ -334,8 +357,7 @@ describe('los colores del cuerpo', () => {
   test('el fondo de escena es claro: va detrás del Rooti, no encima', () => {
     for (const m of MODELOS) {
       for (const r of RAREZAS) {
-        const c = coloresDe(pielDe(m.id, r));
-        assert.ok(contraste(c.escena, '#ffffff') < 1.6, `${m.id}/${r}: la escena es demasiado saturada`);
+        assert.ok(contraste(coloresDe(pielDe(m.id, r)).escena, '#ffffff') < 1.6, `${m.id}/${r}`);
       }
     }
   });
@@ -355,68 +377,30 @@ describe('los colores del cuerpo', () => {
       assert.ok(Math.max(r, g, b) - Math.min(r, g, b) < 24, `${rol} tiene color: ${c[rol]}`);
     }
   });
-});
 
-describe('las mallas', () => {
-  test('ningún triángulo es degenerado ni tiene NaN', () => {
-    for (const f of figuras) {
-      for (const p of f.partes) {
-        assert.ok(p.malla.pos.every(Number.isFinite), `${f.id}/${p.id}: posiciones rotas`);
-        assert.ok(p.malla.idx.length % 3 === 0);
-        let degenerados = 0;
-        for (const t of triangulos(p.malla, p.matriz)) {
-          const u = [t[1][0] - t[0][0], t[1][1] - t[0][1], t[1][2] - t[0][2]];
-          const v = [t[2][0] - t[0][0], t[2][1] - t[0][1], t[2][2] - t[0][2]];
-          const n = Math.hypot(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]);
-          if (n < 1e-6) degenerados++;
-        }
-        /* Los polos de una revolución son un abanico: ahí sí hay costuras de
-           área cero, y son inofensivas mientras sean pocas. */
-        assert.ok(degenerados < p.malla.idx.length / 3 * 0.05, `${f.id}/${p.id}: ${degenerados} triángulos sin área`);
-      }
-    }
-  });
-
-  test('las UV de la cara caen en la ventana y sólo ahí', () => {
-    for (const f of figuras) {
-      const cuerpo = f.partes.find((p) => p.conCara);
-      assert.ok(cuerpo, `${f.id}: ninguna pieza lleva la cara`);
-      let dentro = 0;
-      for (let i = 0; i < cuerpo.malla.uv.length; i += 2) {
-        const [u, v] = [cuerpo.malla.uv[i], cuerpo.malla.uv[i + 1]];
-        if (u > 0 && u < 1 && v > 0 && v < 1) dentro++;
-      }
-      assert.ok(dentro > 8, `${f.id}: la cara no tiene dónde pintarse`);
-    }
-  });
-
-  test('el cuerpo llega hasta el piso y nada se hunde', () => {
-    for (const f of figuras) {
-      assert.ok(Math.abs(f.limites.lo[1]) < 0.01, `${f.id}: empieza en y=${f.limites.lo[1]}`);
-      for (const p of f.partes) {
-        const l = limites(p.malla, p.matriz);
-        assert.ok(l.lo[1] > -0.01, `${f.id}/${p.id}: se hunde ${l.lo[1]} mm`);
-      }
-    }
+  test('los colores llegan al shader en lineal, no en sRGB', () => {
+    const [r] = aRGB('#808080');
+    assert.ok(r > 0.2 && r < 0.25, `gris medio en lineal: ${r}`);
+    assert.deepEqual(aRGB('#000000'), [0, 0, 0]);
+    assert.deepEqual(aRGB('#ffffff'), [1, 1, 1]);
   });
 });
 
 describe('la tabla de figuras es editable sin tocar código', () => {
-  test('los perfiles están en milímetros y suben', () => {
+  test('los bultos están en milímetros y con la cara a una altura mirable', () => {
     for (const [id, f] of Object.entries(FIGURAS)) {
-      const perfil = f.cuerpo.perfil;
-      assert.equal(perfil[0][1], 0, `${id}: no arranca en el piso`);
-      for (let i = 1; i < perfil.length; i++) {
-        assert.ok(perfil[i][1] > perfil[i - 1][1], `${id}: el perfil baja en ${i}`);
-        assert.ok(perfil[i][0] > 0, `${id}: radio ${perfil[i][0]}`);
-      }
+      assert.ok(f.cara.y > 25, `${id}: la cara queda demasiado abajo`);
+      assert.ok(f.piezas.length >= 6, `${id}: sólo ${f.piezas.length} bultos`);
+      assert.equal(f.piso, 0, `${id}: sin piso, la criatura flota`);
     }
   });
 
-  test('la cara está a una altura alcanzable y centrada', () => {
-    for (const [id, f] of Object.entries(FIGURAS)) {
-      assert.ok(f.cara.y > 25, `${id}: la cara queda demasiado abajo`);
-      assert.ok(f.cara.y < f.cuerpo.perfil[f.cuerpo.perfil.length - 1][1], `${id}: la cara queda arriba del cuerpo`);
-    }
+  test('esculpir dos veces el mismo Rooti da la misma malla', () => {
+    const a = construir('musgo');
+    const b = construir('musgo');
+    assert.equal(a, b, 'la figura se guarda en caché');
+    const c = superficie(FIGURAS.musgo, { paso: 3, roles: ROLES, huesos: HUESOS });
+    const d = superficie(FIGURAS.musgo, { paso: 3, roles: ROLES, huesos: HUESOS });
+    assert.deepEqual([...c.pos], [...d.pos]);
   });
 });
