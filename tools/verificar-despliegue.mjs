@@ -82,7 +82,7 @@ ok('renderer de caras (wasm)', wasm.status === 200 && wasm.headers.get('content-
 const caras = await Promise.all(['brote-comun-HAPPY', 'musgo-raro-THIRSTY', 'champi-epico-HAPPY', 'bulbo-dormido'].map((p) => pedir(`/caras/${p}.png`)));
 ok('caras de los cinco Rooties con sus pieles, y la dormida', caras.every((r) => r.status === 200));
 
-const modulos = await Promise.all(['lib/rooties.mjs', 'lib/cuerpo.mjs', 'lib/mascota.mjs', 'vistas/mascota.mjs'].map((m) => pedir(`/${m}`)));
+const modulos = await Promise.all(['lib/rooties.mjs', 'lib/cuerpo.mjs', 'lib/rooti3d/formas.mjs', 'lib/rooti3d/motor.mjs', 'lib/mascota.mjs', 'vistas/mascota.mjs'].map((m) => pedir(`/${m}`)));
 ok('cuerpos y mascota servidos', modulos.every((r) => r.status === 200));
 
 const fuente = await pedir('/fuentes/nunito-latin.woff2');

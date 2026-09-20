@@ -178,7 +178,7 @@ export function escenaCofre({ abrir, alSeguir, alPintar = null, probabilidades =
     escena.classList.add('abierto', `sale-${r.clase}`);
     lanzarConfeti(coloresConfeti(piel, m.rareza));
 
-    const marco = h('div', { class: 'revelado-escena', style: piel ? `--piel-fondo:${piel.fondo}` : '' },
+    const marco = h('div', { class: 'revelado-escena', style: piel ? `--piel-fondo:${piel.escena}` : '' },
       cuerpo({ persona: m.id, rareza: m.rareza, despertar: true, lado: 220, etiqueta: `${m.nombre} despertando con la piel ${piel?.nombre || ''}` }));
     setTimeout(() => {
       render(escena,

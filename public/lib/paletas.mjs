@@ -60,10 +60,15 @@ export const PALETA_POR_DEFECTO = 'rootlab';
 
 export const RAREZA_ES = { comun: 'común', raro: 'rara', epico: 'épica' };
 
-/* La paleta de una piel. Los roles salen de sus cuatro colores: los ojos son
- * el botón principal y la tinta, la piel tiñe paneles y bordes, el rubor es
- * el acento. Los estados (bien, atención, urgente) son fijos y armonizados:
- * una piel lila no puede dejar a "urgente" sin rojo. */
+/* La paleta de una piel. Los roles salen de sus cinco colores: los ojos son
+ * el botón principal y la tinta, el cuerpo tiñe paneles y bordes, lo de arriba
+ * es el destacado y el rubor el acento. Los estados (bien, atención, urgente)
+ * son fijos y armonizados: una piel lila no puede dejar a "urgente" sin rojo.
+ *
+ * El FONDO no es el color del cuerpo sino `escena`, su tinte claro. Desde que
+ * la cara se pinta sobre el cuerpo, el color del cuerpo es fuerte y brillante
+ * —es un juguete de vinilo—, y una pantalla entera de ese color no deja leer
+ * nada: va detrás del Rooti, aguado. */
 function paletaDePiel(m, rareza) {
   const p = m.pieles[rareza];
   return {
@@ -75,22 +80,23 @@ function paletaDePiel(m, rareza) {
     estilo: 'claro',
     descripcion: `La piel ${RAREZA_ES[rareza]} de ${m.nombre}: ${p.nombre}.`,
     colores: [
-      { nombre: 'Fondo', hex: p.fondo, nota: 'La pantalla de la maceta.' },
+      { nombre: 'Escena', hex: p.escena, nota: 'El fondo: el cuerpo, aguado.' },
+      { nombre: 'Cuerpo', hex: p.piel, nota: 'El cuerpo, y el fondo de su cara.' },
       { nombre: 'Ojos', hex: p.ojos, nota: 'Ojos, boca y cejas.' },
-      { nombre: 'Piel', hex: p.piel, nota: 'El cuerpo, la flor o el sombrero.' },
+      { nombre: 'Acento', hex: p.acento, nota: 'Lo de arriba: hojas, flor, sombrero.' },
       { nombre: 'Rubor', hex: p.rubor, nota: 'Las mejillas.' },
     ],
     roles: {
-      fondo: p.fondo,
+      fondo: p.escena,
       base: p.piel,
       primario: p.ojos,
       secundario: p.ojos,
-      destacado: p.rubor,
+      destacado: p.acento,
       acento: p.rubor,
       bien: '#2e7d32',
       atencion: '#e65100',
       urgente: '#c62828',
-      datos: { tierra: p.ojos, temperatura: '#e65100', luz: p.piel, humedad: p.rubor },
+      datos: { tierra: p.ojos, temperatura: '#e65100', luz: p.acento, humedad: p.rubor },
     },
   };
 }

@@ -6,7 +6,7 @@
  * sola al abrir cofres: no hay nada que declarar ni que comprar adentro de
  * la app.
  *
- * Las que faltan se muestran en silueta con su probabilidad, para que el
+ * Las que faltan se muestran dormidas y en gris con su probabilidad, para que el
  * azar sea transparente.
  */
 import { h, render, icono } from '../lib/ui.mjs';
@@ -26,7 +26,9 @@ const pct = (p) => `${Math.round(p * 100)} %`;
 
 function casillero(m, piel) {
   return h('li', { class: `piel rar-${piel.rareza} ${piel.tengo ? 'tengo' : 'falta'}` },
-    h('div', { class: 'piel-escena', style: piel.tengo ? `background:${piel.fondo}` : '' },
+    /* El fondo de la casilla es `escena`, el tinte claro: el color del cuerpo
+       es brillante y detrás del Rooti lo taparía. */
+    h('div', { class: 'piel-escena', style: piel.tengo ? `background:${piel.escena}` : '' },
       cuerpo({
         persona: m.id, rareza: piel.rareza, lado: 92, estatico: true, dormido: !piel.tengo,
         etiqueta: piel.tengo ? `${m.nombre}, piel ${piel.nombre}` : `Una piel ${RAREZA_ES[piel.rareza]} de ${m.nombre} que todavía no tenés`,

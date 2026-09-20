@@ -46,7 +46,7 @@ describe('paletas', () => {
     assert.equal(paletasDisponibles([]).find((p) => p.id === 'vibrant').bloqueada, false);
   });
 
-  test('cada piel de cada Rooti es una paleta clara, con los cuatro colores del firmware', () => {
+  test('cada piel de cada Rooti es una paleta clara, con los cinco colores del firmware', () => {
     assert.equal(PALETAS.filter((x) => x.rooti).length, MODELOS.length * RAREZAS.length);
     for (const m of MODELOS) {
       for (const r of RAREZAS) {
@@ -54,7 +54,12 @@ describe('paletas', () => {
         assert.ok(p, `${m.id}-${r}`);
         assert.equal(p.id, `${m.id}-${r}`);
         assert.equal(p.claro, true);
-        assert.deepEqual(p.colores.map((c) => c.hex), [m.pieles[r].fondo, m.pieles[r].ojos, m.pieles[r].piel, m.pieles[r].rubor]);
+        const piel = m.pieles[r];
+        assert.deepEqual(p.colores.map((c) => c.hex), [piel.escena, piel.piel, piel.ojos, piel.acento, piel.rubor]);
+        /* El fondo de la app es el tinte claro, no el color del cuerpo: el
+           cuerpo es brillante y una pantalla entera de ese color no se lee. */
+        assert.equal(p.roles.fondo, piel.escena);
+        assert.equal(p.roles.base, piel.piel);
       }
     }
     assert.equal(paletaDeRooti('brote').id, 'brote-comun', 'sin rareza, la común');

@@ -130,7 +130,7 @@ exigen HTTPS. Ver [docs/despliegue.md](docs/despliegue.md).
 ## Pruebas
 
 ```bash
-npm test          # 535 pruebas
+npm test          # 546 pruebas
 ```
 
 Flujo completo con un Rooti virtual, cuentas y aislamiento entre cuentas,
@@ -141,8 +141,9 @@ paletas, cabeceras de seguridad y ausencia de recursos de terceros, HTTP en
 subruta, avisos, diagnóstico, tareas, caras, lo que el teléfono le agrega a
 la cara (luz, voz, caricia, modo escritorio), el pronóstico y la previsión
 de riego, VPD y DLI, el enlace del cuidador, las pieles y el cofre (70/25/5),
-la mascota, y que las siluetas de los cuerpos se puedan imprimir sin
-soportes (voladizos de 45° como máximo, base plana, centro de masa bajo), el
+la mascota, que las figuras 3D de los Rooties se puedan imprimir sin soportes
+(voladizos de 45° como máximo, base plana, centro de masa bajo, la 18650 y el
+TFT adentro) y que se animen sin salirse de escala, el
 firmware firmado y sus canales, la fábrica y los modos de confianza, la
 calibración y el riego por volumen, los respaldos cifrados y su restauración,
 el vigía, las métricas y las veinte paletas de día y de noche.

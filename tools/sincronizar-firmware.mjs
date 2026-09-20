@@ -115,10 +115,16 @@ function renderizar({ x, texto }) {
 /* ------------------------------------------------------------ modelos ----- */
 const ADORNOS = { BRILLOS: 'brillos', AURA: 'aura', CORONA: 'corona', LUCES: 'luces' };
 
+/** Un color mezclado hacia el blanco: `t` 0 lo deja igual, 1 lo vuelve blanco. */
+function aclarar(hex, t) {
+  const n = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `#${n.map((v) => Math.round(v + (255 - v) * t).toString(16).padStart(2, '0')).join('')}`;
+}
+
 /** Los Rooties de persona.c: sus datos y las tres pieles de cada uno. */
 export function modelosDesdePersona(c) {
   const cabeza = /\{\s*"([a-z0-9-]+)",\s*"([^"]*)",\s*"([^"]*)",\s*"([^"]*)",/g;
-  const piel = /\{\s*"([^"]*)",\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*([^}]*?)\s*\}/g;
+  const piel = /\{\s*"([^"]*)",\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*RK_HEX\(0x([0-9A-Fa-f]{6})\),\s*([^}]*?)\s*\}/g;
   const salida = [];
   let m;
   while ((m = cabeza.exec(c))) {
@@ -131,7 +137,12 @@ export function modelosDesdePersona(c) {
         nombre: k[1],
         fondo: `#${k[2].toLowerCase()}`, ojos: `#${k[3].toLowerCase()}`,
         piel: `#${k[4].toLowerCase()}`, rubor: `#${k[5].toLowerCase()}`,
-        adornos: [...k[6].matchAll(/RK_ADORNO_([A-Z]+)/g)].map((a) => ADORNOS[a[1]]).filter(Boolean),
+        acento: `#${k[6].toLowerCase()}`,
+        /* El cuerpo es vivo y la cara va pintada encima: para poner algo
+           DETRAS del Rooti (una tarjeta, la escena del cofre) hace falta un
+           tinte claro del mismo color, o el personaje desaparece. */
+        escena: aclarar(`#${k[4].toLowerCase()}`, 0.82),
+        adornos: [...k[7].matchAll(/RK_ADORNO_([A-Z]+)/g)].map((a) => ADORNOS[a[1]]).filter(Boolean),
       };
     }
     salida.push({ idx: salida.length, id: m[1], nombre: m[2], carcasa: m[3], lema: m[4], pieles });
@@ -145,7 +156,10 @@ function escribirRooties(modelos) {
   const q = (s) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
   const pieles = (m) => RAREZAS.map((r) => {
     const p = m.pieles[r];
-    return `      ${r}: { nombre: ${q(p.nombre)}, fondo: ${q(p.fondo)}, ojos: ${q(p.ojos)}, piel: ${q(p.piel)}, rubor: ${q(p.rubor)}, adornos: [${p.adornos.map(q).join(', ')}] },`;
+    return `      ${r}: {
+        nombre: ${q(p.nombre)}, fondo: ${q(p.fondo)}, ojos: ${q(p.ojos)}, piel: ${q(p.piel)},
+        rubor: ${q(p.rubor)}, acento: ${q(p.acento)}, escena: ${q(p.escena)}, adornos: [${p.adornos.map(q).join(', ')}],
+      },`;
   }).join('\n');
   writeFileSync(archivo, `/* rooties.mjs — los cinco Rooties y sus tres pieles.
  *
@@ -156,6 +170,11 @@ function escribirRooties(modelos) {
  *
  * \`idx\` es la posición en la tabla del firmware (la clave del módulo de
  * caras). Cada piel es una rareza del cofre: común, rara o épica.
+ *
+ * Los colores de una piel: \`piel\` es el cuerpo en 3D y también el fondo de
+ * la cara (van iguales: la cara se pinta sobre el cuerpo), \`acento\` es lo de
+ * arriba (hojas, sombrero, flor, brote), \`ojos\` y \`rubor\` la cara, y
+ * \`escena\` —derivado— un tinte claro del cuerpo para poner DETRAS del Rooti.
  */
 
 export const RAREZAS = ['comun', 'raro', 'epico'];

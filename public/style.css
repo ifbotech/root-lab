@@ -994,33 +994,22 @@ body.desk .contenido { max-width: none; padding: 0; }
 .datos .dato-ancho { grid-column: 1 / -1; }
 
 /* ============================================================== CUERPO === */
-/* El Rooti entero (lib/cuerpo.mjs): capas del mismo viewBox apiladas; la
-   pose (cuerpo, ventana y lo de encima) se sienta de noche y ronronea con
-   la caricia, desde la base (208 de 220). */
+/* El Rooti entero (lib/cuerpo.mjs). Todo lo que se mueve lo mueve el motor 3D
+   (lib/rooti3d/): acá no hay ni una animación de CSS, porque una figura que
+   respira por transform y además por vértices respira dos veces. Lo único que
+   queda en la hoja es dónde va cada cosa. */
 .cuerpo { position: relative; flex: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.cuerpo > svg, .cuerpo-pose, .cuerpo-pose > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.cuerpo-atras, .cuerpo-adelante, .cuerpo-encima { pointer-events: none; }
-.cuerpo-pose { transform-origin: 50% 94.5%; animation: respirar 3.6s ease-in-out infinite; transition: transform .6s cubic-bezier(.3, 1.4, .5, 1); }
-.cuerpo-ventana { position: absolute; overflow: hidden; border-radius: 7%; }
-.cuerpo-ventana .cara { width: 100% !important; height: 100% !important; display: block; }
-.cuerpo-brazo { animation: saludar 1.6s ease-in-out infinite; transform-box: view-box; }
-.cuerpo-aura { transform-box: fill-box; transform-origin: center; }
-.cuerpo-aura.late { animation: latir-aura 2.8s ease-in-out infinite; }
-.cuerpo .chispa { transform-box: fill-box; transform-origin: center; animation: titilar 2.4s ease-in-out infinite; }
-.cuerpo .luz-flota { animation: flotar-luz 4.2s ease-in-out infinite; }
-.cuerpo .mota { animation: temblar-mota 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-.cuerpo-zzz text { font-family: var(--fuente); font-weight: 900; animation: zzz 3s ease-in-out infinite; opacity: 0; }
-.cuerpo.noche .cuerpo-pose { animation: none; transform: translateY(2%) scale(1.05, .92); }
-.cuerpo.noche .cuerpo-brazo { animation: none; transform: rotate(18deg); }
-.cuerpo.mimo .cuerpo-pose { animation: ronroneo .16s linear infinite; }
+.cuerpo-3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* La ventana de la cara no se pinta: la cara va pegada sobre el cuerpo en 3D.
+   Existe para que la ficha sepa dónde está la boca cuando le tira un snack, y
+   para tener adentro el canvas del firmware, que es la textura: sigue
+   dibujándose (por eso no es display:none, que lo pausaría) pero no se ve. */
+.cuerpo-ventana { position: absolute; pointer-events: none; }
+.cuerpo-cara-fuente { position: absolute; inset: 0; width: 100% !important; height: 100% !important; opacity: 0; }
+/* Sin WebGL el componente dibuja el cuerpo plano con la cara encima; ahí sí
+   conviene que se vea que está vivo. */
+.cuerpo.sin-3d .cuerpo-3d { animation: respirar 3.6s ease-in-out infinite; transform-origin: 50% 94%; }
 @keyframes respirar { 50% { transform: scale(1.012, .985); } }
-@keyframes saludar { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-14deg); } 60% { transform: rotate(6deg); } }
-@keyframes latir-aura { 50% { transform: scale(1.06); opacity: .75; } }
-@keyframes titilar { 0%, 100% { opacity: .25; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.1); } }
-@keyframes flotar-luz { 0%, 100% { transform: translateY(0); opacity: .35; } 50% { transform: translateY(-9px); opacity: 1; } }
-@keyframes temblar-mota { 50% { transform: translate(.6px, -.8px) rotate(8deg); } }
-@keyframes zzz { 0% { opacity: 0; transform: translate(0, 6px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -14px); } }
-@keyframes ronroneo { 0%, 100% { transform: translate(0, 0) scale(1.02, .98); } 50% { transform: translate(.6px, 0) scale(.99, 1.01); } }
 
 /* La ficha: la escena de la mascota. */
 .heroe-mascota { padding-top: 22px; }
@@ -1078,8 +1067,7 @@ html[data-estilo="claro"] .estante-tabla { box-shadow: 0 8px 0 color-mix(in srgb
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
-  .cuerpo-pose, .cuerpo-brazo, .cuerpo .chispa, .cuerpo .luz-flota, .cuerpo .mota, .cuerpo-aura.late { animation: none !important; }
-  .cuerpo-zzz text { animation: none !important; opacity: 1; }
+  .cuerpo.sin-3d .cuerpo-3d { animation: none !important; }
   .rayos { animation: none; }
   ::view-transition-new(root) { animation: none; }
 }
