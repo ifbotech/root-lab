@@ -134,7 +134,8 @@ describe('herramientas', () => {
   });
 
   test('los Rooties y sus pieles se leen de persona.c', () => {
-    const piel = (n, a) => `{ "${n}", RK_HEX(0xE8F5E9), RK_HEX(0x1B5E20), RK_HEX(0xA5D6A7), RK_HEX(0xFF8A80), ${a} },`;
+    /* Los cinco colores de una piel: fondo, ojos, piel, rubor y acento. */
+    const piel = (n, a) => `{ "${n}", RK_HEX(0xE8F5E9), RK_HEX(0x1B5E20), RK_HEX(0xE8F5E9), RK_HEX(0xFF8A80), RK_HEX(0x43A047), ${a} },`;
     const c = `{
     "brote", "Brote", "carcasas/brote.stl",
     "Lema uno.",
@@ -151,6 +152,9 @@ describe('herramientas', () => {
     assert.equal(m[0].id, 'brote');
     assert.equal(m[0].lema, 'Lema uno.');
     assert.equal(m[0].pieles.comun.fondo, '#e8f5e9');
+    assert.equal(m[0].pieles.comun.acento, '#43a047');
+    /* El fondo de la cara y el cuerpo van iguales: la cara se pinta encima. */
+    assert.equal(m[0].pieles.comun.piel, m[0].pieles.comun.fondo);
     assert.deepEqual(m[0].pieles.epico.adornos, ['corona', 'brillos']);
     assert.equal(m[1].idx, 1);
     assert.deepEqual(m[1].pieles.epico.adornos, ['aura', 'luces']);

@@ -13,6 +13,7 @@
     "dev": "node --disable-warning=ExperimentalWarning --watch server/index.mjs",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.mjs",
     "firmware": "node tools/sincronizar-firmware.mjs",
+    "carcasas": "node tools/rooties-stl.mjs",
     "verificar": "node tools/verificar-despliegue.mjs"
   },
   "dependencies": {

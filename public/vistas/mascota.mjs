@@ -74,7 +74,9 @@ export function heroeMascota(ctx, n, { encabezado = [] } = {}) {
   const { api, avisar } = ctx;
   const bicho = cuerpoDeNodo(n, 220, { fps: 24 });
   const escena = h('div', { class: 'escena-mascota' }, bicho);
-  const fondo = n.revelado ? pielDe(n.modelo, n.rareza || 'comun')?.fondo : null;
+  /* El degradado de atrás va con `escena`, el tinte claro de la piel: el
+     color del cuerpo, que es de juguete de vinilo, no deja leer nada. */
+  const fondo = n.revelado ? pielDe(n.modelo, n.rareza || 'comun')?.escena : null;
   const heroe = h('section', { class: 'heroe heroe-mascota', style: fondo ? `--piel:${fondo}` : '' }, escena, ...encabezado);
   if (!n.revelado) return { heroe, panel: null, bicho };
 

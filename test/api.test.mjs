@@ -65,7 +65,7 @@ describe('el primer encendido hasta la cara', () => {
     assert.equal(cc, 200);
     assert.equal(cofre.id, 'brote');
     assert.equal(cofre.rareza, 'comun', 'con azar 0 sale la común');
-    assert.equal(cofre.piel.nombre, 'Hoja Nueva');
+    assert.equal(cofre.piel.nombre, 'Brote Tierno');
     assert.equal(cofre.piel.id, 'brote-comun');
     assert.equal(cofre.probabilidad, 0.7);
     assert.equal(cofre.nuevo, true);
@@ -573,7 +573,7 @@ describe('la piel del cofre y la mascota', () => {
     assert.equal(c, 200);
     assert.equal(cofre.id, 'musgo');
     assert.equal(cofre.rareza, 'epico', '972 de 1000 cae en el 5 % épico');
-    assert.equal(cofre.piel.nombre, 'Otoño Tostado');
+    assert.equal(cofre.piel.nombre, 'Aurora');
     assert.equal(cofre.probabilidad, 0.05);
     assert.equal(cofre.paleta, 'musgo-epico');
     assert.equal(cofre.pinta, true, 'la app se pinta con la piel');
