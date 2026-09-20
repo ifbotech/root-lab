@@ -68,7 +68,7 @@ describe('el cuidador', () => {
     const a = esc.push.enviados.at(-1);
     assert.equal(a.titulo, 'Ana regó a Rulo');
     assert.equal(a.url, `#planta/${planta.id}`);
-    assert.equal(a.icono, 'caras/brote-comun-HAPPY.png');
+    assert.equal(a.icono, 'caras/kip-comun-HAPPY.png');
 
     /* El dueño lo ve en su planta y la tarea de regar se esconde un rato. */
     [c, r] = await esc.llamar('GET', `/api/plantas/${planta.id}`, { token });

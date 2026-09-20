@@ -550,7 +550,7 @@ export function crearApi({
   const ubicacionPublica = (c) => (c?.ubicacion ? { nombre: c.ubicacion.nombre, pais: c.ubicacion.pais, region: c.ubicacion.region || '' } : null);
 
   /* La colección es de PIELES: cada Rooti tiene tres, y cada cofre abierto
-     suma la que salió ("brote-epico"). */
+     suma la que salió ("kip-epico"). */
   function coleccionDe(cuenta) {
     const tengo = cuenta.coleccion || [];
     return {
@@ -1947,7 +1947,7 @@ export function crearApi({
           await mandarA(db.suscripciones(c.cuenta), {
             titulo: `${quien} regó a ${p.nombre || 'tu planta'}`,
             cuerpo: 'Quedó anotado. Si el sensor no ve el agua en un par de horas, te aviso.',
-            icono: `caras/${p.persona || 'brote'}-${p.rareza || 'comun'}-HAPPY.png`, url: `#planta/${p.id}`, tag: `${p.id}:cuidador`, urgente: false,
+            icono: `caras/${p.persona || 'kip'}-${p.rareza || 'comun'}-HAPPY.png`, url: `#planta/${p.id}`, tag: `${p.id}:cuidador`, urgente: false,
           });
         }
         return [201, { ok: true, t }];

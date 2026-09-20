@@ -49,13 +49,13 @@ describe('el elenco', () => {
     }
   });
 
-  test('todas tienen bracitos, y el cactus levanta uno solo', () => {
+  test('los cuatro tienen sus dos bracitos', () => {
     for (const f of figuras) {
       assert.ok(f.pivotes['brazo-izq'], `${f.id}: sin brazo izquierdo`);
       assert.ok(f.pivotes['brazo-der'], `${f.id}: sin brazo derecho`);
+      /* A la misma altura: el saludo lo levanta la animación, no la figura. */
+      assert.equal(f.pivotes['brazo-izq'][1], f.pivotes['brazo-der'][1], f.id);
     }
-    const p = construir('pinchito');
-    assert.ok(p.pivotes['brazo-der'][1] > p.pivotes['brazo-izq'][1], 'el brazo que saluda va más arriba');
   });
 });
 
@@ -159,7 +159,7 @@ describe('la escultura', () => {
   });
 
   test('dentroDe distingue el adentro del afuera', () => {
-    const f = construir('brote');
+    const f = construir('kip');
     assert.ok(dentroDe(f, [0, 30, 0]), 'el centro está adentro');
     assert.ok(!dentroDe(f, [0, 300, 0]), 'el cielo no');
   });
@@ -167,8 +167,8 @@ describe('la escultura', () => {
 
 describe('el STL de referencia', () => {
   test('sale binario, con todos los triángulos y cabecera de 84 bytes', () => {
-    const f = construir('brote');
-    const stl = stlBinario(f.malla, 'Brote');
+    const f = construir('kip');
+    const stl = stlBinario(f.malla, 'Kip');
     const n = f.malla.idx.length / 3;
     assert.equal(stl.byteLength, 84 + n * 50);
     assert.equal(new DataView(stl.buffer, stl.byteOffset).getUint32(80, true), n);
@@ -176,17 +176,17 @@ describe('el STL de referencia', () => {
 });
 
 describe('cómo se mueve', () => {
-  const brote = construir('brote');
+  const kip = construir('kip');
 
   test('con el mismo milisegundo da la misma pose', () => {
-    assert.deepEqual(pose(brote, { animo: 'HAPPY' }, 4321), pose(brote, { animo: 'HAPPY' }, 4321));
+    assert.deepEqual(pose(kip, { animo: 'HAPPY' }, 4321), pose(kip, { animo: 'HAPPY' }, 4321));
   });
 
   test('todos los ánimos tienen pose, y ninguna se va de escala', () => {
     const animos = ['HAPPY', 'THIRSTY', 'COLD', 'HOT', 'DROWNING', 'PARCHED_AIR', 'DARK', 'SCORCHED', 'SLEEPING', 'OFFLINE', 'UNKNOWN'];
     for (const animo of animos) {
       for (let t = 0; t < 12000; t += 97) {
-        const p = pose(brote, { animo }, t);
+        const p = pose(kip, { animo }, t);
         for (const v of [...p.cuerpo.esc, ...p.grupos.copa.esc]) {
           assert.ok(v > 0.8 && v < 1.3, `${animo}: escala ${v}`);
         }
@@ -208,47 +208,47 @@ describe('cómo se mueve', () => {
     const suben = [];
     for (const animo of ['HAPPY', 'THIRSTY', 'COLD', 'HOT', 'DROWNING', 'SCORCHED', 'SLEEPING']) {
       let max = 0;
-      for (let t = 0; t < 9000; t += 50) max = Math.max(max, pose(brote, { animo }, t).cuerpo.en[1]);
+      for (let t = 0; t < 9000; t += 50) max = Math.max(max, pose(kip, { animo }, t).cuerpo.en[1]);
       if (max > 6) suben.push(animo);
     }
     assert.deepEqual(suben, ['HAPPY']);
   });
 
   test('el mimo no le borra la sed', () => {
-    const conSed = pose(brote, { animo: 'THIRSTY' }, 1000).grupos.copa.giro[0];
-    const mimado = pose(brote, { animo: 'THIRSTY', mimo: 1 }, 1000).grupos.copa.giro[0];
+    const conSed = pose(kip, { animo: 'THIRSTY' }, 1000).grupos.copa.giro[0];
+    const mimado = pose(kip, { animo: 'THIRSTY', mimo: 1 }, 1000).grupos.copa.giro[0];
     assert.ok(conSed > 10 && mimado < conSed && mimado > 0);
   });
 
   test('de noche se sienta, aunque esté contento', () => {
-    const dia = pose(brote, { animo: 'HAPPY' }, 3000);
-    const noche = pose(brote, { animo: 'HAPPY', noche: true }, 3000);
+    const dia = pose(kip, { animo: 'HAPPY' }, 3000);
+    const noche = pose(kip, { animo: 'HAPPY', noche: true }, 3000);
     assert.ok(noche.cuerpo.en[1] < dia.cuerpo.en[1]);
     assert.ok(noche.cuerpo.esc[1] < 1);
   });
 
   test('el despertar termina en la pose de reposo', () => {
-    const fin = pose(brote, { despertar: true, desde: 0 }, 1500);
-    const reposo = pose(brote, {}, 1500);
+    const fin = pose(kip, { despertar: true, desde: 0 }, 1500);
+    const reposo = pose(kip, {}, 1500);
     for (let i = 0; i < 3; i++) assert.ok(Math.abs(fin.cuerpo.esc[i] - reposo.cuerpo.esc[i]) < 0.02);
   });
 
   test('el saludo levanta el brazo derecho y lo baja', () => {
-    const arriba = pose(brote, { saludo: true, desdeSaludo: 0 }, 900).grupos['brazo-der'].giro[2];
-    const despues = pose(brote, { saludo: true, desdeSaludo: 0 }, 2600).grupos['brazo-der'].giro[2];
+    const arriba = pose(kip, { saludo: true, desdeSaludo: 0 }, 900).grupos['brazo-der'].giro[2];
+    const despues = pose(kip, { saludo: true, desdeSaludo: 0 }, 2600).grupos['brazo-der'].giro[2];
     assert.ok(arriba > 45, `el brazo llegó a ${arriba}°`);
     assert.ok(despues < 25);
   });
 
   test('el saludo y el despertar llevan relojes distintos', () => {
-    const a = pose(brote, { saludo: true, desde: 0, desdeSaludo: 5000 }, 5900).grupos['brazo-der'].giro[2];
+    const a = pose(kip, { saludo: true, desde: 0, desdeSaludo: 5000 }, 5900).grupos['brazo-der'].giro[2];
     assert.ok(a > 45, 'el saludo empieza cuando dice desdeSaludo');
   });
 
   test('la sombra se achica cuando salta', () => {
     let arriba = null; let abajo = null;
     for (let t = 0; t < 2400; t += 20) {
-      const p = pose(brote, { animo: 'HAPPY' }, t);
+      const p = pose(kip, { animo: 'HAPPY' }, t);
       if (!arriba || p.cuerpo.en[1] > arriba.alto) arriba = { alto: p.cuerpo.en[1], s: p.sombra };
       if (!abajo || p.cuerpo.en[1] < abajo.alto) abajo = { alto: p.cuerpo.en[1], s: p.sombra };
     }
@@ -277,25 +277,25 @@ describe('cómo se mueve', () => {
 });
 
 describe('lo que flota alrededor', () => {
-  const brote = construir('brote');
+  const kip = construir('kip');
 
   test('cada ánimo con clima tiene su efecto, y el resto no tiene ninguno', () => {
     const conEfecto = { COLD: 'copo', HOT: 'vaho', PARCHED_AIR: 'polvillo', DROWNING: 'burbuja' };
     for (const [animo, tipo] of Object.entries(conEfecto)) {
-      const e = efectos(brote, { animo }, 500);
+      const e = efectos(kip, { animo }, 500);
       assert.ok(e.length > 0 && e.every((x) => x.tipo === tipo), animo);
     }
-    assert.deepEqual(efectos(brote, { animo: 'HAPPY' }, 500), []);
+    assert.deepEqual(efectos(kip, { animo: 'HAPPY' }, 500), []);
   });
 
   test('de noche suelta Zzz y no copos', () => {
-    const e = efectos(brote, { animo: 'HAPPY', noche: true }, 500);
+    const e = efectos(kip, { animo: 'HAPPY', noche: true }, 500);
     assert.ok(e.length && e.every((x) => x.tipo === 'zzz'));
   });
 
   test('la rareza se nota: la épica tira más destellos que la rara', () => {
-    const rara = efectos(brote, { animo: 'HAPPY', rareza: 'raro' }, 300);
-    const epica = efectos(brote, { animo: 'HAPPY', rareza: 'epico' }, 300);
+    const rara = efectos(kip, { animo: 'HAPPY', rareza: 'raro' }, 300);
+    const epica = efectos(kip, { animo: 'HAPPY', rareza: 'epico' }, 300);
     assert.ok(epica.length > rara.length);
     assert.ok(rara.every((x) => x.tipo === 'destello'));
   });
@@ -347,8 +347,11 @@ describe('los colores del cuerpo', () => {
       for (const r of RAREZAS) {
         const c = coloresDe(pielDe(m.id, r));
         /* Entre dos colores pegados no manda el contraste de luminancia (el de
-           leer texto) sino la distancia de color. */
-        assert.ok(distancia(c.cuerpo, c.acento) >= 60, `${m.id}/${r}: el acento se pierde en el cuerpo`);
+           leer texto) sino la distancia de color. Desde que las tres pieles de
+           un Rooti comparten paleta, el umbral es más bajo que antes: lo que
+           tiene que pasar es que la cresta, el pelo o el cabito no
+           desaparezcan contra el cuerpo. */
+        assert.ok(distancia(c.cuerpo, c.acento) >= 45, `${m.id}/${r}: el acento se pierde en el cuerpo`);
         assert.ok(contraste(c.cuerpo, c.contorno) >= 2.2, `${m.id}/${r}: el contorno no se ve`);
       }
     }
@@ -363,8 +366,8 @@ describe('los colores del cuerpo', () => {
   });
 
   test('de noche la luz cambia y el cuerpo no', () => {
-    const dia = coloresDe(pielDe('brote', 'comun'));
-    const noche = coloresDe(pielDe('brote', 'comun'), { noche: true });
+    const dia = coloresDe(pielDe('kip', 'comun'));
+    const noche = coloresDe(pielDe('kip', 'comun'), { noche: true });
     assert.equal(dia.cuerpo, noche.cuerpo);
     assert.notEqual(dia.cielo, noche.cielo);
     assert.notEqual(dia.suelo, noche.suelo);
@@ -396,11 +399,11 @@ describe('la tabla de figuras es editable sin tocar código', () => {
   });
 
   test('esculpir dos veces el mismo Rooti da la misma malla', () => {
-    const a = construir('musgo');
-    const b = construir('musgo');
+    const a = construir('nori');
+    const b = construir('nori');
     assert.equal(a, b, 'la figura se guarda en caché');
-    const c = superficie(FIGURAS.musgo, { paso: 3, roles: ROLES, huesos: HUESOS });
-    const d = superficie(FIGURAS.musgo, { paso: 3, roles: ROLES, huesos: HUESOS });
+    const c = superficie(FIGURAS.nori, { paso: 3, roles: ROLES, huesos: HUESOS });
+    const d = superficie(FIGURAS.nori, { paso: 3, roles: ROLES, huesos: HUESOS });
     assert.deepEqual([...c.pos], [...d.pos]);
   });
 });

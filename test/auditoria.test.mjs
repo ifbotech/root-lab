@@ -197,7 +197,7 @@ describe('los aparatos', () => {
     assert.ok(esc.db.dispositivo('A0B1C2D3E4F5').planta, 'el emulador quedó con planta');
 
     const placa = aparato(esc, { id: 'A0B1C2D3E4F5' });
-    const [cf] = await admin(esc, 'POST', '/api/admin/aparatos', { id: 'A0B1C2D3E4F5', token: placa.token, persona: 'brote', lote: 'L1' });
+    const [cf] = await admin(esc, 'POST', '/api/admin/aparatos', { id: 'A0B1C2D3E4F5', token: placa.token, persona: 'kip', lote: 'L1' });
     assert.equal(cf, 200, 'la fábrica manda');
     const d = esc.db.dispositivo('A0B1C2D3E4F5');
     assert.equal(d.origen, 'fabrica');
@@ -213,7 +213,7 @@ describe('los aparatos', () => {
     const token = await cuenta(esc);
     await esc.llamar('POST', '/api/vinculo', { token, cuerpo: { codigo: vieja.codigo } });
     const otra = aparato(esc, { id: 'B0B1C2D3E4F5' });
-    const [c] = await admin(esc, 'POST', '/api/admin/aparatos', { id: 'B0B1C2D3E4F5', token: otra.token, persona: 'brote' });
+    const [c] = await admin(esc, 'POST', '/api/admin/aparatos', { id: 'B0B1C2D3E4F5', token: otra.token, persona: 'kip' });
     assert.equal(c, 409);
   });
 });

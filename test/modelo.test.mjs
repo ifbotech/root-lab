@@ -204,7 +204,7 @@ describe('vinculo y crecimiento', () => {
   test('los dias sanos deciden la etapa', () => {
     assert.equal(etapaDe(0), 'ESPORA');
     assert.equal(etapaDe(6), 'ESPORA');
-    assert.equal(etapaDe(7), 'RETONO', 'no BROTE: Brote es un Rooti');
+    assert.equal(etapaDe(7), 'RETONO', 'no BROTE: Kip es un Rooti');
     assert.equal(etapaDe(29), 'RETONO');
     assert.equal(etapaDe(30), 'JOVEN');
     assert.equal(etapaDe(90), 'MADURO');
@@ -263,19 +263,19 @@ describe('vinculo y crecimiento', () => {
   test('el orden de la lista no mira la carcasa', () => {
     // Una maceta con sed importa lo mismo la carcasa que tenga puesta.
     const nodos = [
-      { nombre: 'A', modelo: 'bulbo', severity: 'OK' },
-      { nombre: 'B', modelo: 'pinchito', severity: 'URGENT' },
+      { nombre: 'A', modelo: 'plum', severity: 'OK' },
+      { nombre: 'B', modelo: 'blink', severity: 'URGENT' },
     ];
     assert.deepEqual(ordenarNodos(nodos).map((n) => n.nombre), ['B', 'A']);
   });
 
   const pieles = (id) => ['comun', 'raro', 'epico'].map((rareza) => ({ id: `${id}-${rareza}`, rareza }));
-  const catalogo = [{ id: 'brote', pieles: pieles('brote') }, { id: 'musgo', pieles: pieles('musgo') }];
+  const catalogo = [{ id: 'kip', pieles: pieles('kip') }, { id: 'nori', pieles: pieles('nori') }];
 
   test('la colección cuenta pieles, Rooties y épicas', () => {
     const vacia = progresoColeccion(catalogo, []);
     assert.deepEqual(vacia, { tengo: 0, total: 6, completa: false, rooties: 0, epicas: 0 });
-    const algo = progresoColeccion(catalogo, ['brote-comun', 'brote-epico', 'otra-cosa']);
+    const algo = progresoColeccion(catalogo, ['kip-comun', 'kip-epico', 'otra-cosa']);
     assert.equal(algo.tengo, 2, 'lo que no está en el catálogo no cuenta');
     assert.equal(algo.rooties, 1);
     assert.equal(algo.epicas, 1);
@@ -286,9 +286,9 @@ describe('vinculo y crecimiento', () => {
   });
 
   test('la colección deja los Rooties en su orden y las pieles de común a épica', () => {
-    const desordenado = [{ id: 'musgo', pieles: [...pieles('musgo')].reverse() }, { id: 'brote', pieles: pieles('brote') }];
+    const desordenado = [{ id: 'nori', pieles: [...pieles('nori')].reverse() }, { id: 'kip', pieles: pieles('kip') }];
     const o = ordenarColeccion(desordenado);
-    assert.deepEqual(o.map((m) => m.id), ['musgo', 'brote']);
+    assert.deepEqual(o.map((m) => m.id), ['nori', 'kip']);
     assert.deepEqual(o[0].pieles.map((p) => p.rareza), ['comun', 'raro', 'epico']);
     assert.deepEqual(ordenarColeccion(null), []);
   });

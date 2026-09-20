@@ -20,15 +20,33 @@ No son dos dibujos distintos del mismo personaje. Son el mismo personaje
 mirado de dos maneras, y por eso la cara nunca puede decir una cosa en la
 maceta y otra en la app.
 
-## Los cinco
+## Los cuatro
 
-| Rooti | Figura | Rasgo que manda | Personalidad | Cara |
-|---|---|---|---|---|
-| **Brote** | semilla germinando: cuerpo lleno y gordito | dos cotiledones en V sobre un tallo corto | curiosa y entusiasta | ojos redondos enormes con brillos de cachorro, sin cejas |
-| **Musgo** | almohadón bajo y ancho, con montículos en la espalda | dos esporofitos (los tallitos con cápsula que el musgo saca de verdad) | serena y zen | ojos en medialuna "u u", boca de gato |
-| **Pinchito** | cactus barril: panza ancha, arriba y abajo más angosto | una flor de cuatro pétalos y el brazo levantado que saluda | hiperactiva y alegre | ojos en arco "^ ^" que guiñan, sonrisa con dientecito |
-| **Bulbo** | gota gorda que termina en punta, parada sobre sus raíces | un brote con su hoja saliendo de la cabeza | soñadora y un poco mágica | ojos grandes con doble brillo, cejas flotantes |
-| **Champi** | hongo: tallo corto y gordo con su anillo | un sombrero de campana con pintas que le hace de visera | glotona y charlatana | cejas finas, boca ":D" con lengua, pecas |
+Los dibujó Rocío. Cada uno es una actitud antes que una forma: eso es lo que
+tiene que llegar en la cara de 128 × 128 de la maceta y en el cuerpo 3D de la
+app.
+
+| Rooti | Quién es | Lo que se ve de lejos | La cara |
+|---|---|---|---|
+| **Kip** | el piloto audaz: impetuoso, apasionado, dramatiza cuando la cosa se complica | una cresta de tres rulos, como una nube en fila | cejas negras tupidas —con ellas medio grado ya es una actitud—, ojos rasgados de corte angular y media sonrisa ladeada |
+| **Nori** | la crítica sofisticada: estándares altos, juzga en silencio | corte bob recto con flequillo pulcro sobre el visor | ojos almendrados de esquinas rectificadas y pupila grande, pecas, y una boca corta que apenas se curva |
+| **Blink** | el cíclope optimista: vive en su propio plano positivo y siempre sale ileso | dos cuernitos redondeados sobre una cabeza que es casi todo el bicho | UN ojo enorme con iris de bronce; su única mueca son unos dientes de sierra, y dura poco |
+| **Plum** | la berenjenita empática: tímida, leal, un cachorro | cuerpo de gota compacto con su cabito | ojos grandes y húmedos con brillo de súplica, rubores malva |
+
+Sus paletas también son de ella:
+
+| Rooti | Paleta | Colores |
+|---|---|---|
+| Kip | Fiery Red Sunset | `#ffba08` `#faa307` `#d00000` `#03071e` |
+| Nori | Deep Sea Blue | `#0466c8` `#023e7d` `#0353a4` `#979dac` |
+| Blink | Royal Gold & Saffron | `#ffe169` `#fad643` `#edc531` `#c9a227` `#805b10` |
+| Plum | Vivid Nightfall | `#10002b` `#5a189a` `#7b2cbf` `#9d4edd` `#c77dff` `#e0aaff` |
+
+Dos ajustes sobre lo que entregó: el rostro de Nori usa un azul claro de la
+misma familia, porque sobre los cuatro azules originales —todos oscuros— un
+ojo marino no se lee; y la cresta de Kip va en el rojo ladrillo de su paleta y
+no en el ámbar, que contra el cuerpo naranja se perdía. Los dos cambios están
+en `persona.c` y se revierten cambiando un número.
 
 La tabla de datos es una sola: `root-kit/firmware/core/persona.c`.
 `npm run firmware` la copia a `public/lib/rooties.mjs` (nombres, lemas y los
@@ -37,29 +55,21 @@ de las notificaciones.
 
 ### De dónde salen las formas
 
-De dos lados:
-
-1. **De una planta de verdad.** Una semilla germinando, un almohadón de musgo
-   con esporofitos, un cactus barril, un bulbo de cebolla, un hongo con
-   anillo. Es lo que hace que un Rooti se entienda sin explicación.
-2. **De la escuela de los juguetes de vinilo**: cuerpo gordito de una sola
-   pieza, un rasgo botánico que manda arriba, patitas y bracitos mínimos, cara
-   grande pintada sobre el cuerpo, colores saturados y un contorno oscuro que
-   los recorta. Los juegos de criaturas-vegetales con esa estética —Ooblets es
-   el ejemplo evidente— fueron el norte.
+De los dibujos de Rocío, y de una regla de proporción que comparten los
+cuatro: **cabeza grande, cuerpito chico, patitas y bracitos mínimos**. Que
+compartan esqueleto no es pereza, es lo que hace que se lean como un elenco y
+que la misma animación les quede bien a todos. Lo que los distingue es lo de
+arriba —la cresta, el pelo, los cuernitos, el cabito— y las proporciones.
 
 **Lo que NO condiciona las formas es la impresora.** Se probó, y salió mal:
-atar el arte a que la figura se imprimiera sin soportes dejó cinco cuerpos
-redondos y sin carácter. Las carcasas son otro objeto y se diseñan aparte.
+atar el arte a que la figura se imprimiera sin soportes deja cuerpos redondos
+y sin carácter. Las carcasas son otro objeto y se diseñan aparte.
 
-**Distancia legal.** La inspiración es de escuela, no de personaje: tomamos el
-lenguaje (formas simples, paleta saturada, un rasgo botánico por bicho) y no la
-silueta de nadie. Cada Rooti sale de su planta, tiene su nombre, su
-personalidad y su cara propia —la cara es la del firmware, que es nuestra y
-existe desde antes—, y ninguno reproduce las proporciones, el rasgo ni la
-paleta de una criatura concreta de otro juego. Si alguna vez una figura se
-pareciera demasiado a algo existente, se cambia: una figura son treinta
-números en una tabla.
+**Distancia legal.** Los cuatro son originales, de nuestra artista. Las
+referencias de actitud que se usaron para conversar sobre ellos —el piloto
+temerario, el personaje que juzga, la alegría desbordada— son arquetipos, no
+diseños: ninguno reproduce la silueta, las proporciones ni la paleta de un
+personaje existente.
 
 ### Los colores de una piel
 
@@ -71,12 +81,36 @@ Cada piel son **cinco** colores en `persona.c` más los adornos:
 | `fondo` | el fondo de la pantalla; es el mismo valor que `piel` por lo de arriba, y el firmware lo comprueba |
 | `ojos` | ojos, boca, cejas y —aclarado hacia el cuerpo— el contorno de la figura |
 | `rubor` | las mejillas |
-| `acento` | lo de arriba: hojas, flor, sombrero, brote, esporas |
+| `acento` | lo de arriba: la cresta, el pelo, los cuernitos, el cabito |
 | `escena` | derivado (no está en `persona.c`): el cuerpo aguado al 82 %. Es el fondo que va **detrás** del Rooti en la app |
 
 Ese último es importante: desde que el cuerpo es un juguete de vinilo, su
 color es fuerte, y una pantalla entera de ese color no deja leer nada. El
 fondo de la app, de las casillas de la colección y de la ficha usa `escena`.
+
+### La rareza es un acabado, no otro personaje
+
+La paleta es del personaje: es parte de quién es, y las tres pieles la
+comparten. Lo que cambia con la rareza es el **acabado**, elegido para que vaya
+con su carácter:
+
+| Rooti | Común | Rara | Épica |
+|---|---|---|---|
+| Kip | Naranja Piloto | **Ascua**: destellos | **Llamarada**: fuego lamiendo el borde de abajo |
+| Nori | Azul Marea | **Acero**: un filo metálico que cruza la cara | **Cristal**: destello frío y tres esquirlas |
+| Blink | Sol | **Mostaza**: destellos | **Oro Real**: barrido dorado y corona |
+| Plum | Malva | **Amatista**: destellos y aura | **Nocturna**: aura que respira y luces que suben |
+
+Los acabados son **animaciones**, no colores: una épica se reconoce cuando la
+cara está viva, no en una captura. Esto tiene dos ventajas sobre lo de antes
+—una paleta distinta por rareza—: el personaje sigue siendo el mismo con
+cualquier piel, y el premio se nota más, porque el movimiento llama más que un
+color.
+
+Dentro de la misma familia sí se mueven los tonos, para que las tres se
+distingan también quietas. `test_persona.c` lo comprueba: cada piel difiere de
+la anterior en el fondo o en los adornos, la común no trae ninguno, y la épica
+trae uno de los grandes (corona, aura, fuego, cristal, oro o metal).
 
 ## La figura define el Rooti; el cofre, la piel
 
@@ -119,7 +153,7 @@ hace con plantas, aparatos y colecciones.
 **El personaje de la app y la carcasa del aparato son dos objetos distintos.**
 Lo fueron a propósito desde el segundo intento: la primera versión ató el
 diseño de los Rooties a que salieran de una impresora sin soportes, y el
-resultado fueron cinco papas redondas, correctas y sin gracia. Las carcasas se
+resultado fueron cuerpos redondos, correctos y sin gracia. Las carcasas se
 diseñan aparte, en el CAD del hardware; acá mandan el carácter y la silueta.
 
 De los modelos sale igual un STL (`npm run carcasas`), pero como **referencia
@@ -135,7 +169,7 @@ shader de treinta líneas.
 | Archivo | Qué hace |
 |---|---|
 | `esculpir.mjs` | las funciones de distancia, la unión suave y el mallador (surface nets) |
-| `formas.mjs` | los cinco Rooties como listas de bultos, en milímetros |
+| `formas.mjs` | los cuatro Rooties como listas de bultos, en milímetros |
 | `animacion.mjs` | `pose(figura, estado, t)`: funciones puras, sin estado ni DOM |
 | `motor.mjs` | un contexto WebGL compartido por toda la página; dibuja y copia a cada canvas |
 | `geometria.mjs` | las matrices, nada más |
@@ -156,13 +190,14 @@ La receta de un cuerpo se lee de abajo hacia arriba, como se lo dibujaría:
 | torso | el bulto de arriba, donde va la cara |
 | patitas | dos bultos achatados un poco adelante; justo abajo darían un huevo |
 | bracitos | dos cápsulas cortas que salen del torso |
-| copa | lo que lleva arriba y lo identifica: hojas, flor, esporas, sombrero, brote |
-| manchas | bultos metidos adentro que no cambian la forma, sólo el color: la panza clara, las pintas del sombrero |
+| copa | lo que lleva arriba y lo identifica: la cresta, el pelo, los cuernitos, el cabito |
+| manchas | bultos metidos adentro que no cambian la forma, sólo el color: la panza clara |
 
-Un detalle que costó aprender: los surcos **restados** (las costillas del
-cactus, los gajos de la cebolla) parten el cuerpo en tentáculos en cuanto la
-resta llega al borde de la silueta. Las costillas son lomos sumados, no
-zanjas.
+Dos detalles que costaron aprender. Los surcos **restados** parten el cuerpo
+en tentáculos en cuanto la resta llega al borde de la silueta: si hace falta
+una costilla, va sumada como un lomo, no restada como una zanja. Y un rasgo
+que tiene que CONTARSE —los tres rulos de la cresta de Kip— va poco fundido:
+con el menisco grande queda una masa con bultos.
 
 De esa lista sale una malla con surface nets: se recorre una grilla, se busca
 dónde el campo cambia de signo y se cose. Las normales salen del gradiente del
@@ -202,11 +237,10 @@ Medidas de hoy:
 
 | Rooti | Tamaño (mm) | Triángulos |
 |---|---|---|
-| Brote | 83 × 129 × 63 | 12 024 |
-| Musgo | 91 × 99 × 73 | 9 596 |
-| Pinchito | 93 × 106 × 62 | 11 136 |
-| Bulbo | 88 × 116 × 64 | 9 644 |
-| Champi | 87 × 118 × 83 | 14 328 |
+| Kip | 82 × 141 × 72 | 14 000 |
+| Nori | 86 × 116 × 80 | 14 300 |
+| Blink | 87 × 133 × 74 | 14 800 |
+| Plum | 86 × 121 × 73 | 13 000 |
 
 ### Cómo se mueve
 

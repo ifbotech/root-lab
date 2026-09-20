@@ -103,7 +103,7 @@ export function avisosPendientes({ planta, dispositivo, especie = null, ahora, e
   const vencido = (clave, espera) => !enviados[clave] || ahora - enviados[clave] >= espera;
   /* Rutas relativas a la app: el service worker las resuelve contra su
      alcance, así funcionan en la raíz del dominio o en /rootkit/. */
-  const icono = (animo) => `caras/${planta.persona || 'brote'}-${planta.rareza || 'comun'}-${animo}.png`;
+  const icono = (animo) => `caras/${planta.persona || 'kip'}-${planta.rareza || 'comun'}-${animo}.png`;
   const url = `#planta/${planta.id}`;
 
   /* --- caído: si no reporta, lo demás no se sabe --------------------- */

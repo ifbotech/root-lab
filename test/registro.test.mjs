@@ -29,7 +29,7 @@ describe('la forma de una ruta', () => {
 
   test('lo estático es una sola cosa', () => {
     assert.equal(patron('/style.css'), 'estático');
-    assert.equal(patron('/caras/brote-comun-HAPPY.png'), 'estático');
+    assert.equal(patron('/caras/kip-comun-HAPPY.png'), 'estático');
     assert.equal(patron('/v/K7Q2M9XA'), 'estático', 'la app entra por acá, sin API');
   });
 

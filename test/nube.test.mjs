@@ -73,7 +73,7 @@ describe('cofre', () => {
   });
 
   test('la figura define el Rooti: el grabado de fábrica manda, y si no hay, uno fijo por id', () => {
-    assert.equal(personaDeAparato({ id: 'A1', persona_fabrica: 'musgo' }), 'musgo');
+    assert.equal(personaDeAparato({ id: 'A1', persona_fabrica: 'nori' }), 'nori');
     const sin = personaDeAparato({ id: 'AABBCCDDEEFF' });
     assert.ok(MODELOS.some((m) => m.id === sin));
     assert.equal(personaDeAparato({ id: 'AABBCCDDEEFF' }), sin, 'siempre el mismo');
@@ -81,9 +81,13 @@ describe('cofre', () => {
   });
 
   test('los Rooties de la primera tanda pasan a los nuevos', () => {
-    assert.equal(normalizarPersona('KAWAII'), 'brote');
-    assert.equal(normalizarPersona('chica-chill'), 'musgo');
-    assert.equal(normalizarPersona('champi'), 'champi');
+    assert.equal(normalizarPersona('KAWAII'), 'plum', 'el tierno de antes es la berenjenita');
+    assert.equal(normalizarPersona('chica-chill'), 'nori');
+    assert.equal(normalizarPersona('ciclope'), 'blink', 'y el cíclope ya tenía nombre');
+    /* Y los cinco botánicos, que duraron una versión. */
+    assert.equal(normalizarPersona('pinchito'), 'kip');
+    assert.equal(normalizarPersona('champi'), 'blink');
+    assert.equal(normalizarPersona('kip'), 'kip');
     assert.equal(normalizarPersona('nada'), null);
     for (const v of Object.values(LEGADO)) {
       assert.ok(MODELOS.some((m) => m.id === v.persona));
@@ -94,7 +98,7 @@ describe('cofre', () => {
 
 describe('avisos', () => {
   const T = Date.parse('2026-09-16T15:00:00-03:00');
-  const planta = { id: 'p1', nombre: 'Rulo', persona: 'pinchito', rareza: 'raro', revelado: true };
+  const planta = { id: 'p1', nombre: 'Rulo', persona: 'blink', rareza: 'raro', revelado: true };
   const disp = (extra) => ({
     visto: T, usb: false, bat_mv: 3900, animo: 'THIRSTY', sev: 'WATCH',
     ultima: { suelo: 18, temp: 220, hr: 50, lux: 3000 }, ...extra,

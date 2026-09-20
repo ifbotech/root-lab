@@ -62,7 +62,7 @@ describe('paletas', () => {
         assert.equal(p.roles.base, piel.piel);
       }
     }
-    assert.equal(paletaDeRooti('brote').id, 'brote-comun', 'sin rareza, la común');
+    assert.equal(paletaDeRooti('kip').id, 'kip-comun', 'sin rareza, la común');
     assert.equal(paletaDeRooti('kawaii'), null, 'los Rooties de antes ya no pintan');
     assert.equal(paletaPorId('chico-malo'), null);
   });
@@ -70,11 +70,11 @@ describe('paletas', () => {
   test('las pieles se desbloquean abriendo su cofre', () => {
     const sin = paletasDisponibles([]);
     assert.equal(sin.find((p) => p.id === 'vibrant').bloqueada, false);
-    assert.equal(sin.find((p) => p.id === 'brote-comun').bloqueada, true);
-    assert.match(sin.find((p) => p.id === 'brote-comun').porque, /Brote/);
-    const con = paletasDisponibles(['brote-comun']);
-    assert.equal(con.find((p) => p.id === 'brote-comun').bloqueada, false);
-    assert.equal(con.find((p) => p.id === 'brote-raro').bloqueada, true, 'cada piel por separado');
+    assert.equal(sin.find((p) => p.id === 'kip-comun').bloqueada, true);
+    assert.match(sin.find((p) => p.id === 'kip-comun').porque, /Kip/);
+    const con = paletasDisponibles(['kip-comun']);
+    assert.equal(con.find((p) => p.id === 'kip-comun').bloqueada, false);
+    assert.equal(con.find((p) => p.id === 'kip-raro').bloqueada, true, 'cada piel por separado');
   });
 
   test('las cosméticas se ganan cuidando: OLED libre, Cristal con una épica o 60 días, Solar con 180', () => {
@@ -83,11 +83,11 @@ describe('paletas', () => {
     assert.equal(nada.find((p) => p.id === 'cristal').bloqueada, true);
     assert.match(nada.find((p) => p.id === 'cristal').porque, /épica/);
     assert.equal(nada.find((p) => p.id === 'solar').bloqueada, true);
-    assert.equal(paletasDisponibles(['champi-epico']).find((p) => p.id === 'cristal').bloqueada, false);
+    assert.equal(paletasDisponibles(['kip-epico']).find((p) => p.id === 'cristal').bloqueada, false);
     assert.equal(paletasDisponibles([], { diasSanos: 60 }).find((p) => p.id === 'cristal').bloqueada, false);
     assert.equal(paletasDisponibles([], { diasSanos: 59 }).find((p) => p.id === 'cristal').bloqueada, true);
     assert.equal(paletasDisponibles([], { diasSanos: 180 }).find((p) => p.id === 'solar').bloqueada, false);
-    assert.equal(paletasDisponibles(['champi-epico']).find((p) => p.id === 'solar').bloqueada, true, 'una épica no alcanza para Solar');
+    assert.equal(paletasDisponibles(['kip-epico']).find((p) => p.id === 'solar').bloqueada, true, 'una épica no alcanza para Solar');
     assert.equal(cumpleRequisito(null), true);
     for (const p of PALETAS.filter((x) => x.requisito)) assert.ok(p.desbloqueo, `${p.id} dice cómo se gana`);
     for (const p of PALETAS.filter((x) => x.estilo)) assert.match(p.estilo, /^[a-z]+$/);
@@ -190,7 +190,7 @@ describe('las cosméticas por la API', () => {
     assert.equal(c, 200);
     /* Y una piel épica abre Cristal aunque no haya días. */
     const otra = await conRooti(esc);
-    esc.db.cuentaActualizar(esc.db.planta(otra.planta.id).cuenta, { coleccion: ['brote-comun', 'bulbo-epico'] });
+    esc.db.cuentaActualizar(esc.db.planta(otra.planta.id).cuenta, { coleccion: ['kip-comun', 'plum-epico'] });
     [c] = await esc.llamar('PATCH', '/api/cuenta', { token: otra.token, cuerpo: { paleta: 'cristal' } });
     assert.equal(c, 200);
   });

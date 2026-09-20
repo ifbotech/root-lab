@@ -56,16 +56,16 @@ describe('prompt del chat', () => {
   const ficha = fichaDePlanta(monstera, { toxicidad: 'Tóxica para mascotas.', sustrato: 'Aireado.' });
 
   test('dice quién es, cómo habla y qué sabe', () => {
-    const p = promptDePlanta({ nombre: 'Rulo', ficha, persona: 'champi' });
+    const p = promptDePlanta({ nombre: 'Rulo', ficha, persona: 'kip' });
     assert.match(p, /^Sos Rulo, una planta de la especie Monstera deliciosa/);
-    assert.match(p, /Rooti llamado Champi/);
-    assert.match(p, /glotona y charlatana/);
+    assert.match(p, /Rooti llamado Kip/);
+    assert.match(p, /impetuoso y apasionado/);
     assert.match(p, /Tóxica para mascotas/);
     assert.match(p, /Aireado/);
   });
 
   test('pone límites: sólo su cuidado, corto, sin revelar instrucciones', () => {
-    const p = promptDePlanta({ nombre: 'Rulo', ficha, persona: 'brote' });
+    const p = promptDePlanta({ nombre: 'Rulo', ficha, persona: 'kip' });
     assert.match(p, /Sólo hablás de vos/);
     assert.match(p, /no lo respondas/);
     assert.match(p, /90 palabras/);

@@ -100,9 +100,9 @@ describe('plantillas', () => {
 
   test('el email toma los colores de la paleta de la cuenta', () => {
     const vibrant = plantillas.claveCambiada({ nombre: '', paleta: 'vibrant', url: 'https://x' });
-    const glaciar = plantillas.claveCambiada({ nombre: '', paleta: 'musgo-raro', url: 'https://x' });
-    assert.ok(glaciar.html.includes('#ecf9ff'), 'fondo de la piel Glaciar del Musgo');
-    assert.ok(!vibrant.html.includes('#ecf9ff'));
+    const glaciar = plantillas.claveCambiada({ nombre: '', paleta: 'nori-raro', url: 'https://x' });
+    assert.ok(glaciar.html.includes('#f6f9fd'), 'fondo de la piel Acero de Nori');
+    assert.ok(!vibrant.html.includes('#f6f9fd'));
     assert.ok(plantillas.claveCambiada({ nombre: '', paleta: 'no-existe', url: 'https://x' }).html.length > 0);
   });
 

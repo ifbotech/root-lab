@@ -137,19 +137,19 @@ describe('herramientas', () => {
     /* Los cinco colores de una piel: fondo, ojos, piel, rubor y acento. */
     const piel = (n, a) => `{ "${n}", RK_HEX(0xE8F5E9), RK_HEX(0x1B5E20), RK_HEX(0xE8F5E9), RK_HEX(0xFF8A80), RK_HEX(0x43A047), ${a} },`;
     const c = `{
-    "brote", "Brote", "carcasas/brote.stl",
+    "kip", "Kip", "carcasas/kip.stl",
     "Lema uno.",
     /* comentario */
     RK_OJOS_REDONDOS, RK_BRILLO_CACHORRO, 14, 15, 22, -4,
     { ${piel('Hoja', '0u')} ${piel('Lavanda', 'RK_ADORNO_BRILLOS')} ${piel('Cerezo', 'RK_ADORNO_CORONA | RK_ADORNO_BRILLOS')} }
 },
 {
-    "musgo", "Musgo", "carcasas/musgo.stl", "Lema dos.", RK_OJOS_MEDIALUNA,
+    "nori", "Nori", "carcasas/nori.stl", "Lema dos.", RK_OJOS_MEDIALUNA,
     { ${piel('A', '0u')} ${piel('B', '0u')} ${piel('C', 'RK_ADORNO_AURA | RK_ADORNO_LUCES')} }
 },`;
     const m = modelosDesdePersona(c);
     assert.equal(m.length, 2);
-    assert.equal(m[0].id, 'brote');
+    assert.equal(m[0].id, 'kip');
     assert.equal(m[0].lema, 'Lema uno.');
     assert.equal(m[0].pieles.comun.fondo, '#e8f5e9');
     assert.equal(m[0].pieles.comun.acento, '#43a047');

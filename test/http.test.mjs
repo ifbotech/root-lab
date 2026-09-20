@@ -181,7 +181,7 @@ describe('servidor en /rootkit', () => {
       assert.match(await r.text(), /:root\s*\{/);
     }
 
-    const png = await pedir(`${s.url}/rootkit/caras/brote-comun-HAPPY.png`, { headers: { 'accept-encoding': 'br, gzip' } });
+    const png = await pedir(`${s.url}/rootkit/caras/kip-comun-HAPPY.png`, { headers: { 'accept-encoding': 'br, gzip' } });
     assert.equal(png.status, 200);
     assert.equal(png.headers.get('content-encoding'), null, 'un PNG ya está comprimido');
 

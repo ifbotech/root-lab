@@ -1115,7 +1115,7 @@ function migrarV5aV6(db) {
       db.prepare('UPDATE plantas SET persona = ?, rareza = ? WHERE persona = ?').run(nuevo.persona, nuevo.rareza, viejo);
       db.prepare('UPDATE dispositivos SET persona_fabrica = ? WHERE persona_fabrica = ?').run(nuevo.persona, viejo);
     }
-    const PALETA = { 'chico-malo': 'pinchito-comun', 'chica-chill': 'musgo-comun' };
+    const PALETA = { 'chico-malo': 'kip-raro', 'chica-chill': 'nori-comun' };
     const actualizar = db.prepare('UPDATE cuentas SET coleccion = ?, paleta = ? WHERE id = ?');
     for (const c of db.prepare('SELECT id, coleccion, paleta FROM cuentas').all()) {
       let lista = [];

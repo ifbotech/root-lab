@@ -97,7 +97,7 @@ export const indiceRareza = (r) => Math.max(0, RAREZAS.indexOf(r));
 
 /** La imagen fija de una cara, para mientras carga el módulo. */
 export function imagenCara({ persona = '', rareza = 'comun', animo = 'HAPPY', modo = 'cara' } = {}) {
-  if (modo !== 'cara' || !persona) return enBase(`caras/${persona || 'brote'}-dormido.png`);
+  if (modo !== 'cara' || !persona) return enBase(`caras/${persona || 'kip'}-dormido.png`);
   return enBase(`caras/${persona}-${RAREZAS.includes(rareza) ? rareza : 'comun'}-${ANIMOS.includes(animo) ? animo : 'HAPPY'}.png`);
 }
 

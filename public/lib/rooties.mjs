@@ -18,92 +18,74 @@ export const RAREZAS = ['comun', 'raro', 'epico'];
 
 export const MODELOS = [
   {
-    idx: 0, id: 'brote', nombre: 'Brote', carcasa: 'carcasas/brote.stl',
-    lema: 'Todo le parece nuevo. Sobre todo vos.',
+    idx: 0, id: 'kip', nombre: 'Kip', carcasa: 'carcasas/kip.stl',
+    lema: 'Si sale mal, por lo menos sale rápido.',
     pieles: {
       comun: {
-        nombre: 'Brote Tierno', fondo: '#d4f26e', ojos: '#2a2140', piel: '#d4f26e',
-        rubor: '#ff7da6', acento: '#3dbf6b', escena: '#f7fde5', adornos: [],
+        nombre: 'Naranja Piloto', fondo: '#faa307', ojos: '#03071e', piel: '#faa307',
+        rubor: '#ff4d4d', acento: '#d00000', escena: '#feeed2', adornos: [],
       },
       raro: {
-        nombre: 'Cereza', fondo: '#ffb3d0', ojos: '#4a1530', piel: '#ffb3d0',
-        rubor: '#ff6f9e', acento: '#e8457a', escena: '#fff1f7', adornos: ['brillos'],
+        nombre: 'Ascua', fondo: '#ffba08', ojos: '#03071e', piel: '#ffba08',
+        rubor: '#ff4d4d', acento: '#d00000', escena: '#fff3d3', adornos: ['brillos'],
       },
       epico: {
-        nombre: 'Sol Dorado', fondo: '#ffda5c', ojos: '#3a2015', piel: '#ffda5c',
-        rubor: '#ff5e6c', acento: '#ff8a2b', escena: '#fff8e2', adornos: ['corona', 'brillos'],
+        nombre: 'Llamarada', fondo: '#ffba08', ojos: '#03071e', piel: '#ffba08',
+        rubor: '#d00000', acento: '#d00000', escena: '#fff3d3', adornos: ['brillos'],
       },
     },
   },
   {
-    idx: 1, id: 'musgo', nombre: 'Musgo', carcasa: 'carcasas/musgo.stl',
-    lema: 'No hay apuro. Nunca hubo.',
+    idx: 1, id: 'nori', nombre: 'Nori', carcasa: 'carcasas/nori.stl',
+    lema: 'Lo estás haciendo bien. Por ahora.',
     pieles: {
       comun: {
-        nombre: 'Musgo', fondo: '#74ddb5', ojos: '#113329', piel: '#74ddb5',
-        rubor: '#ff8fa0', acento: '#ff9a3c', escena: '#e6f9f2', adornos: [],
+        nombre: 'Azul Marea', fondo: '#b8d0ea', ojos: '#023e7d', piel: '#b8d0ea',
+        rubor: '#0466c8', acento: '#023e7d', escena: '#f2f7fb', adornos: [],
       },
       raro: {
-        nombre: 'Glaciar', fondo: '#94deff', ojos: '#0f2e4a', piel: '#94deff',
-        rubor: '#ff9ec8', acento: '#3f6bff', escena: '#ecf9ff', adornos: ['brillos'],
+        nombre: 'Acero', fondo: '#cbdef2', ojos: '#023e7d', piel: '#cbdef2',
+        rubor: '#0353a4', acento: '#979dac', escena: '#f6f9fd', adornos: [],
       },
       epico: {
-        nombre: 'Aurora', fondo: '#ffa9dc', ojos: '#3d1238', piel: '#ffa9dc',
-        rubor: '#ff5fa8', acento: '#ffe066', escena: '#fff0f9', adornos: ['aura', 'luces'],
+        nombre: 'Cristal', fondo: '#cbdef2', ojos: '#023e7d', piel: '#cbdef2',
+        rubor: '#0466c8', acento: '#0353a4', escena: '#f6f9fd', adornos: ['brillos'],
       },
     },
   },
   {
-    idx: 2, id: 'pinchito', nombre: 'Pinchito', carcasa: 'carcasas/pinchito.stl',
-    lema: '¡Hola! ¿Ya regaste? ¡Hola!',
+    idx: 2, id: 'blink', nombre: 'Blink', carcasa: 'carcasas/blink.stl',
+    lema: '¡Todo increíble! ¿Cuál era el problema?',
     pieles: {
       comun: {
-        nombre: 'Desierto', fondo: '#8fe27a', ojos: '#16361c', piel: '#8fe27a',
-        rubor: '#ff7fb0', acento: '#ff4fa0', escena: '#ebfae7', adornos: [],
+        nombre: 'Sol', fondo: '#ffe169', ojos: '#6b4a0b', piel: '#ffe169',
+        rubor: '#edc531', acento: '#c9a227', escena: '#fffae4', adornos: [],
       },
       raro: {
-        nombre: 'Atardecer', fondo: '#ffb47c', ojos: '#4a1e14', piel: '#ffb47c',
-        rubor: '#ff6a8a', acento: '#e8447f', escena: '#fff2e7', adornos: ['brillos'],
+        nombre: 'Mostaza', fondo: '#fad643', ojos: '#6b4a0b', piel: '#fad643',
+        rubor: '#edc531', acento: '#c9a227', escena: '#fef8dd', adornos: ['brillos'],
       },
       epico: {
-        nombre: 'Neón', fondo: '#9caeff', ojos: '#161b55', piel: '#9caeff',
-        rubor: '#ff6fd8', acento: '#ff4fe0', escena: '#edf0ff', adornos: ['aura', 'luces'],
+        nombre: 'Oro Real', fondo: '#ffe169', ojos: '#6b4a0b', piel: '#ffe169',
+        rubor: '#edc531', acento: '#c9a227', escena: '#fffae4', adornos: ['corona'],
       },
     },
   },
   {
-    idx: 3, id: 'bulbo', nombre: 'Bulbo', carcasa: 'carcasas/bulbo.stl',
-    lema: 'Sueña con flores que todavía no existen.',
+    idx: 3, id: 'plum', nombre: 'Plum', carcasa: 'carcasas/plum.stl',
+    lema: 'Te extrañó, y estuviste todo el tiempo acá.',
     pieles: {
       comun: {
-        nombre: 'Lavanda', fondo: '#c8a4ff', ojos: '#2a1450', piel: '#c8a4ff',
-        rubor: '#ff86c8', acento: '#6fdb7e', escena: '#f5efff', adornos: [],
+        nombre: 'Malva', fondo: '#e0aaff', ojos: '#10002b', piel: '#e0aaff',
+        rubor: '#c77dff', acento: '#5a189a', escena: '#f9f0ff', adornos: [],
       },
       raro: {
-        nombre: 'Menta', fondo: '#8aecd2', ojos: '#0e3a32', piel: '#8aecd2',
-        rubor: '#ff8fb0', acento: '#ff7aa0', escena: '#eafcf7', adornos: ['brillos'],
+        nombre: 'Amatista', fondo: '#c77dff', ojos: '#10002b', piel: '#c77dff',
+        rubor: '#9d4edd', acento: '#5a189a', escena: '#f5e8ff', adornos: ['brillos', 'aura'],
       },
       epico: {
-        nombre: 'Galáctico', fondo: '#9c9cff', ojos: '#15114a', piel: '#9c9cff',
-        rubor: '#ff6fc0', acento: '#ffd84d', escena: '#ededff', adornos: ['aura', 'brillos'],
-      },
-    },
-  },
-  {
-    idx: 4, id: 'champi', nombre: 'Champi', carcasa: 'carcasas/champi.stl',
-    lema: 'Tiene hambre. Y sed. Y ganas de charlar.',
-    pieles: {
-      comun: {
-        nombre: 'Amanita', fondo: '#ffe8cb', ojos: '#3a1e14', piel: '#ffe8cb',
-        rubor: '#ff8a7a', acento: '#ff5a4f', escena: '#fffbf6', adornos: [],
-      },
-      raro: {
-        nombre: 'Violeta', fondo: '#f2e5ff', ojos: '#2a1850', piel: '#f2e5ff',
-        rubor: '#ff8fc8', acento: '#9b6bff', escena: '#fdfaff', adornos: ['brillos'],
-      },
-      epico: {
-        nombre: 'Bioluminiscente', fondo: '#dbfff3', ojos: '#0e3a33', piel: '#dbfff3',
-        rubor: '#ff7fb2', acento: '#22d9a8', escena: '#f9fffd', adornos: ['aura', 'luces'],
+        nombre: 'Nocturna', fondo: '#c77dff', ojos: '#10002b', piel: '#c77dff',
+        rubor: '#e0aaff', acento: '#7b2cbf', escena: '#f5e8ff', adornos: ['aura', 'luces'],
       },
     },
   },

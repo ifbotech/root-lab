@@ -53,7 +53,7 @@ export function escenario({ ia = crearIA({ clave: '' }), tope = {}, limites, arg
 }
 
 /* Un Rooti de mentira que habla igual que el de verdad. */
-export function aparato(esc, { persona = 'brote', id = 'A1B2C3D4E5F6', placa = 'c3-supermini', fw = '0.5.0' } = {}) {
+export function aparato(esc, { persona = 'kip', id = 'A1B2C3D4E5F6', placa = 'c3-supermini', fw = '0.5.0' } = {}) {
   const secreto = randomBytes(16);
   const yo = {
     id, secreto, token: tokenApi(secreto), epoca: 0, reloj: 1000, arranques: 1, fw,
@@ -98,7 +98,7 @@ export async function cuenta(esc, { email = `persona${++nCuentas}@ejemplo.com`, 
 
 let nAparatos = 0;
 /** Una cuenta con un Rooti vinculado, el cofre abierto y la planta con nombre. */
-export async function conRooti(esc, { persona = 'brote', nombre = 'Rulo', token = null } = {}) {
+export async function conRooti(esc, { persona = 'kip', nombre = 'Rulo', token = null } = {}) {
   nAparatos += 1;
   const maceta = aparato(esc, { persona, id: `C0FFEE${String(nAparatos).padStart(6, '0')}` });
   const t = token || await cuenta(esc);

@@ -55,7 +55,7 @@ sólo cambia `db.mjs`.
 
 | Tabla | Clave | Qué guarda |
 |---|---|---|
-| `cuentas` | id | email **cifrado** + índice ciego (único), nombre **cifrado**, hash Argon2id, zona horaria, colección de pieles (`brote-epico`...), paleta, plan, email verificado, ciudad **cifrada** (para el pronóstico) |
+| `cuentas` | id | email **cifrado** + índice ciego (único), nombre **cifrado**, hash Argon2id, zona horaria, colección de pieles (`kip-epico`...), paleta, plan, email verificado, ciudad **cifrada** (para el pronóstico) |
 | `sesiones` | SHA-256 del token | cuenta, creada, último uso, navegador |
 | `tokens_cuenta` | SHA-256 del token | enlaces de un uso: restablecer la contraseña, verificar el email; vencimiento |
 | `dispositivos` | id del aparato | hash del token, último estado, código actual y su época, última lectura, **canal** de firmware, estado de su última actualización, **lote**, **origen** (fábrica, tofu o emulador) y si está deshabilitado |
@@ -80,9 +80,9 @@ todo en una transacción. Las contraseñas scrypt se rehacen con Argon2id la
 próxima vez que la persona entra. De v5 a v6 llegan los cinco Rooties
 botánicos: se agregan `rareza` y `mascota` a `plantas`, los Rooties de la
 primera tanda pasan al más parecido de los nuevos con una rareza equivalente
-(`LEGADO` en `server/cofre.mjs`: el secreto pasa a Bulbo épico) en plantas,
+(`LEGADO` en `server/cofre.mjs`: el secreto pasa a Plum épico) en plantas,
 aparatos y colecciones, y las paletas de Chico Malo y Chica Chill pasan a la
-piel común del Pinchito y del Musgo. De v6 a v7 (actualizaciones por aire,
+piel común del Blink y del Nori. De v6 a v7 (actualizaciones por aire,
 fábrica, calibración y métricas) sólo se agregan columnas y tablas; los
 aparatos que se presentaron como emulador quedan marcados como tales.
 

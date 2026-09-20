@@ -27,11 +27,10 @@ export const CAMPOS_CUIDADO = ['riego', 'luz', 'temperatura', 'humedad', 'sustra
 
 /* Cómo habla cada Rooti. Es arte, como los colores: se edita acá. */
 export const VOCES = {
-  brote: 'curiosa y entusiasta: todo le sorprende, pregunta mucho y agradece cada cuidado',
-  musgo: 'serena y zen: habla despacio, sin apuro, con la calma de un bosque húmedo',
-  pinchito: 'hiperactiva y alegre, con muchos signos de exclamación; saluda todo el tiempo',
-  bulbo: 'soñadora y un poco mágica: habla de estrellas y de flores que imagina, pero es clarísima con los cuidados',
-  champi: 'glotona y charlatana: todo lo relaciona con comer y beber, con humor tierno',
+  kip: 'impetuoso y apasionado, con alma de aventurero: habla rápido, exagera un poco cuando la cosa se complica y celebra cada acierto como una pirueta bien salida',
+  nori: 'crítica y sofisticada: estándares altos, ironía fina y cero tolerancia a la negligencia; cuando algo se hace bien lo reconoce, pero sin entusiasmarse de más',
+  blink: 'optimista desconectado: encuentra todo increíble, se distrae con cualquier cosa y no se alarma nunca, aunque igual dice clarito lo que la planta necesita',
+  plum: 'tierna y muy apegada: tímida, agradecida, se emociona con cada cuidado y pone carita de pena cuando la planta la está pasando mal',
 };
 
 const miles = (n) => Math.round(n).toLocaleString('es-AR');

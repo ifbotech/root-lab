@@ -40,14 +40,23 @@ export function sortearRareza(azar = randomInt) {
  * grabados o una base vieja los guardó. Cada uno pasa al más parecido de los
  * nuevos, y su rareza de caja a la de piel. */
 export const LEGADO = {
-  cresta: { persona: 'pinchito', rareza: 'comun' },
-  kawaii: { persona: 'brote', rareza: 'comun' },
-  visor: { persona: 'bulbo', rareza: 'comun' },
-  ciclope: { persona: 'bulbo', rareza: 'raro' },
-  hongo: { persona: 'champi', rareza: 'raro' },
-  'chico-malo': { persona: 'pinchito', rareza: 'comun' },
-  'chica-chill': { persona: 'musgo', rareza: 'comun' },
-  glitch: { persona: 'bulbo', rareza: 'epico' },
+  /* Los ocho de la primera tanda. */
+  cresta: { persona: 'kip', rareza: 'comun' },
+  kawaii: { persona: 'plum', rareza: 'comun' },
+  visor: { persona: 'nori', rareza: 'comun' },
+  ciclope: { persona: 'blink', rareza: 'comun' },
+  hongo: { persona: 'plum', rareza: 'raro' },
+  'chico-malo': { persona: 'kip', rareza: 'raro' },
+  'chica-chill': { persona: 'nori', rareza: 'comun' },
+  glitch: { persona: 'blink', rareza: 'epico' },
+  /* Y los cinco botánicos, que duraron una versión: cada uno al que más se
+     le parece de los cuatro de Rocío. El Cíclope y el Pinchito comparten el
+     brazo en alto; el Champi y el Bulbo, la cabeza pesada y la ternura. */
+  brote: { persona: 'plum', rareza: 'comun' },
+  musgo: { persona: 'nori', rareza: 'comun' },
+  pinchito: { persona: 'kip', rareza: 'comun' },
+  bulbo: { persona: 'plum', rareza: 'raro' },
+  champi: { persona: 'blink', rareza: 'comun' },
 };
 
 /** Un id de Rooti válido, traduciendo los de la primera tanda; null si no es ninguno. */

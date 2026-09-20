@@ -171,7 +171,7 @@ export function avisoPrevision({ planta, mood, suelo, especie, prevision: pv, re
     clave: 'prevision', urgente: false, tag: `${planta.id}:prevision`,
     titulo: `Se viene calor: ${nombre} va a tener sed antes`,
     cuerpo: `Mañana ${temp(resumen.temp_max_dc)} y ${resumen.hr_min} % de humedad. La tierra está al ${suelo} % y llega a ${especie.soil_min} % en unas ${h} h. Regala esta noche, despacio.`,
-    icono: `caras/${planta.persona || 'brote'}-${planta.rareza || 'comun'}-THIRSTY.png`,
+    icono: `caras/${planta.persona || 'kip'}-${planta.rareza || 'comun'}-THIRSTY.png`,
     url: `#planta/${planta.id}`,
   };
 }

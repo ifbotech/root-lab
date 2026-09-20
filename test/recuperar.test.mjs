@@ -136,47 +136,47 @@ describe('paleta', () => {
     const token = await cuenta(esc);
     let [, yo] = await esc.llamar('GET', '/api/cuenta', { token });
     assert.equal(yo.paleta, 'rootlab');
-    const [c, r] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'pinchito-comun' } });
+    const [c, r] = await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'blink-comun' } });
     assert.equal(c, 403);
-    assert.match(r.error, /Pinchito/);
+    assert.match(r.error, /Blink/);
     assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'inventada' } }))[0], 400);
 
-    const { cofre } = await conRooti(esc, { persona: 'pinchito', token });
-    assert.equal(cofre.id, 'pinchito');
-    assert.equal(cofre.paleta, 'pinchito-comun');
+    const { cofre } = await conRooti(esc, { persona: 'blink', token });
+    assert.equal(cofre.id, 'blink');
+    assert.equal(cofre.paleta, 'blink-comun');
     assert.equal(cofre.pinta, true, 'abrir el cofre pinta la app');
     [, yo] = await esc.llamar('GET', '/api/cuenta', { token });
-    assert.equal(yo.paleta, 'pinchito-comun', 'y queda en la cuenta, para todos sus teléfonos');
+    assert.equal(yo.paleta, 'blink-comun', 'y queda en la cuenta, para todos sus teléfonos');
 
     assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'vibrant' } }))[1].paleta, 'vibrant');
-    assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'pinchito-comun' } }))[1].paleta, 'pinchito-comun');
-    assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'pinchito-epico' } }))[0], 403, 'la épica no salió');
+    assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'blink-comun' } }))[1].paleta, 'blink-comun');
+    assert.equal((await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'blink-epico' } }))[0], 403, 'la épica no salió');
   });
 
   test('cada cofre nuevo pinta con su piel; reabrir uno ya abierto no', async () => {
     const esc = escenario();
     const token = await cuenta(esc);
-    await conRooti(esc, { persona: 'musgo', token });
-    const { cofre, planta } = await conRooti(esc, { persona: 'brote', token });
+    await conRooti(esc, { persona: 'nori', token });
+    const { cofre, planta } = await conRooti(esc, { persona: 'kip', token });
     assert.equal(cofre.pinta, true);
     let [, yo] = await esc.llamar('GET', '/api/cuenta', { token });
-    assert.equal(yo.paleta, 'brote-comun');
-    await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'musgo-comun' } });
+    assert.equal(yo.paleta, 'kip-comun');
+    await esc.llamar('PATCH', '/api/cuenta', { token, cuerpo: { paleta: 'nori-comun' } });
     const [, otraVez] = await esc.llamar('POST', `/api/plantas/${planta.id}/cofre`, { token });
     assert.equal(otraVez.pinta, false);
     [, yo] = await esc.llamar('GET', '/api/cuenta', { token });
-    assert.equal(yo.paleta, 'musgo-comun', 'lo que eligió la persona se respeta');
+    assert.equal(yo.paleta, 'nori-comun', 'lo que eligió la persona se respeta');
   });
 
   test('la colección dice qué paleta pinta cada piel y cuánto sale', async () => {
     const esc = escenario();
-    const { token } = await conRooti(esc, { persona: 'bulbo' });
+    const { token } = await conRooti(esc, { persona: 'plum' });
     const [, col] = await esc.llamar('GET', '/api/coleccion', { token });
-    const bulbo = col.catalogo.find((m) => m.id === 'bulbo');
-    assert.equal(bulbo.pieles.find((p) => p.rareza === 'raro').paleta, 'bulbo-raro');
-    assert.equal(bulbo.tengo, true);
-    assert.equal(col.catalogo.find((m) => m.id === 'champi').tengo, false);
-    assert.equal(col.total, 15, 'cinco Rooties por tres pieles');
+    const plum = col.catalogo.find((m) => m.id === 'plum');
+    assert.equal(plum.pieles.find((p) => p.rareza === 'raro').paleta, 'plum-raro');
+    assert.equal(plum.tengo, true);
+    assert.equal(col.catalogo.find((m) => m.id === 'kip').tengo, false);
+    assert.equal(col.total, 12, 'cuatro Rooties por tres pieles');
     assert.deepEqual(col.probabilidades, { comun: 700, raro: 250, epico: 50 });
     aparato(esc);
   });

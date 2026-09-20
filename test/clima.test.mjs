@@ -119,7 +119,7 @@ describe('el factor y la previsión', () => {
 
   test('el aviso se adelanta sólo cuando vale la pena', () => {
     const base = {
-      planta: { id: 'p1', nombre: 'Rulo', persona: 'bulbo', rareza: 'epico', revelado: true },
+      planta: { id: 'p1', nombre: 'Rulo', persona: 'plum', rareza: 'epico', revelado: true },
       mood: 'HAPPY', suelo: 38, especie: { soil_min: 25 },
       prevision: { horas_hasta_sed: 20, factor: 1.4 },
       resumen: { temp_max_dc: 340, hr_min: 25 },
@@ -133,7 +133,7 @@ describe('el factor y la previsión', () => {
     assert.match(a.cuerpo, /25 %/);
     assert.match(a.cuerpo, /38 %/);
     assert.match(a.cuerpo, /20 h/);
-    assert.equal(a.icono, 'caras/bulbo-epico-THIRSTY.png', 'la cara con la piel de su cofre');
+    assert.equal(a.icono, 'caras/plum-epico-THIRSTY.png', 'la cara con la piel de su cofre');
     assert.equal(avisoPrevision({ ...base, mood: 'THIRSTY' }), null, 'ya tiene sed: ese aviso es otro');
     assert.equal(avisoPrevision({ ...base, prevision: { horas_hasta_sed: 20, factor: 1.05 } }), null, 'el clima no empeora');
     assert.equal(avisoPrevision({ ...base, prevision: { horas_hasta_sed: AVISO_HORAS_MAX + 1, factor: 1.4 } }), null, 'falta mucho');

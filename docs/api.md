@@ -168,7 +168,7 @@ Una planta en `nodes`:
 
 ```json
 {
-  "id": "p3f2a...", "nombre": "Rulo", "modelo": "brote", "rareza": "raro", "revelado": true,
+  "id": "p3f2a...", "nombre": "Rulo", "modelo": "kip", "rareza": "raro", "revelado": true,
   "especie": "monstera", "especie_info": { "...": "..." },
   "ficha": { "cuidados": { "riego": "...", "luz": "...", "sustrato": "..." }, "dificultad": "intermedia", "fuente": "ia" },
   "chat": true,
@@ -230,7 +230,7 @@ y el prompt: [ia.md](ia.md).
 
 | | |
 |---|---|
-| `GET /api/coleccion` | `{ tengo, total, probabilidades, catalogo }`. La colección es de **pieles**: `tengo` son ids como `brote-epico`, `total` es 15, `probabilidades` es `{ comun: 700, raro: 250, epico: 50 }` (milésimas) y cada Rooti del `catalogo` trae `{ id, nombre, lema, carcasa, fondo, tengo, pieles: [{ id, rareza, nombre, fondo, ojos, piel, rubor, adornos, tengo, probabilidad, paleta }] }` |
+| `GET /api/coleccion` | `{ tengo, total, probabilidades, catalogo }`. La colección es de **pieles**: `tengo` son ids como `kip-epico`, `total` es 15, `probabilidades` es `{ comun: 700, raro: 250, epico: 50 }` (milésimas) y cada Rooti del `catalogo` trae `{ id, nombre, lema, carcasa, fondo, tengo, pieles: [{ id, rareza, nombre, fondo, ojos, piel, rubor, adornos, tengo, probabilidad, paleta }] }` |
 | `GET /api/push/clave` | `{ clave }` VAPID pública |
 | `POST /api/push/suscripcion` | `{ suscripcion }` |
 | `DELETE /api/push/suscripcion` | `{ endpoint }` |

@@ -19,7 +19,7 @@ describe('confianza al primer uso, por modos', () => {
 
   test('en producción sólo los emuladores; las placas de verdad las registra la fábrica', async () => {
     const esc = escenario({ opciones: { tofu: 'emulador', adminClave: ADMIN } });
-    const placa = aparato(esc, { id: 'AA0000000001', persona: 'musgo' });
+    const placa = aparato(esc, { id: 'AA0000000001', persona: 'nori' });
     const [c, r] = await placa.sync();
     assert.equal(c, 401);
     assert.match(r.error, /no registrado/);
@@ -28,10 +28,10 @@ describe('confianza al primer uso, por modos', () => {
 
     /* La estación de fábrica la registra con el hash de su token. */
     const [ca, reg] = await admin(esc, 'POST', '/api/admin/aparatos', {
-      id: placa.id.toLowerCase(), token_hash: hash(placa.token), persona: 'musgo', lote: 'L2609',
+      id: placa.id.toLowerCase(), token_hash: hash(placa.token), persona: 'nori', lote: 'L2609',
     });
     assert.equal(ca, 201);
-    assert.deepEqual([reg.origen, reg.lote, reg.persona, reg.canal], ['fabrica', 'L2609', 'musgo', 'estable']);
+    assert.deepEqual([reg.origen, reg.lote, reg.persona, reg.canal], ['fabrica', 'L2609', 'nori', 'estable']);
     assert.equal((await placa.sync())[0], 200, 'ahora sí');
     const lista = (await admin(esc, 'GET', '/api/admin/aparatos'))[1].aparatos;
     assert.equal(lista.length, 2);
@@ -84,30 +84,30 @@ describe('la estación de fábrica', () => {
   test('valida lo que registra y no pisa un aparato que ya es de alguien', async () => {
     const esc = escenario({ opciones: { tofu: 'emulador', adminClave: ADMIN } });
     const token = tokenApi(randomBytes(16));
-    const bueno = { id: 'BB0000000001', token_hash: hash(token), persona: 'brote', lote: 'L1' };
+    const bueno = { id: 'BB0000000001', token_hash: hash(token), persona: 'kip', lote: 'L1' };
     assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', { ...bueno, id: 'corto' }))[0], 400);
     assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', { ...bueno, token_hash: 'x' }))[0], 400);
     assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', { ...bueno, persona: 'dragon' }))[0], 400);
     assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', bueno))[0], 201);
     assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', bueno))[0], 409, 'dos veces no, salvo que se pida');
-    assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', { ...bueno, persona: 'champi', reemplazar: true }))[0], 200);
+    assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', { ...bueno, persona: 'kip', reemplazar: true }))[0], 200);
     /* También se puede mandar el token y que el servidor lo hashee. */
-    assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', { id: 'BB0000000002', token, persona: 'bulbo' }))[0], 201);
+    assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', { id: 'BB0000000002', token, persona: 'plum' }))[0], 201);
     assert.equal((await esc.llamar('POST', '/api/admin/aparatos', { cuerpo: bueno }))[0], 401, 'sin la clave, nada');
   });
 
   test('lo que grabó la fábrica manda sobre lo que diga el aparato', async () => {
     const esc = escenario({ opciones: { tofu: 'emulador', adminClave: ADMIN } });
-    const maceta = aparato(esc, { id: 'CC0000000001', persona: 'pinchito' });
-    await admin(esc, 'POST', '/api/admin/aparatos', { id: maceta.id, token_hash: hash(maceta.token), persona: 'bulbo', lote: 'L7' });
+    const maceta = aparato(esc, { id: 'CC0000000001', persona: 'blink' });
+    await admin(esc, 'POST', '/api/admin/aparatos', { id: maceta.id, token_hash: hash(maceta.token), persona: 'plum', lote: 'L7' });
     const t = await cuenta(esc);
     await maceta.sync({ lote: 'OTRO' });
     const [, planta] = await esc.llamar('POST', '/api/vinculo', { token: t, cuerpo: { codigo: maceta.codigo } });
-    assert.equal(planta.modelo, 'bulbo', 'el Rooti de la figura, no el que dice el firmware');
+    assert.equal(planta.modelo, 'plum', 'el Rooti de la figura, no el que dice el firmware');
     const a = (await admin(esc, 'GET', '/api/admin/aparatos'))[1].aparatos[0];
     assert.equal(a.lote, 'L7');
     assert.equal(a.vinculado, true);
-    assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', { id: maceta.id, token_hash: hash(maceta.token), persona: 'brote', reemplazar: true }))[0], 409,
+    assert.equal((await admin(esc, 'POST', '/api/admin/aparatos', { id: maceta.id, token_hash: hash(maceta.token), persona: 'kip', reemplazar: true }))[0], 409,
       'un aparato que ya es de alguien no se regraba');
   });
 

@@ -285,7 +285,7 @@ describe('los tokens de los agentes', () => {
     const placa = aparato(esc, { id: 'D0D1D2D3D4D5' });
 
     const escrituras = [
-      ['POST', '/api/admin/aparatos', { id: 'D0D1D2D3D4D5', token: placa.token, persona: 'brote' }],
+      ['POST', '/api/admin/aparatos', { id: 'D0D1D2D3D4D5', token: placa.token, persona: 'kip' }],
       ['PATCH', '/api/admin/aparatos/D0D1D2D3D4D5', { deshabilitado: true }],
       ['DELETE', '/api/admin/aparatos/D0D1D2D3D4D5'],
       ['PATCH', '/api/admin/lotes/L1', { deshabilitado: true }],

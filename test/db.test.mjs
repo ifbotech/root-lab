@@ -156,12 +156,12 @@ test('una base v1 (email en claro) se migra a v2 sin perder nada', () => conDir(
   assert.equal(c.id, 'c1');
   assert.equal(c.email, 'vieja@ejemplo.com');
   assert.equal(c.nombre, 'Vera');
-  assert.deepEqual(c.coleccion, ['brote-comun'], 'v6: la colección pasa a pieles de los cinco Rooties');
+  assert.deepEqual(c.coleccion, ['plum-comun'], 'v6: la colección pasa a pieles de los Rooties');
   assert.equal(c.clave_hash, 'scrypt$16384$8$1$sal$hash', 'el hash viejo se conserva: se rehace al entrar');
   assert.equal(c.plan, 'gratis');
   assert.equal(db.sesionCuenta('s1', 2).id, 'c1', 'las sesiones siguen');
   assert.equal(db.planta('p1').nombre, 'Rulo');
-  assert.equal(db.planta('p1').persona, 'bulbo', 'v6: el Rooti secreto de antes pasa al Bulbo');
+  assert.equal(db.planta('p1').persona, 'blink', 'v6: el Rooti secreto de antes pasa a Blink');
   assert.equal(db.planta('p1').rareza, 'epico', 'con su piel épica');
   assert.equal(db.planta('p1').mascota, null, 'la mascota nace la primera vez que se la mira');
   db.chatAgregar({ planta: 'p1', cuenta: 'c1', t: 3, rol: 'persona', texto: 'hola' });

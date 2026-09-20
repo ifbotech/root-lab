@@ -47,40 +47,33 @@ export const VOZ_BASE = Object.freeze({
 });
 
 export const VOCES = {
-  brote: {
+  kip: {
     ...VOZ_BASE,
-    nota: 'Curiosa: triangular, media-aguda, con letras cortas.',
-    onda: 'triangle', fmin: 380, fmax: 620,
-    msPorLetra: 30, ataque: 0.008, caida: 0.075, ganancia: 0.050, filtro: 3200,
-    suenan: 'todas', pausaComa: 150, pausaPunto: 280,
+    nota: 'Cuadrada, rápida y con filo: habla como si ya estuviera acelerando.',
+    onda: 'square', fmin: 300, fmax: 520,
+    msPorLetra: 22, ataque: 0.004, caida: 0.055, ganancia: 0.034, filtro: 2600,
+    suenan: 'todas', pausaComa: 100, pausaPunto: 200,
   },
-  musgo: {
+  nori: {
     ...VOZ_BASE,
-    nota: 'Suave, sin apuro, con silencios: como si pensara cada frase.',
-    onda: 'sine', fmin: 260, fmax: 380,
-    msPorLetra: 46, ataque: 0.035, caida: 0.120, ganancia: 0.060, filtro: 3000,
-    suenan: 'vocales', pausaComa: 260, pausaPunto: 520,
+    nota: 'Sinusoidal, medida y con silencios: deja que la frase caiga sola.',
+    onda: 'sine', fmin: 330, fmax: 470,
+    msPorLetra: 42, ataque: 0.030, caida: 0.110, ganancia: 0.055, filtro: 3200,
+    suenan: 'vocales', pausaComa: 240, pausaPunto: 480,
   },
-  pinchito: {
+  blink: {
     ...VOZ_BASE,
-    nota: 'Cuadrada, aguda y rapidísima: hiperactiva.',
-    onda: 'square', fmin: 420, fmax: 700,
-    msPorLetra: 20, ataque: 0.003, caida: 0.045, ganancia: 0.030, filtro: 2600,
-    suenan: 'todas', pausaComa: 90, pausaPunto: 180,
+    nota: 'Aguda y cantada: cada letra sube por una escala, como quien se sorprende todo el tiempo.',
+    onda: 'triangle', fmin: 520, fmax: 820,
+    msPorLetra: 30, ataque: 0.008, caida: 0.090, ganancia: 0.048, filtro: 4000,
+    suenan: 'todas', pausaComa: 150, pausaPunto: 290, escala: PENTATONICA,
   },
-  bulbo: {
+  plum: {
     ...VOZ_BASE,
-    nota: 'Aguda y cantada: cada letra sube por una escala pentatónica.',
-    onda: 'triangle', fmin: 500, fmax: 800,
-    msPorLetra: 32, ataque: 0.008, caida: 0.090, ganancia: 0.050, filtro: 4000,
-    suenan: 'todas', pausaComa: 160, pausaPunto: 300, escala: PENTATONICA,
-  },
-  champi: {
-    ...VOZ_BASE,
-    nota: 'Grave y rápida, con la boca llena.',
-    onda: 'sawtooth', fmin: 130, fmax: 220,
-    msPorLetra: 22, ataque: 0.004, caida: 0.060, ganancia: 0.045, filtro: 1400,
-    suenan: 'todas', pausaComa: 110, pausaPunto: 220,
+    nota: 'Redonda y tibia, un poco grave: la voz de un cachorro chico.',
+    onda: 'sine', fmin: 240, fmax: 400,
+    msPorLetra: 36, ataque: 0.020, caida: 0.100, ganancia: 0.055, filtro: 2200,
+    suenan: 'todas', pausaComa: 180, pausaPunto: 360,
   },
 };
 
