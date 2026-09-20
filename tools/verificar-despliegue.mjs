@@ -79,8 +79,8 @@ ok('service worker', sw.status === 200 && /javascript/.test(sw.headers.get('cont
 const wasm = await pedir('/caras/rootkit_caras.wasm');
 ok('renderer de caras (wasm)', wasm.status === 200 && wasm.headers.get('content-type') === 'application/wasm');
 
-const caras = await Promise.all(['brote-comun-HAPPY', 'musgo-raro-THIRSTY', 'champi-epico-HAPPY', 'bulbo-dormido'].map((p) => pedir(`/caras/${p}.png`)));
-ok('caras de los cinco Rooties con sus pieles, y la dormida', caras.every((r) => r.status === 200));
+const caras = await Promise.all(['kip-comun-HAPPY', 'nori-raro-THIRSTY', 'blink-epico-HAPPY', 'plum-dormido'].map((p) => pedir(`/caras/${p}.png`)));
+ok('caras de los cuatro Rooties con sus pieles, y la dormida', caras.every((r) => r.status === 200));
 
 const modulos = await Promise.all(['lib/rooties.mjs', 'lib/cuerpo.mjs', 'lib/rooti3d/formas.mjs', 'lib/rooti3d/motor.mjs', 'lib/mascota.mjs', 'vistas/mascota.mjs'].map((m) => pedir(`/${m}`)));
 ok('cuerpos y mascota servidos', modulos.every((r) => r.status === 200));
