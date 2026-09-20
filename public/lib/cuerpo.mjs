@@ -253,6 +253,29 @@ export function cuerpo({
 
   const gl = motor();
 
+  /* El color de fondo que trae la textura de la cara, leído de su esquina. Se
+     cachea: leer un píxel de un canvas fuerza a esperar al GPU, y esto se
+     llama en cada cuadro. */
+  let fondoLeido = null;
+  let fondoClave = '';
+  function fondoDeLaCara() {
+    const clave = `${estado.animo}/${estado.rareza}/${estado.dormido}`;
+    if (clave === fondoClave && fondoLeido) return fondoLeido;
+    try {
+      const c = document.createElement('canvas');
+      c.width = 1; c.height = 1;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.drawImage(fuente, 1, 1, 1, 1, 0, 0, 1, 1);
+      const [r, v, a, alfa] = g.getImageData(0, 0, 1, 1).data;
+      if (!alfa) return colores.cuerpo;
+      fondoClave = clave;
+      fondoLeido = `#${[r, v, a].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+      return fondoLeido;
+    } catch {
+      return colores.cuerpo;
+    }
+  }
+
 
 
   let piel = null;
@@ -303,16 +326,20 @@ export function cuerpo({
       cara: fuente,
       ancho,
       alto,
-      giro: estado.dormido ? -8 : -10,
+      /* Tres cuartos: de frente, un rasgo que va de la frente a la nuca —la
+         cresta de Kip— se ve de punta y no se cuenta. */
+      giro: estado.dormido ? -18 : -24,
       apagado: estado.dormido ? 0.85 : 0,
       sombra: p.sombra,
       luz: estado.noche ? [-0.3, 0.9, 0.42] : [-0.45, 0.78, 0.65],
       /* Lo que dice el sensor de luz: la misma cuenta que usa la cara. */
       ambiente: estado.dormido ? null : iluminacion(estado.lux),
-      /* El fondo que la textura trae y que no hay que pintar. Dormido, el
-         firmware apaga la pantalla y el fondo es negro; despierto, es el color
-         del cuerpo, porque la cara va pintada encima. */
-      fondoCara: estado.dormido ? '#000000' : colores.cuerpo,
+      /* El fondo que la textura trae y que no hay que pintar. No alcanza con
+         suponer que es el color del cuerpo: varios ánimos tiñen la cara entera
+         (el ahogo la pone azulada, el sol la quema), y entonces el cuadro
+         entero pasaría por rasgo y se vería pegado. Se lee del píxel de la
+         esquina de la propia textura, que es fondo por definición. */
+      fondoCara: fondoDeLaCara(),
     });
     const adornos = estado.dormido ? [] : piel.adornos || [];
     dibujarMotas(ctx, estado.motas, proyectar, dpr);

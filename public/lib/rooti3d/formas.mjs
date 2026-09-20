@@ -69,11 +69,18 @@ export const FIGURAS = {
       pata(14, 12, [12, 7, 15]),
       bracito(-1, [-24, 40, 2], [-35, 28, 6], 7, 5.5),
       bracito(1, [24, 40, 2], [35, 28, 6], 7, 5.5),
-      /* La cresta: tres rulos que se cuentan. Fundidos de más quedaban una
-         masa con bultos, así que van altos y apenas pegados entre sí. */
-      { tipo: 'esfera', en: [-24, 112, -2], r: 15, rol: 'acento', hueso: 'copa', fundir: 2.5 },
-      { tipo: 'esfera', en: [0, 124, 2], r: 17, rol: 'acento', hueso: 'copa', fundir: 2.5 },
-      { tipo: 'esfera', en: [25, 110, -3], r: 14, rol: 'acento', hueso: 'copa', fundir: 2.5 },
+      /* LA CRESTA VA DE LA FRENTE A LA NUCA, no de oreja a oreja: es una
+         cresta punk, no una vincha. Tres mechones en gradación decreciente
+         —el de la frente es el más grande y abombado, el de la nuca el más
+         chico— y apenas pegados entre sí, porque tienen que contarse: con el
+         menisco grande quedaba una masa con bultos. */
+      /* Mechones ALARGADOS hacia arriba, no bolas: tres esferas iguales en
+         fila se tapan entre sí y desde el frente se cuenta una sola. Con el
+         perfil en arco —el frontal adelante y abajo, el del medio el más
+         alto, el de la nuca chico— la cresta se lee de frente y de perfil. */
+      { tipo: 'elipsoide', en: [0, 113, 28], r: [13, 16, 13], rol: 'acento', hueso: 'copa', fundir: 2 },
+      { tipo: 'elipsoide', en: [0, 126, 4], r: [11.5, 17, 11.5], rol: 'acento', hueso: 'copa', fundir: 2 },
+      { tipo: 'elipsoide', en: [0, 114, -19], r: [9.5, 12, 9.5], rol: 'acento', hueso: 'copa', fundir: 2 },
     ],
   },
 
