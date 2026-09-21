@@ -57,18 +57,21 @@ export const FIGURAS = {
        la cresta: tres rulos esponjosos en fila, el del medio más alto, que le
        dan la silueta aerodinámica. No es una cabellera: son tres nubes, y por
        eso van poco fundidas entre sí, para que se cuenten. */
-    cara: { y: 78, ancho: 46, alto: 46 },
+    cara: { y: 80, ancho: 48, alto: 48 },
     corona: [0, 118],
     piso: 0,
     piezas: [
-      /* La cabeza manda: es más grande que el cuerpo, como en un muñeco. */
-      { tipo: 'elipsoide', en: [0, 76, 0], r: [41, 37, 36], rol: 'cuerpo' },
-      { tipo: 'elipsoide', en: [0, 34, 0], r: [27, 26, 25], rol: 'cuerpo', fundir: 14 },
-      { tipo: 'elipsoide', en: [0, 26, 16], r: [16, 12, 10], rol: 'claro', fundir: 10 },
+      /* Una sola masa con la cabeza grande, como los otros tres. Se probó con
+         cintura marcada, al estilo muñeco de nieve, y Kip quedaba desarmado:
+         la cabeza se leía más chica que el cuerpo y perdía la silueta de
+         bebé que tiene todo el elenco. */
+      { tipo: 'elipsoide', en: [0, 78, 0], r: [41, 38, 37], rol: 'cuerpo' },
+      { tipo: 'elipsoide', en: [0, 32, 0], r: [29, 27, 27], rol: 'cuerpo', fundir: 13 },
+      { tipo: 'elipsoide', en: [0, 22, 20], r: [17, 12, 11], rol: 'claro', fundir: 10 },
       pata(-14, 12, [12, 7, 15]),
       pata(14, 12, [12, 7, 15]),
-      bracito(-1, [-24, 40, 2], [-35, 28, 6], 7, 5.5),
-      bracito(1, [24, 40, 2], [35, 28, 6], 7, 5.5),
+      bracito(-1, [-25, 40, 3], [-36, 29, 8], 7.5, 6),
+      bracito(1, [25, 40, 3], [36, 29, 8], 7.5, 6),
       /* LA CRESTA VA DE LA FRENTE A LA NUCA, no de oreja a oreja: es una
          cresta punk, no una vincha. Tres mechones en gradación decreciente
          —el de la frente es el más grande y abombado, el de la nuca el más
@@ -78,9 +81,9 @@ export const FIGURAS = {
          fila se tapan entre sí y desde el frente se cuenta una sola. Con el
          perfil en arco —el frontal adelante y abajo, el del medio el más
          alto, el de la nuca chico— la cresta se lee de frente y de perfil. */
-      { tipo: 'elipsoide', en: [0, 113, 28], r: [13, 16, 13], rol: 'acento', hueso: 'copa', fundir: 2 },
-      { tipo: 'elipsoide', en: [0, 126, 4], r: [11.5, 17, 11.5], rol: 'acento', hueso: 'copa', fundir: 2 },
-      { tipo: 'elipsoide', en: [0, 114, -19], r: [9.5, 12, 9.5], rol: 'acento', hueso: 'copa', fundir: 2 },
+      { tipo: 'elipsoide', en: [0, 117, 28], r: [13, 16, 13], rol: 'acento', hueso: 'copa', fundir: 2 },
+      { tipo: 'elipsoide', en: [0, 130, 4], r: [11.5, 17, 11.5], rol: 'acento', hueso: 'copa', fundir: 2 },
+      { tipo: 'elipsoide', en: [0, 118, -19], r: [9.5, 12, 9.5], rol: 'acento', hueso: 'copa', fundir: 2 },
     ],
   },
 
